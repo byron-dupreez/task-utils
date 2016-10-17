@@ -1,0 +1,15 @@
+{
+  "name": "task-utils",
+  "version": "1.0.0",
+  "description": "Utilities for accessing, setting, resetting and updating the status, number of attempts, result and other properties on named tasks on an object, which are used to track task progress",
+  "author": "Byron du Preez",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=4.3.2"
+  },
+  "main": "tasks.js",
+  "scripts": {
+    "test": "tape ./test/*.test.js"
+  },
+  "repository": "https://github.com/byron-dupreez/task-utils"
+}
