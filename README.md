@@ -45,4 +45,4 @@ or with tape:
 $ tape test/*.js
 ```
 
-See the [package source](https://github.com/byron-dupreez/core-functions) for more details.
+See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
