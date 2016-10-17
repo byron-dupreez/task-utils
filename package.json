@@ -1,6 +1,6 @@
 {
   "name": "task-utils",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Utilities for accessing, setting, resetting and updating the status, number of attempts, result and other properties on named tasks on an object, which are used to track task progress",
   "author": "Byron du Preez",
   "license": "Apache-2.0",
