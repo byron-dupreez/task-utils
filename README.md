@@ -1,4 +1,4 @@
-# task-utils v1.0.0
+# task-utils v1.0.1
 
 Utilities for accessing and updating the status, number of attempts, result and arbitrary properties of tasks on 
 an object, which are used to track task progress.
