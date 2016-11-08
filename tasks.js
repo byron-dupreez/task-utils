@@ -1,362 +1,1127 @@
 'use strict';
 
 /**
- * Utilities for accessing, setting, resetting and updating the status, number of attempts, result and other properties
- * of tasks on an object, which are used to track task progress.
+ * Classes and utilities for creating new tasks or operations.
  * @module task-utils/tasks
  * @author Byron du Preez
  */
 module.exports = {
-  getOrCreateTask: getOrCreateTask,
-  getTaskStatus: getTaskStatus,
-  getTaskResult: getTaskResult,
-  getTaskProperty: getTaskProperty,
-  getTaskAttempts: getTaskAttempts,
-  incrementTaskAttempts: incrementTaskAttempts,
-  setTaskStatus: setTaskStatus,
-  setTaskStatusDetails: setTaskStatusDetails,
-  setTaskResult: setTaskResult,
-  setTaskProperty: setTaskProperty,
-  setTaskStatusIfNecessary: setTaskStatusIfNecessary,
-  setTaskStatusAndResultIfNecessary: setTaskStatusAndResultIfNecessary,
-  resetTaskStatusAndResultIfNotComplete: resetTaskStatusAndResultIfNotComplete,
-  ONLY_FOR_TESTING: {
-    getTask: getTask
+  FOR_TESTING: {
+    ensureAllTasksDistinct: ensureAllTasksDistinct,
+    reconstructTaskDefsFromRootTaskLike: reconstructTaskDefsFromRootTaskLike,
+    wrapExecuteTask: wrapExecuteTask
   }
 };
 
-//const strings = require('core-functions/strings');
-
-const statuses = require('./statuses');
-
-// Status singletons
-const INCOMPLETE = statuses.INCOMPLETE;
-const SUCCEEDED = statuses.SUCCEEDED;
-// Status classes
-//const Status = statuses.Status;
-const Incomplete = statuses.Incomplete;
-//const Success = statuses.Success;
-//const Failure = statuses.Failure;
-//const Succeeded = statuses.Succeeded;
-const Failed = statuses.Failed;
-const toStatus = statuses.toStatus;
-// Checks against the status' completed flag
-const isStatusCompleted = statuses.isStatusCompleted;
-// Checks against the type of the status
-const isIncompleteStatus = statuses.isIncompleteStatus;
-//const isFailureStatus = statuses.isFailureStatus;
-//const isSuccessStatus = statuses.isSuccessStatus;
-
 /**
- * Gets the named task (if any) on the named tasks on the given source object; otherwise returns undefined.
- * @param {Object} source the source object from which to get the named tasks
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @return {Object|undefined} the task (if any) or undefined (if none)
- */
-function getTask(source, tasksName, taskName) {
-  const tasks = source[tasksName];
-  if (!tasks) return undefined;
-  return tasks[taskName];
-}
-
-/**
- * Gets the named task (if any) or creates the named task (if none) on the named tasks on the given target object.
- * @param {Object} target the target object from which to get the task or on which to create the task
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @return {Object} the task
- */
-function getOrCreateTask(target, tasksName, taskName) {
-  if (!target[tasksName]) target[tasksName] = {};
-  const tasks = target[tasksName];
-  if (!tasks[taskName]) tasks[taskName] = {};
-  return tasks[taskName];
-}
-
-/**
- * Gets the status of the named task on the named tasks on the given source object (if found) or undefined (if not
- * found).
- * @param {Object} source the source object from which to get the named task's status
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @return {Status|undefined} the status of the named task (if found) or undefined (if not found)
- */
-function getTaskStatus(source, tasksName, taskName) {
-  const task = getTask(source, tasksName, taskName);
-  return task ? task.status : undefined;
-}
-
-/**
- * Gets the result of the named task on the named tasks on the given source object (if found) or undefined (if not
- * found).
- * @param {Object} source the source object from which to get the named task's result
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @return {*|undefined} the result of the named task (if found) or undefined (if not found)
- */
-function getTaskResult(source, tasksName, taskName) {
-  const task = getTask(source, tasksName, taskName);
-  return task ? task.result : undefined;
-}
-
-/**
- * Gets the value of the named property on the named task on the named tasks on the given source object (if found) or
- * undefined (if not found).
- * @param {Object} source the source object from which to get the named task property value
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @param {string} propertyName the name of the property on the named task
- * @return {*|undefined} the value of the named task property (if found) or undefined (if not found)
+ * Definition of a task-like object.
+ * @typedef {{name, state, attempts, subTasks}} TaskLike
+ * @property {string} name - the name of this task
+ * @property {boolean} executable - whether or not this task is executable
+ * @property {TaskStateLike} state - tht state of the task
+ * @property {number} attempts - the number of attempts at the task
+ * @property {TaskLike[]} subTasks - an array of zero or more non-executable, internal subTasks of this task
  */
 
-function getTaskProperty(source, tasksName, taskName, propertyName) {
-  const task = getTask(source, tasksName, taskName);
-  return task ? task[propertyName] : undefined;
-}
+const states = require('./task-states');
+const TaskState = states.TaskState;
+// TaskState direct subclasses
+//const Unstarted = states.Unstarted; // rather use UNSTARTED singleton
+const Success = states.Success;
+const Failure = states.Failure;
+//const Rejection = states.Rejection;
+// Success subclasses
+//const Succeeded = states.Succeeded; // rather use SUCCEEDED singleton
+// Failure subclasses
+const Failed = states.Failed;
+// Rejection subclasses
+const Rejected = states.Rejected;
+const Discarded = states.Discarded;
+const Abandoned = states.Abandoned;
+
+const taskDefs = require('./task-defs');
+const TaskDef = taskDefs.TaskDef;
+
+const Strings = require('core-functions/strings');
+const isNotBlank = Strings.isNotBlank;
+const stringify = Strings.stringify;
+
+const Promises = require('core-functions/promises');
+const isPromise = Promises.isPromise;
+
+const Arrays = require('core-functions/arrays');
+const isDistinct = Arrays.isDistinct;
+
+//======================================================================================================================
+// Task "class"
+//======================================================================================================================
 
 /**
- * Gets the number of attempts at the named task on the named tasks on the given source object (if found) or zero (if
- * not found).
- * @param {Object} source the source object from which to get the named task's number of attempts
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @return {number} the number of attempts at the named task (if found) or zero (if not found)
- */
-function getTaskAttempts(source, tasksName, taskName) {
-  const task = getTask(source, tasksName, taskName);
-  return task && task.attempts ? task.attempts : 0;
-}
-
-/**
- * Increments the number of attempts at the named task on the named tasks on the given target object.
- * @param {Object} target the target object on which to increment the number of attempts at the named task
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @return {Object} the updated target object
- */
-function incrementTaskAttempts(target, tasksName, taskName) {
-  const task = getOrCreateTask(target, tasksName, taskName);
-  const previousAttempts = task.attempts ? task.attempts : 0;
-  task.attempts = previousAttempts + 1;
-  return target;
-}
-
-/**
- * Sets the status on the named task on the named tasks on the given target object to the given status; and, if the
- * given incrementAttempts is true (and this is the first update of the task's status in a given run), then also
- * increments the number of attempts on the named task; and finally returns the updated target object.
+ * A task or operation, which can be either an executable task or a non-executable, internal sub-task based on the task
+ * definition from which it is constructed.
  *
- * If the named tasks object does not yet exist on the target object, it will be added to the target as a new object
- * property (named with the given tasksName).
+ * A non-executable, internal sub-task is a task that will be executed and managed internally during the execution of
+ * its parent task and is ONLY used to enable tracking of its state.
  *
- * Similarly, if the named task object does not yet exist on the named tasks object, it will be added to the named tasks
- * object as a new object property (named with the given taskName).
- *
- * @param {Object} target the target object to update with the named task status
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks to update
- * @param {Status} status the status to set on the named task's status property
- * @param {boolean} incrementAttempts whether or not to also increment the named task's number of attempts
- * @return {Object} the updated target object
+ * @typedef {Object} Task
+ * @property {string} name - the name of the task
+ * @property {TaskDef} definition - the definition of this task, from which it was created
+ * @property {boolean} executable - whether or not this task is executable
+ * @property {Function|undefined} [execute] - the optional function to be executed when this task is started
+ * @property {Task|undefined} [parent] - an optional parent super-task, which can be a top-level task or sub-task
+ * @property {Task[]} subTasks - an array of zero or more non-executable, internal subTasks, which MUST be managed
+ * internally by their top-level parent task's execute function
+ * @property {TaskState} state - tht state of the task
+ * @property {number} attempts - the number of attempts at the task
+ * @property {*} [result] - the result of the task (if any)
  */
-function setTaskStatus(target, tasksName, taskName, status, incrementAttempts) {
-  const task = getOrCreateTask(target, tasksName, taskName);
+class Task {
+  /**
+   * Constructs a task, which can be either an executable task or a non-executable, internal sub-task based on the
+   * given task definition and optional parent task. If parent is specified then this new task is assumed to be a
+   * sub-task of the given parent task and the given taskDef must be a non-executable, internal sub-task definition
+   *
+   * @param {TaskDef} taskDef - the definition of this task
+   * @param {Task|null|undefined} [parent] - an optional parent task
+   */
+  constructor(taskDef, parent) {
+    // Validate the given task definition
+    // -----------------------------------------------------------------------------------------------------------------
+    // Ensure the given task definition is valid
+    if (!(taskDef instanceof TaskDef)) {
+      throw new Error(`Cannot create a task without a valid task definition (${stringify(taskDef)})`);
+    }
 
-  const oldStatus = task.status;
+    const taskName = taskDef.name;
 
-  // Set the task's status to the given status
-  task.status = status;
+    // Validate the given parent
+    // -----------------------------------------------------------------------------------------------------------------
+    if (parent) {
+      // Creating a non-executable, internal sub-task, so:
+      // Ensure that the parent task is a valid task
+      if (!(parent instanceof Task)) {
+        throw new Error(`Cannot create a sub-task with an invalid super-task (${stringify(parent)})`);
+      }
+      // Ensure (for now) that if a parent task is defined then the given taskDef is a non-executable, internal sub-task definition
+      if (taskDef.isExecutable()) {
+        throw new Error(`Cannot create a sub-task for super-task (${stringify(parent)}) with an executable task definition (${stringify(taskDef)})`);
+      }
+      // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
+      if (!areSubTaskNamesDistinct(parent, taskName)) {
+        throw new Error(`Cannot add a sub-task (${taskName}) with a duplicate name to super-task (${parent.name}) with existing sub-tasks ${Strings.stringify(parent.subTasks.map(t => t.name))}`);
+      }
+    } else {
+      // Creating an executable, top-level task, so:
+      // Ensure that a top-level task (without a parent) does have an execute function, since a non-executable, top-
+      // level task would be useless
+      if (!taskDef.isExecutable()) {
+        throw new Error(`Cannot create a top-level task (${taskName}) from a definition that is NOT executable`);
+      }
+      // Ensure that task definition's execute function (if defined) is actually executable (i.e. a valid function)
+      if (typeof taskDef.execute !== 'function') {
+        throw new Error(`Cannot create a top-level task (${taskName}) from a definition with an invalid execute function`);
+      }
+    }
 
-  // Only increment the number of attempts if requested and if the old task status is undefined or Incomplete (i.e.
-  // only increment a task's number of attempts ONCE during any particular run)
-  if (incrementAttempts && (!oldStatus || isIncompleteStatus(oldStatus))) { //TODO check if we want this
-    incrementTaskAttempts(target, tasksName, taskName);
+    // Finalise the new task's parent and execute function
+    const taskParent = parent ? parent : undefined;
+    const taskExecute = taskDef.execute;
+    const executable = !!taskExecute;
+    const self = this;
+
+    // Finally create each property (other than subTasks & subTasksByName) as read-only (writable: false and
+    // configurable: false are defaults)
+    // -----------------------------------------------------------------------------------------------------------------
+    Object.defineProperty(this, 'name', {value: taskName, enumerable: true});
+    Object.defineProperty(this, 'definition', {value: taskDef, enumerable: false});
+    Object.defineProperty(this, 'executable', {value: executable, enumerable: true});
+    // Set this task's execute function to first increment its number of attempts and then invoke the original, actual execute function
+    Object.defineProperty(this, 'execute', {
+      value: executable ? wrapExecuteTask(self, taskExecute) : undefined,
+      enumerable: false
+    });
+
+    // Define a subTasks property for this task's subTasks (if any)
+    // -----------------------------------------------------------------------------------------------------------------
+    // NB Even though not ideal, we MUST define subTasks and subTasksByName properties before creating and adding any
+    // subTasks, since the construction of a sub-task needs the parent's subTasks property to already exist
+    const subTasks = [];
+    Object.defineProperty(this, '_subTasks', {value: subTasks, enumerable: true});
+
+    // Define a subTasksByName property, which will be a map of each of the task's subTasks keyed by their names for
+    // convenient look up by name
+    // -----------------------------------------------------------------------------------------------------------------
+    const subTasksByName = new Map();
+    Object.defineProperty(this, '_subTasksByName', {value: subTasksByName, enumerable: false});
+
+    // Create each of this task's subTasks (if any), which will also result in them being added to subTasks and mapped
+    // into subTasksByName
+    // -----------------------------------------------------------------------------------------------------------------
+    taskDef.subTaskDefs.forEach(subTaskDef => new Task(subTaskDef, this));
+
+    // Final validation of task hierarchy
+    // -----------------------------------------------------------------------------------------------------------------
+    if (taskParent) {
+      // Ensure that the proposed combined hierarchy to be formed from this new task and its parent will still be valid
+      // and will ONLY contain distinct tasks
+      // NB: Must check this after adding subTasks, but before setting parent!
+      ensureAllTasksDistinct(taskParent, this);
+    }
+
+    // Link this new task to its parent (if any)
+    // -----------------------------------------------------------------------------------------------------------------
+    Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false});
+    if (taskParent) {
+      // Ensure that the parent task contains this new task as a subTask
+      taskParent._subTasks.push(this);
+      taskParent._subTasksByName.set(taskName, this);
+    }
+
+    // Set the task's initial state, attempts and result
+    this._state = TaskState.UNSTARTED;
+    this._attempts = 0;
+    //TODO remove attemptIncrements?
+    Object.defineProperty(this, '_attemptIncrements', {value: 0, writable: true, enumerable: false});
+
+    // The task's result must NOT be enumerable, since the result may end up being an object that references this task,
+    // which would create a circular dependency
+    Object.defineProperty(this, '_result', {value: undefined, writable: true, enumerable: false});
+
+    Object.defineProperty(this, '_slaveTasks', {value: [], writable: true, enumerable: false});
   }
-  return target;
+
+  /** The state of this task **/
+  get subTasks() {
+    return this._subTasks;
+  }
+
+  /** The slave tasks of this master task or an empty list of not a master task **/
+  get slaveTasks() {
+    return this._slaveTasks;
+  }
+
+  /** The state of this task **/
+  get state() {
+    return this._state;
+  }
+
+  /** The number of attempts at this task **/
+  get attempts() {
+    return this._attempts;
+  }
+
+  /** The result of this task (if executed successfully) **/
+  get result() {
+    return this._result;
+  }
+
+  /** The number of times that the number of attempts at this task has been incremented since its last reset **/
+  get attemptIncrements() {
+    return this._attemptIncrements;
+  }
+
+  /**
+   * Customized toJSON method, which is used by {@linkcode JSON.stringify} to output the internal _state and _attempts
+   * properties without their underscores.
+   */
+  toJSON() {
+    return {
+      name: this.name,
+      executable: this.executable,
+      state: this._state,
+      attempts: this._attempts,
+      subTasks: this._subTasks
+    };
+  }
+
+
+  /**
+   * Returns true if this task is a super-task, i.e. if it has any sub-tasks; false otherwise.
+   * @returns {boolean} true if super-task; false otherwise
+   */
+  isSuperTask()  {
+    return this._subTasks.length > 0;
+  }
+
+  /**
+   * Returns true if this task is a root or top-level task, i.e. a task that is not a sub-task itself and that is at the
+   * root/top of its task hierarchy; false otherwise
+   * @returns {boolean} true if root task; false otherwise
+   */
+  isRootTask() {
+    return !this.parent;
+  }
+
+  /**
+   * Returns true if this task is a sub-task, i.e. if it it belongs to a super-task; false otherwise.
+   * @returns {boolean} true if sub-task; false otherwise
+   */
+  isSubTask() {
+    return !!this.parent;
+  }
+
+  /**
+   * Returns the sub-task with the given name if it exists on this task; otherwise returns undefined.
+   * @param {string} subTaskName - the name of the sub-task to retrieve
+   * @returns {Task|undefined} the named sub-task if it exists; otherwise undefined
+   */
+  getSubTask(subTaskName) {
+    return this._subTasksByName.get(subTaskName);
+  }
+
+  /**
+   * Returns true if this is an executable task; false otherwise
+   * @returns {boolean} true if executable; false otherwise
+   */
+  isExecutable() {
+    return this.executable;
+  }
+
+  /**
+   * Returns true if this is a non-executable (i.e. internal) task; false otherwise
+   * @returns {boolean} true if non-executable; false otherwise
+   */
+  isNotExecutable() {
+    return !this.executable;
+  }
+
+  /**
+   * Returns true if this is an internal (i.e. non-executable) task; false otherwise
+   * @alias {@linkcode isNotExecutable}
+   * @returns {boolean} true if internal; false otherwise
+   */
+  isInternal() {
+    return !this.executable;
+  }
+
+  /**
+   * Returns true if this task is unstarted (i.e. in an unstarted state); false otherwise
+   * @returns {boolean} true if unstarted; false otherwise
+   */
+  isUnstarted() {
+    return this._state.unstarted;
+  }
+
+  /**
+   * Returns true if this task is successfully completed (i.e. in any of the completed states); false otherwise
+   * @returns {boolean} true if completed; false otherwise
+   */
+  get completed() {
+    return this._state.completed;
+  }
+
+  /**
+   * Returns true if this task is rejected (i.e. in any of the rejected states); false otherwise
+   * @returns {boolean} true if rejected; false otherwise
+   */
+  get rejected() {
+    return this._state.rejected;
+  }
+
+  /**
+   * Returns true if this task has failed (i.e. in any of the failed states); false otherwise
+   * @returns {boolean} true if failed; false otherwise
+   */
+  get failed() {
+    return this._state.failed;
+  }
+
+  /**
+   * Returns true if this task is failed (i.e. in a failure state); false otherwise
+   * @returns {boolean} true if rejected; false otherwise
+   */
+  isFailure() {
+    return this._state.isFailure();
+  }
+
+  /**
+   * Returns true if this task is finalised (i.e. in a final state, either completed or rejected); false otherwise
+   * @returns {boolean} true if finalised; false otherwise
+   */
+  isFinalised() {
+    return this._state.isFinalised();
+  }
+
+  /**
+   * Returns true if this task and all of its subTasks recursively are finalised (i.e. in a final state, either
+   * completed or rejected); false otherwise
+   * @returns {boolean} true if totally finalised; false otherwise
+   */
+  isFullyFinalised() {
+    return this.isFinalised() && this._subTasks.every(subTask => subTask.isFullyFinalised());
+  }
+
+  /**
+   * Resets this task's state back to Unstarted and its result back to undefined (if it's not already finalised or if
+   * it's a completed, root super-task with incomplete sub-tasks) and also recursively resets any and all of its
+   * subTasks's states back to Unstarted and results back to undefined (that are not already finalised).
+   */
+  reset() {
+    if (!this.isFinalised() || (this.completed && this.isRootTask() && this.isSuperTask() && !this.isFullyFinalised())) {
+      this._state = TaskState.UNSTARTED;
+      this._result = undefined;
+      this._attemptIncrements = 0;
+    }
+    this._subTasks.forEach(subTask => subTask.reset());
+
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.reset());
+    }
+  }
+
+  incrementAttempts() {
+    if (!this.isFinalised()) { // && this.isUnstarted()) {
+      this._attempts = this._attempts + 1;
+      this._attemptIncrements = this._attemptIncrements + 1;
+
+      // If this is a master task then ripple the increment attempts to each of its slave tasks
+      if (this.isMasterTask()) {
+        this._slaveTasks.forEach(slaveTask => slaveTask.incrementAttempts());
+      }
+    }
+  }
+
+  /**
+   * Executes the given callback function on this task and then recursively on all of its sub-tasks.
+   * @param {Function} callback - a callback function
+   */
+  forEach(callback) {
+    callback(this);
+    this._subTasks.forEach(t => t.forEach(callback));
+  }
+
+  /**
+   * Changes this task's state to Succeeded (if it is not already finalised).
+   */
+  succeed() {
+    if (!this.isFinalised()) {
+      this._state = TaskState.SUCCEEDED;
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.succeed());
+    }
+  }
+
+  /**
+   * Changes this task's state to a Success state with the given code (if it is not already finalised).
+   */
+  success(code) {
+    if (!this.isFinalised()) {
+      this._state = new Success(code);
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.success(code));
+    }
+  }
+
+  /**
+   * Changes this task's state to a Failed state with the given error. Note that failures are allowed to override a
+   * completed state, but NOT a rejected or existing failure state.
+   *
+   * @param {Error} error - the error that triggered this failure
+   */
+  fail(error) {
+    if (!error) {
+      throw new Error(`Cannot change task (${this.name}) state to failed without an error`);
+    }
+    if (!this.rejected && !this.failed) {
+      this._state = new Failed(error);
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.fail(error));
+    }
+  }
+
+  /**
+   * Changes this task's state to a Failure state with the given code and error. Note that failures are allowed to
+   * override a completed state, but NOT a rejected state or existing failure state.
+   *
+   * @param {string} code - the descriptive code for this failure
+   * @param {Error} error - the error that triggered this failure
+   */
+  failure(code, error) {
+    if (!error) {
+      throw new Error(`Cannot change task (${this.name}) state to a failure without an error`);
+    }
+    if (!this.rejected && !this.isFailure()) {
+      this._state = new Failure(code, error);
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.failure(code, error));
+    }
+  }
+
+  /**
+   * Rejects this task (if it is not already finalised) and also rejects any and all of its subTasks recursively that
+   * are not already finalised (if recursively is true).
+   * @param {string} reason - the reason this task is being rejected
+   * @param {Error|undefined} [error] - an optional error that triggered this
+   * @param {boolean} recursively - whether or not to recursively reject all of this task's sub-tasks as well
+   */
+  reject(reason, error, recursively) {
+    if (!this.isFinalised()) {
+      this._state = new Rejected(reason, error);
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.reject(reason, error, recursively));
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.reject(reason, error, recursively));
+    }
+  }
+
+  /**
+   * Discards this task (if it is not already finalised) and also discards any and all of its subTasks recursively that
+   * are not already finalised (if recursively is true).
+   * @param {string} reason - the reason this task is being discarded
+   * @param {Error|undefined} [error] - an optional error that triggered this
+   * @param {boolean} recursively - whether or not to recursively discard all of this task's sub-tasks as well
+   */
+  discard(reason, error, recursively) {
+    if (!this.isFinalised()) {
+      this._state = new Discarded(reason, error);
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.discard(reason, error, recursively));
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.discard(reason, error, recursively));
+    }
+  }
+
+  /**
+   * Abandons this task (if it is not already finalised) and also abandons any and all of its subTasks recursively that
+   * are not already finalised (if recursively is true).
+   * @param {string} reason - the reason this task is being abandoned
+   * @param {Error|undefined} [error] - an optional error that triggered this
+   * @param {boolean} recursively - whether or not to recursively abandon all of this task's sub-tasks as well
+   */
+  abandon(reason, error, recursively) {
+    if (!this.isFinalised()) {
+      this._state = new Abandoned(reason, error);
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.abandon(reason, error, recursively));
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.abandon(reason, error, recursively));
+    }
+  }
+
+  /**
+   * Updates this task's status, attempts and result with that of the given prior version of this task (if any).
+   *
+   * NB: Use {@linkcode reconstructAllTasksFromRoot} to convert prior versions that are task-like objects, but not
+   * tasks, back into tasks before using this method.
+   *
+   * @param {Task|undefined} oldTask - a task, which must be the prior version of this task (or undefined)
+   * @returns {Task} this task (updated with its prior version's state, attempts and result)
+   */
+  updateFromPriorVersion(oldTask) {
+    if (!oldTask) {
+      return this;
+    }
+    if (!(oldTask instanceof Task)) {
+      throw new Error(`Cannot update task (${stringify(this)}) from a non-task, prior version (${stringify(oldTask)})`);
+    }
+    if (oldTask.name !== this.name) {
+      throw new Error(`Cannot update task (${stringify(this)}) from mismatched prior version (${stringify(oldTask)})`);
+    }
+
+    // Set this task's state and result to the old task's state and result, but ONLY if the old state was final
+    if (oldTask._state && oldTask._state.isFinalised()) {
+      this._state = oldTask._state;
+      this._result = oldTask._result;
+    }
+
+    // Add the old task's number of attempts (if defined) to this task's number of attempts
+    if (oldTask._attempts) {
+      this._attempts += oldTask._attempts;
+    }
+
+    // Recursively update the corresponding subTask for each of the old task's subTasks
+    if (oldTask._subTasks && oldTask._subTasks.length > 0) {
+      const oldSubTasks = oldTask._subTasks;
+      for (let i = 0; i < oldSubTasks.length; ++i) {
+        const oldSubTask = oldSubTasks[i];
+        const subTask = this.getSubTask(oldSubTask.name); //subTasks.find(t => t.name === oldSubTask.name);
+        if (subTask) {
+          // Found the corresponding subTask for the old subTask, so recursively update its details
+          subTask.updateFromPriorVersion(oldSubTask);
+        } else {
+          // SubTasks have changed and no longer include this old subTask!
+          const reason = `Abandoned prior sub-task (${oldSubTask.name}), since it is no longer an active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`;
+          console.warn(reason);
+          // Create a copy of the missing sub task, update it and then mark it as abandoned
+          const newSubTask = new Task(oldSubTask.definition, this);
+          newSubTask.updateFromPriorVersion(oldSubTask);
+          newSubTask.abandon(reason, undefined, true);
+        }
+      }
+    }
+    return this;
+  }
+
+  /**
+   * Returns true if this task is a master task with slave tasks; false otherwise.
+   * @returns {boolean} true if master task; false otherwise
+   */
+  isMasterTask() {
+    return this._slaveTasks.length > 0;
+  }
+
+  /**
+   * Sets this master task's and its corresponding sub-tasks' slave tasks to the given slave tasks and their sub-tasks
+   * recursively and sets the master task's and its sub-tasks' attempts to the least of their respective slave tasks'
+   * attempts.
+   * @private
+   * @param {Task[]} slaveTasks - the slave tasks of this master task
+   * @returns {Task} this task
+   */
+  _setSlaveTasks(slaveTasks) {
+    const slaves = slaveTasks ? slaveTasks : [];
+    // Set this master task's slave tasks to the given ones
+    this._slaveTasks = slaves;
+
+    // Set this master task's number of attempts to the minimum of all of its slave task's numbers of attempts
+    for (let i = 0; i < slaves.length; ++i) {
+      const slaveTaskAttempts = slaves[i]._attempts;
+      this._attempts = i == 0 ? slaveTaskAttempts : Math.min(this._attempts, slaveTaskAttempts);
+    }
+
+    // Recursively do the same for each of this master task's sub-tasks
+    for (let j = 0; j < this._subTasks.length; ++j) {
+      const masterSubTask = this._subTasks[j];
+      const slaveSubTasks = slaves.map(t => t.getSubTask(masterSubTask.name)).filter(s => !!s);
+      masterSubTask._setSlaveTasks(slaveSubTasks);
+    }
+    return this;
+  }
+
+  /**
+   * Copies this master task's and its sub-tasks' states to its slave tasks and their sub-tasks recursively.
+   * @returns {Task} this task
+   */
+  copyStateToSlaveTasks() {
+    // Set this master task's slave tasks states to its state
+    for (let i = 0; i < this._slaveTasks.length; ++i) {
+      const slaveTask = this._slaveTasks[i];
+      if (!slaveTask.isFinalised()) {
+        slaveTask._state = this._state;
+      }
+    }
+    // Recursively do the same for each of this master task's sub-tasks
+    for (let j = 0; j < this._subTasks.length; ++j) {
+      const masterSubTask = this._subTasks[j];
+      masterSubTask.copyStateToSlaveTasks();
+    }
+    return this;
+  }
+
+}
+
+// Export the Task "class" / constructor function as well
+module.exports.Task = Task;
+
+//======================================================================================================================
+// Static Task methods
+//======================================================================================================================
+
+/**
+ * Creates a new task with all of its subtasks (if any) from the given task definition and all of its sub-task
+ * definitions recursively (if any)
+ * @param {TaskDef} taskDef - the definition of the task (and subtasks) to be created
+ * @returns {Task} a new task with all of its subtasks (if applicable)
+ */
+function createTask(taskDef) {
+  return new Task(taskDef, undefined);
+}
+
+// Add createTask function as a static method on Task (for convenience)
+if (!Task.createTask) {
+  Task.createTask = createTask;
+}
+
+
+/**
+ * Creates a new master task with all of its subtasks (if any) from the given task definition and all of its sub-task
+ * definitions recursively (if any) and sets its slave tasks to the given slaveTasks and its number of attempts to the
+ * minimum of its slave task's number of attempts.
+ *
+ * A master task is a the task that is actually executed in place of its slave tasks and its states and attempt
+ * increments will be copied down recursively to its slave tasks post execution (see {@linkcode copyStateFromMasterTask}).
+ *
+ * @param {TaskDef} taskDef - the definition of the master task (and subtasks) to be created
+ * @param {Task[]} slaveTasks - the slave tasks to this master task
+ * @returns {Task} a new task with all of its subtasks (if applicable)
+ */
+function createMasterTask(taskDef, slaveTasks) {
+  if (!slaveTasks || slaveTasks.length <= 0) {
+    throw new Error(`Cannot create a master task (${taskDef.name}) without slave tasks`);
+  }
+  if (!slaveTasks.every(slaveTask => slaveTask.name === taskDef.name)) {
+    throw new Error(`Cannot create a master task (${taskDef.name}) with mismatched slave tasks (${stringify(slaveTasks.map(t => t.name))})`);
+  }
+  // Create the master task
+  const masterTask = new Task(taskDef, undefined);
+  // Set the master task's slave tasks to the given ones recursively and set its attempts to the least of its slave tasks attempts
+  masterTask._setSlaveTasks(slaveTasks);
+
+  return masterTask;
+}
+
+// Add createTask function as a static method on Task (for convenience)
+if (!Task.createMasterTask) {
+  Task.createMasterTask = createMasterTask;
 }
 
 /**
- * Sets the status on the named task on the named tasks on the given target object to a new status derived from the
- * given status details (see toStatus) and, if the given incrementAttempts is true, then also increments the number of
- * attempts on the named task and finally returns the updated target object.
+ * Returns true if the given "task" object is either an instance of Task or is a Task-like object; false otherwise. An
+ * object is deemed to be Task-like if it has a non-blank name property; a boolean executable property; and an array
+ * subTasks property; and additionally, if taskName is specified, its name matches the given taskName.
  *
- * If the named tasks object does not yet exist on the target object, it will be added to the target as a new object
- * property (named with the given tasksName).
- *
- * Similarly, if the named task object does not yet exist on the named tasks object, it will be added to the named tasks
- * object as a new object property (named with the given taskName).
- *
- * @param {Object} target the target object to update with the named task status
- * @param {string} tasksName the name of the tasks object property to update on the target object
- * @param {string} taskName the name of the task object property on the named tasks to update with the given status details
- * @param {string} statusCode the descriptive code of the status
- * @param {boolean} completed whether or not to consider the task as completed or not
- * @param {Error|undefined} error an optional error
- * @param {boolean} incrementAttempts whether or not to also increment the named task's number of attempts
- * @return {Object} the given target object updated with the given task status details
+ * @param {*} task - the "task" object to check
+ * @param {string|undefined} [taskName] - an optional task name to match against the "task" object's name - if omitted,
+ * the "task" object's name can be any non-blank value
+ * @returns {*|boolean}
  */
-function setTaskStatusDetails(target, tasksName, taskName, statusCode, completed, error, incrementAttempts) {
-  return setTaskStatus(target, tasksName, taskName, toStatus(statusCode, completed, error), incrementAttempts);
+function isTaskLike(task, taskName) {
+  return task instanceof Task || (task && typeof task === 'object' && isNotBlank(task.name) && (task.executable === true
+    || task.executable === false) && Array.isArray(task.subTasks) && (!taskName || task.name === taskName));
+}
+
+// Add isTaskLike function as a static method on Task (for convenience)
+if (!Task.isTaskLike) {
+  Task.isTaskLike = isTaskLike;
+}
+
+/**
+ * Cautiously attempts to get the root task for the given task by traversing up its task hierarchy using the parent
+ * links, until it finds the root (i.e. a parent task with no parent). During this traversal, if any task is recursively
+ * found to be a parent of itself, an error will be thrown.
+ *
+ * @param {Task} task - any task in the task hierarchy from which to start
+ * @throws {Error} if any task is recursively a parent of itself
+ * @returns {Task} the root task
+ */
+function getRootTask(task) {
+  if (!task || !(task instanceof Object)) {
+    return undefined;
+  }
+
+  function loop(task, history) {
+    const parent = task.parent;
+    if (!parent) {
+      return task;
+    }
+    if (history.indexOf(task) !== -1) {
+      // We have an infinite loop, since a previously visited task is recursively a parent of itself!
+      throw new Error(`Task hierarchy is not a valid Directed Acyclic Graph, since task (${task.name}) is recursively a parent of itself!`)
+    }
+    history.push(task);
+    return loop(parent, history);
+  }
+
+  return loop(task, []);
+}
+
+// Add getRootTask function as a static method on Task (for convenience)
+if (!Task.getRootTask) {
+  Task.getRootTask = getRootTask;
 }
 
 
 /**
- * Sets the result on the named task on the named tasks on the given target object to the given result and then returns
- * the updated target object.
+ * Attempts to reconstruct a complete hierarchy of pseudo task and subTasks from the given root, executable task-like
+ * object that is an approximation of the original hierarchy of root task and subTasks. The primary issue with the
+ * generated pseudo root task is that it does NOT have a usable execute function.
  *
- * If the named tasks object does not yet exist on the target object, it will be added to the target as a new object
- * property (named with the given tasksName).
+ * Note that if the given taskLike happens to already be a Task, then it is simply returned instead.
  *
- * Similarly, if the named task object does not yet exist on the named tasks object, it will be added to the named tasks
- * object as a new object property (named with the given taskName).
- *
- * @param {Object} target the target object to update with the named task result
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks to update
- * @param {*} result the result to set on the named task's result property
- * @return {Object} the updated target object
+ * @param {TaskLike|Task} taskLike - a task-like object (or Task), which must be a root, executable task-like object
+ * @returns {Task} an approximation of the original task (including any and all of its subTasks recursively)
  */
-function setTaskResult(target, tasksName, taskName, result) {
-  const task = getOrCreateTask(target, tasksName, taskName);
-  // ONLY add the task result if the result is NOT the target itself
-  if (result !== target) task.result = result;
-  return target;
+function reconstructTasksFromRootTaskLike(taskLike) {
+  // Nothing in, nothing out
+  if (!taskLike) {
+    return undefined;
+  }
+  // If the given taskLike is already a Task then nothing to be done and just return it
+  if (taskLike instanceof Task) {
+    return taskLike;
+  }
+
+  // Ensure that the given task-like object appears to be an actual task-like object
+  if (!isTaskLike(taskLike)) {
+    throw new Error(`Cannot reconstruct all pseudo task and subTasks from a non-task-like object (${stringify(taskLike)})`);
+  }
+  // // Ensure at least have a name on the task-like object
+  // if (!taskLike.name) {
+  //   throw new Error(`Cannot reconstruct all pseudo task and subTasks from a nameless task-like object (${stringify(taskLike)})`);
+  // }
+
+  //const name = taskLike.name;
+  const executable = !!taskLike.executable;
+
+  if (!executable) {
+    throw new Error(`Cannot reconstruct all pseudo task and subTasks from a non-root, non-executable task-like object (${stringify(taskLike)})`);
+  }
+
+  // Reconstruct all of the pseudo task and subTask definitions for the root task-like object
+  const taskDef = reconstructTaskDefsFromRootTaskLike(taskLike);
+
+  // Reconstruct all of the pseudo task and subTasks using the reconstructed root task definition
+  const task = new Task(taskDef, undefined);
+
+  /** Recursively copies the taskLike's state and number of attempts to its corresponding task. */
+  function copyStateAndAttempts(taskLike, task) {
+    task._state = taskLike.state instanceof TaskState ? taskLike.state :
+      TaskState.toTaskStateFromStateLike(taskLike.state);
+    task._attempts = taskLike.attempts;
+    //task._result = undefined; // a TaskLike has NO result (since it is explicitly NOT enumerable and also NOT included in the toJSON method)
+
+    // Recursively repeat this process for each of the taskLike's subTasks
+    if (taskLike.subTasks && taskLike.subTasks.length > 0) {
+      for (let i = 0; i < taskLike.subTasks.length; ++i) {
+        const subTaskLike = taskLike.subTasks[i];
+        const subTask = task.getSubTask(subTaskLike.name);
+        copyStateAndAttempts(subTaskLike, subTask);
+      }
+    }
+  }
+
+  // Finally recursively copy the taskLike's state, attempts and result to its corresponding task
+  copyStateAndAttempts(taskLike, task);
+  return task;
 }
 
-// function updateTaskPropertyValue(target, tasksName, taskName, propertyName, value) {
-//   const task = getOrCreateTask(target, tasksName, taskName);
-//   task[propertyName] = value;
-//   return task;
+// Add reconstructTasksFromRootTaskLike function as a static method on Task (for convenience)
+if (!Task.reconstructTasksFromRootTaskLike) {
+  Task.reconstructTasksFromRootTaskLike = reconstructTasksFromRootTaskLike;
+}
+
+/**
+ * Creates a list of new tasks from the given list of active task definitions and then updates them with the relevant
+ * information extracted from the given list of zero or more old task-like objects, which are the prior versions of the
+ * tasks from the previous attempt (if any). Any and all old tasks that do NOT appear in the list of new active tasks
+ * are recreated as abandoned tasks. Returns both the newly created and updated, active tasks and any no longer active,
+ * abandoned tasks.
+ *
+ * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
+ * @param {TaskLike[]|Task[]} priorVersions - a list of zero or more old task-like objects or tasks, which are the prior
+ * versions of the active tasks from a previous attempt (if any)
+ * @returns {Array.<Task[]>} both the updated, newly created tasks and any abandoned tasks
+ */
+function createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions) {
+  const activeTaskNames = activeTaskDefs.map(t => t.name);
+
+  // Create a new list of tasks from the given active task definitions
+  const newTasks = activeTaskDefs.map(taskDef => Task.createTask(taskDef));
+
+  // Reconstruct a complete hierarchy of a pseudo top-level task and its sub-tasks (if any), which is an approximation
+  // of the original hierarchy of root task and its sub-tasks, for EACH of the given old task-like objects
+  const oldTasks = priorVersions.map(taskLike => reconstructTasksFromRootTaskLike(taskLike));
+
+  // Update each of the newly created tasks with the relevant information from the prior version of each of these tasks
+  const oldTasksByName = new Map(oldTasks);
+  const updatedNewTasks = newTasks.map(newTask => newTask.updateFromPriorVersion(oldTasksByName.get(newTask.name)));
+
+  // Collect any and all old tasks, which no longer appear amongst the list of active new tasks, and create new abandoned task from them
+  const inactiveOldTasks = oldTasks.filter(oldTask => activeTaskNames.indexOf(oldTask.name) === -1);
+
+  const abandonedTasks = inactiveOldTasks.forEach(oldTask => {
+    // Reconstruct a clean version of the old task, update it with the relevant details from the old task and then mark it as abandoned
+    const abandonedTask = Task.createTask(oldTask.definition);
+    abandonedTask.updateFromPriorVersion(oldTask);
+    const reason = `Abandoned prior task (${oldTask.name}), since it is no longer one of the active tasks ${stringify(activeTaskNames)}`;
+    console.log(reason); //TODO remove this
+    abandonedTask.abandon(reason, undefined, true);
+    return abandonedTask;
+  });
+
+  // Return both the updated new tasks and the abandoned tasks
+  return [updatedNewTasks, abandonedTasks];
+}
+
+// Add createNewTasksUpdatedFromPriorVersions function as a static method on Task (for convenience)
+if (!Task.createNewTasksUpdatedFromPriorVersions) {
+  Task.createNewTasksUpdatedFromPriorVersions = createNewTasksUpdatedFromPriorVersions;
+}
+
+//======================================================================================================================
+// Internal functions
+//======================================================================================================================
+
+// /**
+//  * An internal function to set the state of a given task to the given state (if it is not already finalised) and then to
+//  * recursively set the same state on each of its subTasks (that are not already finalised).
+//  * @param {Task} task - the task to update with the given state
+//  * @param {TaskState|Success|Rejection} state - the new state to set
+//  */
+// function setTaskStateRecursively(task, state) {
+//   if (!task.isFinalised()) {
+//     task._state = state;
+//   }
+//   const subTasks = task._subTasks;
+//   for (let i = 0; i < subTasks.length; ++i) {
+//     setTaskStateRecursively(subTasks[i], state);
+//   }
+// }
+
+// /**
+//  * An internal function to reset the state of a given task back to an unstarted state and its result back to undefined
+//  * (if it is not already finalised) and then to recursively reset the same state and undefined result on each of its
+//  * subTasks (that are not already finalised).
+//  * @param {Task} task - the task on which to reset the state and result
+//  */
+// function resetTaskStateRecursively(task) {
+//   if (!task.isFinalised() && (!task._state || !task._state.isUnstarted())) {
+//     task._state = TaskState.UNSTARTED;
+//     task._result = undefined;
+//     task._attemptIncrements = 0;
+//   }
+//   const subTasks = task._subTasks;
+//   for (let i = 0; i < subTasks.length; ++i) {
+//     resetTaskStateRecursively(subTasks[i]);
+//   }
 // }
 
 /**
- * Sets the named property on the named task on the named tasks on the given target object to the given value and
- * returns the updated target object.
- *
- * If the named tasks object does not yet exist on the target object, it will be added to the target as a new object
- * property (named with the given tasksName).
- *
- * Similarly, if the named task object does not yet exist on the named tasks object, it will be added to the named tasks
- * object as a new object property (named with the given taskName).
- *
- * @param {Object} target the target object to update
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task object property on the named tasks
- * @param {string} propertyName the name of the property to update on the named task
- * @param {*} value the value to set on the named property
- * @return {Object} the updated target object
+ * Returns true if the proposed sub-task names together with the given parent task's sub-task names are all
+ * still distinct; otherwise returns false.
+ * @param parent
+ * @param {string|string[]} proposedSubTaskNames - the name (or names) of the proposed sub-task(s) to be checked
  */
-function setTaskProperty(target, tasksName, taskName, propertyName, value) {
-  const task = getOrCreateTask(target, tasksName, taskName);
-  task[propertyName] = value;
-  return target;
+function areSubTaskNamesDistinct(parent, proposedSubTaskNames) {
+  const oldNames = parent ? parent._subTasks.map(t => t.name) : [];
+  const newNames = oldNames.concat(proposedSubTaskNames);
+  return isDistinct(newNames);
 }
 
+// * @param {TaskDef|undefined} parent - an optional parent task definition, to which the reconstructed, pseudo task
+// * definition should be added as a subTask definition.
 /**
- * If the given target object's named task has an undefined or INCOMPLETE status OR (has a completed status AND the
- * given status is NOT completed) OR (the given status is completed), then sets the named task's status to the given
- * status and returns the updated target; otherwise simply returns the given target.
+ * Attempts to reconstruct a complete hierarchy of pseudo task and sub-task definitions from the given root, executable
+ * task-like object (or Task), which is an approximation of the original hierarchy of root task and sub-task definitions
+ * from which the original task was created. The primary issue with the generated pseudo root task definition is that it
+ * does NOT have a usable execute function.
  *
- * The first and second conditions above (i.e. has an undefined or INCOMPLETE status) is the normal scenario, since a
- * task should start each run in an INCOMPLETE status and hence any new status must be able to override it.
+ * Note that if the given taskLike happens to already be a Task, then its definition is simply returned instead.
  *
- * The third condition above (i.e. has a completed status AND the new status is NOT completed) allows a new failed
- * status to override an old completed status, but will NOT allow a new failed status to override an old failed status,
- * since we prefer to keep the old failure rather than the new failure.
- *
- * The fourth condition above (i.e. the given status is completed) allows a new completed status to override any old
- * status.
- *
- * @param {Object} target the target object on which to set the named task status if necessary
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task on the named tasks object
- * @param {Status} status the status to apply if necessary
- * @param {boolean} incrementAttempts whether or not to also increment the named task's number of attempts when the status is updated
- * @return {Object} the target object, which was updated (if the status was applied) or not (if the status was not applied)
+ * @param {TaskLike|Task} taskLike - a task-like object (or Task), which must be a root, executable task-like object
+ * @returns {TaskDef} an approximation of the original task definition (including any and all of its sub-task definitions
+ * recursively)
  */
-function setTaskStatusIfNecessary(target, tasksName, taskName, status, incrementAttempts) {
-  const oldStatus = getTaskStatus(target, tasksName, taskName);
-
-  const oldUndefinedOrIncomplete = !oldStatus || isIncompleteStatus(oldStatus);
-  const oldCompletedAndNewNotCompleted = isStatusCompleted(oldStatus) && !isStatusCompleted(status);
-  //const oldNotCompletedAndNewCompleted = !isStatusCompleted(oldStatus) && isStatusCompleted(status);
-
-  if (oldUndefinedOrIncomplete || oldCompletedAndNewNotCompleted || isStatusCompleted(status)) {
-    return setTaskStatus(target, tasksName, taskName, status, incrementAttempts);
+function reconstructTaskDefsFromRootTaskLike(taskLike) {
+  // Nothing in, nothing out
+  if (!taskLike) {
+    return undefined;
   }
-  return target;
+  // If the given taskLike is already a Task then nothing to be done and just return its definition
+  if (taskLike instanceof Task) {
+    return taskLike.definition;
+  }
+  // Ensure at least have a name on the task-like object
+  if (!taskLike.name) {
+    throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a nameless task-like object (${stringify(taskLike)})`);
+  }
+  const name = taskLike.name;
+  const executable = !!taskLike.executable;
+
+  // Ensure that the reconstructed, top-level executable task has no parent
+  if (!executable) {
+    throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a non-root, non-executable task-like object (${stringify(taskLike)})`);
+  }
+
+  function doNotExecute() {
+    throw new Error(`Logic error - attempting to execute a placeholder execute method on a reconstructed, pseudo task (${name})`);
+  }
+
+  // Make up a task definition for this root, executable task-like object
+  const taskDef = TaskDef.defineTask(name, doNotExecute);
+
+  function defineSubTasks(taskLike, taskDef) {
+    const subTasks = taskLike && taskLike.subTasks;
+    if (subTasks && subTasks.length > 0) {
+      for (let i = 0; i < subTasks.length; ++i) {
+        const subTaskLike = subTasks[i];
+        if (!subTaskLike.name) {
+          throw new Error(`Cannot reconstruct pseudo sub-task definitions from a nameless sub-task-like object (${stringify(subTaskLike)})`);
+        }
+        const subTaskDef = taskDef.defineSubTask(subTaskLike.name);
+        defineSubTasks(subTaskLike, subTaskDef);
+      }
+    }
+  }
+
+  defineSubTasks(taskLike, taskDef);
+  return taskDef;
 }
 
 /**
- * If the given target object's named task has an undefined OR INCOMPLETE status OR (has a completed status AND the
- * new status is NOT completed) OR the new status is completed, then sets the named task's status to the new status,
- * sets its result to the given result and returns the updated target; otherwise simply returns the given target.
+ * Ensures that the task hierarchies of both the given proposed task and of the given parent task (if any) are both
+ * valid and could be safely combined into a single valid hierarchy; and, if not, throws an error.
  *
- * The first and second conditions above (i.e. has an undefined or INCOMPLETE status) is the normal scenario, since a
- * task should start each run in an INCOMPLETE status and hence any new status must be able to override it.
+ * A valid hierarchy must only contain distinct tasks (i.e. every task can only appear once in its hierarchy). This
+ * requirement ensures that a hierarchy is a Directed Acyclic Graph and avoids infinite loops.
  *
- * The third condition above (i.e. has a completed status AND the new status is NOT completed) allows a new failed
- * status to override an old completed status, but will NOT allow a new failed status to override an old failed status,
- * since we prefer to keep the old failure rather than the new failure.
+ * NB: The proposed task MUST NOT be linked to the given parent BEFORE calling this function (otherwise this function
+ * will always throw an error) and MUST only be subsequently linked to the given parent if this function does NOT throw
+ * an error.
  *
- * The fourth condition above (i.e. the given status is completed) allows a new completed status to override any old
- * status.
- *
- * @param {Object} target the target object on which to set the named task status if necessary
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task on the named tasks object
- * @param {Status} status the status to apply if necessary
- * @param {*} result the result to apply if necessary
- * @param {boolean} incrementAttempts whether or not to also increment the named task's number of attempts when the status is updated
- * @return {Object} the target object, which was updated (if the status was applied) or not (if the status was not applied)
+ * @param {Task|undefined} [parent] - an optional parent task (or sub-task) (if any), which identifies the first
+ * hierarchy to check and to which the proposed task is intended to be linked
+ * @param {Task|undefined} proposedTask - a optional proposed task, which identifies the second hierarchy to check
+ * @throws {Error} if any task appears more than once in either hierarchy or in the proposed combination of both
+ * hierarchies
  */
-function setTaskStatusAndResultIfNecessary(target, tasksName, taskName, status, incrementAttempts, result) {
-  // First attempts to change the task status on the target to the given status
-  setTaskStatusIfNecessary(target, tasksName, taskName, status, incrementAttempts);
-  // Then sets the given task result on the target, but ONLY if the status was actually changed
-  if (getTaskStatus(target, tasksName, taskName) === status) {
-    setTaskResult(target, tasksName, taskName, result);
+function ensureAllTasksDistinct(parent, proposedTask) {
+  // First find the root of the parent's task hierarchy
+  const parentRoot = parent ? getRootTask(parent) : undefined;
+  // Next find the root of the proposed task's task hierarchy
+  const proposedTaskRoot = proposedTask ? getRootTask(proposedTask) : undefined;
+
+  function loop(task, history) {
+    if (!task) {
+      return;
+    }
+    // Ensure that this task does not appear more than once in the hierarchy
+    if (history.indexOf(task) !== -1) {
+      // We have a problem with this task hierarchy, since a previously visited task appears more than once in the hierarchy!
+      throw new Error(`Task hierarchy is not a valid Directed Acyclic Graph, since task (${task.name}) appears more than once in the hierarchy!`)
+    }
+    // Remember that we have seen this one
+    history.push(task);
+
+    // Now check all of its subTasks recursively too
+    const subTasks = task._subTasks;
+    for (let i = 0; i < subTasks.length; ++i) {
+      loop(subTasks[i], history);
+    }
+  }
+
+  const history = [];
+
+  // Next loop from the parent's root down through all of its subTasks recursively, ensuring that there is no duplication
+  // of any task in the parent's hierarchy
+  loop(parentRoot, history);
+
+  // Finally loop from the proposed task's root down through all of its subTasks recursively, ensuring that there is no
+  // duplication of any task in either hierarchy
+  loop(proposedTaskRoot, history);
+}
+
+//======================================================================================================================
+// Task execute function wrapper
+//======================================================================================================================
+
+/**
+ * Returns a wrapper execute function around the given task's original execute function (taskExecute), which when
+ * subsequently executed will do the following:
+ * - Nothing at all if the task is fully finalised (other than logging a warning); otherwise:
+ * - First increments the number of attempts on the task.
+ * - Next executes the task's actual, original execute function and then based on the outcome:
+ *  - If the execute function completes successfully, updates the task's result with the result obtained and also
+ *    sets its state to Completed, but ONLY if the task is still in an Unstarted state AND if it either has no
+ *    subtasks or if all of its subtasks are fully finalised.
+ *  - If the execute function throws an exception or returns a rejected promise, sets its state to Failed with the
+ *    error encountered, but ONLY if the task is not already in a rejected or failed state.
+ *
+ * @param {Task} task - the task to be executed
+ * @param {Function} taskExecute - the task's original execute function
+ * @returns {Function} a wrapper function, which will invoke the task's original execute function
+ */
+function wrapExecuteTask(task, taskExecute) {
+  function executeWithUpdates() {
+    if (!task.isFullyFinalised()) {
+      // First increment the number of attempts on this task, since its starting to execute
+      task.incrementAttempts();
+      // Then execute the actual execute function
+      try {
+        // Execute the task's function
+        const result = taskExecute.apply(task, arguments);
+
+        // If this task is still in an unstarted state after its execute function completes then complete it
+
+        // If the result is a promise or array of promises, reduce it to a single promise
+        const promise = Promise.isArrayOfPromises(result) ? Promise.all(result) :
+          Promise.isPromise(result) ? result : undefined;
+
+        if (promise) {
+          return promise
+            .then(
+              result => {
+                completeTaskIfStillUnstarted(task, result);
+                //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+                return result;
+              },
+              err => {
+                failTaskIfNotRejectedNorFailed(task, err);
+                //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+                return Promise.reject(err);
+              }
+            );
+        } else {
+          // Simple non-promise result
+          completeTaskIfStillUnstarted(task, result);
+          //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+          return result;
+        }
+      } catch (err) {
+        failTaskIfNotRejectedNorFailed(task, err);
+        //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+        throw err;
+      }
+    } else {
+      console.warn(`Attempted to execute a fully finalised task (${task.name}) - ${stringify(task)}`);
+      return task._result;
+    }
+  }
+
+  return executeWithUpdates;
+}
+
+/**
+ * Updates the given task's result (if not already defined) with the given result and also sets its state to Completed,
+ * but ONLY if the task is still in an Unstarted state AND if it either has no subtasks or if all of its subtasks are
+ * fully finalised.
+ * @param {Task} task - the task to update
+ * @param {*} result - the result of successful invocation of the task's original execute function
+ */
+function completeTaskIfStillUnstarted(task, result) {
+  // If this task is still in an unstarted state after its execute function completed successfully, then help it along
+  if (task.isUnstarted()) { //} && (task.subTasks.length <= 0 || task.subTasks.every(t => t.isFullyFinalised()))) {
+    task.succeed();
+  }
+  if (!task._result) {
+    task._result = result;
   }
 }
 
 /**
- * Resets the named task status on the given target to an INCOMPLETE status and sets the named task result on the given
- * target to undefined (if the named task status is defined and NOT completed yet and NOT already an instance of
- * Incomplete) or sets a new named task status of INCOMPLETE on the target object to create an expectation of a status
- * for the named task (if the named task status is undefined) or leaves the existing completed named task status and
- * result as is on the target.
- * @param {Object} target the target object from which to get the named task status
- * @param {string} tasksName the name of the tasks object property on the target object
- * @param {string} taskName the name of the task status to get or clear
- * @param {Object} context the context
- * @return {Object} the potentially updated target object
+ * Sets the given task's state to Failed with the error encountered, but ONLY if the task is not in a rejected state and
+ * not already in a failed state.
+ * @param {Task} task - the task to update
+ * @param {Error} error - the error encountered during execution of the task's original execute function
  */
-function resetTaskStatusAndResultIfNotComplete(target, tasksName, taskName, context) {
-  const taskStatus = getTaskStatus(target, tasksName, taskName);
-  if (taskStatus) {
-    // Check if the named task was already previously completed on the target, and if so return its completed status
-    if (taskStatus.completed) {
-      if (context.debug) console.log(`Found previously completed task (${taskName}) with status (${JSON.stringify(taskStatus)}) on target (${JSON.stringify(target)})`);
-      return target;
+function failTaskIfNotRejectedNorFailed(task, error) {
+  // If this task is still in an unstarted state after its execute function failed, then help it along
+  // or the task was completed, but subsequently failed
+  if (!task.rejected && !task.isFailure()) {
+    if (task.completed) {
+      console.warn(`Failing completed task (${task.name}) in state (${stringify(task._state)}) due to subsequent error (${stringify(error)})`, error.stack);
     }
-    if (isIncompleteStatus(taskStatus)) {
-      // Since the named task status is already set to an Incomplete status instance, just clear the task result
-      setTaskResult(target, tasksName, taskName, undefined);
-      if (context.debug) console.log(`Skipping reset of already incomplete task (${taskName}) status (${JSON.stringify(taskStatus)}) on target (${JSON.stringify(target)})`);
-      return target;
-    }
-    // Otherwise reset the previously failed named task status on the target to an INCOMPLETE status and clear the task result
-    setTaskStatus(target, tasksName, taskName, INCOMPLETE, false);
-    setTaskResult(target, tasksName, taskName, undefined);
-    if (context.debug) console.log(`Reset previous task (${taskName}) status (${JSON.stringify(taskStatus)}) to (${JSON.stringify(INCOMPLETE)}) on target (${JSON.stringify(target)})`);
-    return target;
+    task.fail(error);
   } else {
-    // Since the named tasks status does not yet exist, set a new INCOMPLETE task status on the target (to set up the
-    // expectation of a status for this task name) and clear the task result
-    setTaskStatus(target, tasksName, taskName, INCOMPLETE, false);
-    setTaskResult(target, tasksName, taskName, undefined);
-    if (context.debug) console.log(`Set new task (${taskName}) status (${JSON.stringify(INCOMPLETE)}) on target (${JSON.stringify(target)})`);
-    return target;
+    console.warn(`Ignoring attempt to fail ${task.rejected ? 'rejected' : 'previously failed'} task (${task.name}) in state (${stringify(task._state)}) - ignoring new error (${stringify(error)})`, error.stack)
   }
 }
+
