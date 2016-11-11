@@ -180,8 +180,6 @@ class Task {
     // Set the task's initial state, attempts and result
     this._state = TaskState.UNSTARTED;
     this._attempts = 0;
-    //TODO remove attemptIncrements?
-    Object.defineProperty(this, '_attemptIncrements', {value: 0, writable: true, enumerable: false});
 
     // The task's result must NOT be enumerable, since the result may end up being an object that references this task,
     // which would create a circular dependency
@@ -213,11 +211,6 @@ class Task {
   /** The result of this task (if executed successfully) **/
   get result() {
     return this._result;
-  }
-
-  /** The number of times that the number of attempts at this task has been incremented since its last reset **/
-  get attemptIncrements() {
-    return this._attemptIncrements;
   }
 
   /**
@@ -295,11 +288,21 @@ class Task {
   }
 
   /**
-   * Returns true if this task is unstarted (i.e. in an unstarted state); false otherwise
+   * Returns true if this task is unstarted (i.e. in an unstarted state that is not completed, not rejected and has no
+   * error); false otherwise
    * @returns {boolean} true if unstarted; false otherwise
    */
-  isUnstarted() {
+  get unstarted() {
     return this._state.unstarted;
+  }
+
+  /**
+   * Returns true if this task is incomplete (i.e. in an incomplete state that is not completed and not rejected); false
+   * otherwise
+   * @returns {boolean} true if incomplete; false otherwise
+   */
+  get incomplete() {
+    return this._state.incomplete;
   }
 
   /**
@@ -327,19 +330,11 @@ class Task {
   }
 
   /**
-   * Returns true if this task is failed (i.e. in a failure state); false otherwise
-   * @returns {boolean} true if rejected; false otherwise
-   */
-  isFailure() {
-    return this._state.isFailure();
-  }
-
-  /**
    * Returns true if this task is finalised (i.e. in a final state, either completed or rejected); false otherwise
    * @returns {boolean} true if finalised; false otherwise
    */
-  isFinalised() {
-    return this._state.isFinalised();
+  get finalised() {
+    return this._state.finalised;
   }
 
   /**
@@ -348,19 +343,58 @@ class Task {
    * @returns {boolean} true if totally finalised; false otherwise
    */
   isFullyFinalised() {
-    return this.isFinalised() && this._subTasks.every(subTask => subTask.isFullyFinalised());
+    return this.finalised && this._subTasks.every(subTask => subTask.isFullyFinalised());
   }
 
   /**
-   * Resets this task's state back to Unstarted and its result back to undefined (if it's not already finalised or if
+   * Returns true if this task is in a Success state; false otherwise
+   * @returns {boolean} true if in a Success state; false otherwise
+   */
+  isSuccess() {
+    return this._state.isSuccess();
+  }
+
+  /**
+   * Returns true if this task is in a Failure state; false otherwise
+   * @returns {boolean} true if in a Failure state; false otherwise
+   */
+  isFailure() {
+    return this._state.isFailure();
+  }
+
+  /**
+   * Returns true if this task is in a Rejected state; false otherwise
+   * @returns {boolean} true if in a Rejected state; false otherwise
+   */
+  isRejected() {
+    return this._state.isRejected();
+  }
+
+  /**
+   * Returns true if this task is in an Abandoned state; false otherwise
+   * @returns {boolean} true if in an Abandoned state; false otherwise
+   */
+  isAbandoned() {
+    return this._state.isAbandoned();
+  }
+
+  /**
+   * Returns true if this task is in a Discarded state; false otherwise
+   * @returns {boolean} true if in a Discarded state; false otherwise
+   */
+  isDiscarded() {
+    return this._state.isDiscarded();
+  }
+
+  /**
+   * Resets this task's state back to Unstarted and its result back to undefined (if it's in an incomplete state or if
    * it's a completed, root super-task with incomplete sub-tasks) and also recursively resets any and all of its
-   * subTasks's states back to Unstarted and results back to undefined (that are not already finalised).
+   * subTasks's states back to Unstarted and results back to undefined (if they are still incomplete).
    */
   reset() {
-    if (!this.isFinalised() || (this.completed && this.isRootTask() && this.isSuperTask() && !this.isFullyFinalised())) {
+    if (this.incomplete || (this.completed && this.isRootTask() && this.isSuperTask() && !this.isFullyFinalised())) {
       this._state = TaskState.UNSTARTED;
       this._result = undefined;
-      this._attemptIncrements = 0;
     }
     this._subTasks.forEach(subTask => subTask.reset());
 
@@ -370,10 +404,12 @@ class Task {
     }
   }
 
+  /**
+   * Increments the number of attempts at this task, but ONLY if the task is in an incomplete (non-finalised) state!
+   */
   incrementAttempts() {
-    if (!this.isFinalised()) { // && this.isUnstarted()) {
+    if (this.incomplete) {
       this._attempts = this._attempts + 1;
-      this._attemptIncrements = this._attemptIncrements + 1;
 
       // If this is a master task then ripple the increment attempts to each of its slave tasks
       if (this.isMasterTask()) {
@@ -395,7 +431,7 @@ class Task {
    * Changes this task's state to Succeeded (if it is not already finalised).
    */
   succeed() {
-    if (!this.isFinalised()) {
+    if (this.incomplete) {
       this._state = TaskState.SUCCEEDED;
     }
     // If this is a master task then ripple the state change to each of its slave tasks
@@ -408,7 +444,7 @@ class Task {
    * Changes this task's state to a Success state with the given code (if it is not already finalised).
    */
   success(code) {
-    if (!this.isFinalised()) {
+    if (this.incomplete) {
       this._state = new Success(code);
     }
     // If this is a master task then ripple the state change to each of its slave tasks
@@ -464,7 +500,7 @@ class Task {
    * @param {boolean} recursively - whether or not to recursively reject all of this task's sub-tasks as well
    */
   reject(reason, error, recursively) {
-    if (!this.isFinalised()) {
+    if (this.incomplete) {
       this._state = new Rejected(reason, error);
     }
     if (recursively) {
@@ -484,7 +520,7 @@ class Task {
    * @param {boolean} recursively - whether or not to recursively discard all of this task's sub-tasks as well
    */
   discard(reason, error, recursively) {
-    if (!this.isFinalised()) {
+    if (this.incomplete) {
       this._state = new Discarded(reason, error);
     }
     if (recursively) {
@@ -504,7 +540,7 @@ class Task {
    * @param {boolean} recursively - whether or not to recursively abandon all of this task's sub-tasks as well
    */
   abandon(reason, error, recursively) {
-    if (!this.isFinalised()) {
+    if (this.incomplete) {
       this._state = new Abandoned(reason, error);
     }
     if (recursively) {
@@ -537,7 +573,7 @@ class Task {
     }
 
     // Set this task's state and result to the old task's state and result, but ONLY if the old state was final
-    if (oldTask._state && oldTask._state.isFinalised()) {
+    if (oldTask._state && oldTask._state.finalised) {
       this._state = oldTask._state;
       this._result = oldTask._result;
     }
@@ -614,7 +650,7 @@ class Task {
     // Set this master task's slave tasks states to its state
     for (let i = 0; i < this._slaveTasks.length; ++i) {
       const slaveTask = this._slaveTasks[i];
-      if (!slaveTask.isFinalised()) {
+      if (slaveTask.incomplete) {
         slaveTask._state = this._state;
       }
     }
@@ -702,6 +738,39 @@ function isTaskLike(task, taskName) {
 if (!Task.isTaskLike) {
   Task.isTaskLike = isTaskLike;
 }
+
+/**
+ * Collects all of the given task-like objects (or Tasks) and also all of their sub-tasks recursively.
+ * @param {TaskLike[]|Task[]} taskLikes - the given list of task-like objects (or Tasks)
+ * @returns {TaskLike[]|Task[]} the list of task-like objects (or Tasks) found and all of their sub-tasks recursively
+ */
+function getTasksAndSubTasks(taskLikes) {
+  const allTasksAndSubTasks = [];
+
+  // Collect all tasks and all of their subtasks recursively
+  taskLikes.forEach(task => forEach(task, t => allTasksAndSubTasks.push(t)));
+
+  return allTasksAndSubTasks;
+}
+// Add isTaskLike function as a static method on Task (for convenience)
+if (!Task.getTasksAndSubTasks) {
+  Task.getTasksAndSubTasks = getTasksAndSubTasks;
+}
+
+/**
+ * Executes the given callback function on the given task-like object (or Task) and then recursively on all of its sub-tasks.
+ * @param {TaskLike|Task} taskLike - a task-like object (or Task)
+ * @param {Function} callback - a callback function
+ */
+function forEach(taskLike, callback) {
+  callback(taskLike);
+  taskLike.subTasks.forEach(t => forEach(t, callback));
+}
+// Add isTaskLike function as a static method on Task (for convenience)
+if (!Task.forEach) {
+  Task.forEach = forEach;
+}
+
 
 /**
  * Cautiously attempts to get the root task for the given task by traversing up its task hierarchy using the parent
@@ -831,18 +900,17 @@ function createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions) {
   const oldTasks = priorVersions.map(taskLike => reconstructTasksFromRootTaskLike(taskLike));
 
   // Update each of the newly created tasks with the relevant information from the prior version of each of these tasks
-  const oldTasksByName = new Map(oldTasks);
+  const oldTasksByName = new Map(oldTasks.map(t => [t.name, t]));
   const updatedNewTasks = newTasks.map(newTask => newTask.updateFromPriorVersion(oldTasksByName.get(newTask.name)));
 
   // Collect any and all old tasks, which no longer appear amongst the list of active new tasks, and create new abandoned task from them
   const inactiveOldTasks = oldTasks.filter(oldTask => activeTaskNames.indexOf(oldTask.name) === -1);
 
-  const abandonedTasks = inactiveOldTasks.forEach(oldTask => {
+  const abandonedTasks = inactiveOldTasks.map(oldTask => {
     // Reconstruct a clean version of the old task, update it with the relevant details from the old task and then mark it as abandoned
     const abandonedTask = Task.createTask(oldTask.definition);
     abandonedTask.updateFromPriorVersion(oldTask);
     const reason = `Abandoned prior task (${oldTask.name}), since it is no longer one of the active tasks ${stringify(activeTaskNames)}`;
-    console.log(reason); //TODO remove this
     abandonedTask.abandon(reason, undefined, true);
     return abandonedTask;
   });
@@ -859,40 +927,6 @@ if (!Task.createNewTasksUpdatedFromPriorVersions) {
 //======================================================================================================================
 // Internal functions
 //======================================================================================================================
-
-// /**
-//  * An internal function to set the state of a given task to the given state (if it is not already finalised) and then to
-//  * recursively set the same state on each of its subTasks (that are not already finalised).
-//  * @param {Task} task - the task to update with the given state
-//  * @param {TaskState|Success|Rejection} state - the new state to set
-//  */
-// function setTaskStateRecursively(task, state) {
-//   if (!task.isFinalised()) {
-//     task._state = state;
-//   }
-//   const subTasks = task._subTasks;
-//   for (let i = 0; i < subTasks.length; ++i) {
-//     setTaskStateRecursively(subTasks[i], state);
-//   }
-// }
-
-// /**
-//  * An internal function to reset the state of a given task back to an unstarted state and its result back to undefined
-//  * (if it is not already finalised) and then to recursively reset the same state and undefined result on each of its
-//  * subTasks (that are not already finalised).
-//  * @param {Task} task - the task on which to reset the state and result
-//  */
-// function resetTaskStateRecursively(task) {
-//   if (!task.isFinalised() && (!task._state || !task._state.isUnstarted())) {
-//     task._state = TaskState.UNSTARTED;
-//     task._result = undefined;
-//     task._attemptIncrements = 0;
-//   }
-//   const subTasks = task._subTasks;
-//   for (let i = 0; i < subTasks.length; ++i) {
-//     resetTaskStateRecursively(subTasks[i]);
-//   }
-// }
 
 /**
  * Returns true if the proposed sub-task names together with the given parent task's sub-task names are all
@@ -1098,7 +1132,7 @@ function wrapExecuteTask(task, taskExecute) {
  */
 function completeTaskIfStillUnstarted(task, result) {
   // If this task is still in an unstarted state after its execute function completed successfully, then help it along
-  if (task.isUnstarted()) { //} && (task.subTasks.length <= 0 || task.subTasks.every(t => t.isFullyFinalised()))) {
+  if (task.unstarted) { //} && (task.subTasks.length <= 0 || task.subTasks.every(t => t.isFullyFinalised()))) {
     task.succeed();
   }
   if (!task._result) {

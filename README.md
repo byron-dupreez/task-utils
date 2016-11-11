@@ -1,4 +1,4 @@
-# task-utils v2.0.0
+# task-utils v3.0.0
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -143,6 +143,27 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 3.0.0
+- Changes and fixes to `task-states` module
+  - Fixed defect in `Rejected` subclass
+  - Changes to TaskState API:
+    - Added `incomplete` read-only property
+    - Changed `isFinalised` method to `finalisd` read-only property
+- Changes and fixes to `tasks` module
+  - Fixed defects in `createNewTasksUpdatedFromPriorVersions` function
+  - Changes to Task API in `tasks` module:
+    - Removed unneeded `attemptIncrements` read-only property
+    - Added `incomplete` read-only property
+    - Changed `isUnstarted` method to `unstarted` read-only property to match TaskState
+    - Changed `isFinalised` method to `finalisd` read-only property to match TaskState
+    - Added static `getTasksAndSubTasks` function to Task
+    - Added static `forEach` function to Task
+  - Added more unit tests
+- Changes and fixes to `task-utils` module
+  - Fixed defect in `getTasksAndSubTasks` function blocking use of task-likes
+  - Added `forEach` function
+  - Added more unit tests
 
 ### 2.0.0
 - Added new `tasks` module

@@ -10,11 +10,8 @@ const test = require("tape");
 // The test subject
 const Tasks = require('../tasks');
 const Task = Tasks.Task;
-// const createTask = Task.createTask;
-// const getRootTask = Task.getRootTask;
-// const reconstructTasksFromRootTaskLike = Task.reconstructTasksFromRootTaskLike;
 // const reconstructTaskDefsFromRootTaskLike = Tasks.FOR_TESTING.reconstructTaskDefsFromRootTaskLike;
-const wrapExecuteTask = Tasks.FOR_TESTING.wrapExecuteTask;
+// const wrapExecuteTask = Tasks.FOR_TESTING.wrapExecuteTask;
 
 
 const taskDefs = require('../task-defs');
@@ -76,6 +73,10 @@ function checkExecutable(t, task, expectedExecutable) {
   checkMethodOkNotOk(t, task, task.isInternal, [], !expectedExecutable, 'must be Internal', 'must be NOT Internal');
 }
 
+// =====================================================================================================================
+// createTask
+// =====================================================================================================================
+
 test('createTask', t => {
   function check(taskDef, mustPass, mustBeExecutable) {
     const prefix = `createTask(${taskDef ? taskDef.name : taskDef})`;
@@ -115,6 +116,10 @@ test('createTask', t => {
 
   t.end();
 });
+
+// =====================================================================================================================
+// new Task
+// =====================================================================================================================
 
 test('new Task', t => {
   function check(taskDef, parent, mustPass, mustBeExecutable) {
@@ -179,13 +184,17 @@ test('new Task', t => {
   t.end();
 });
 
+// =====================================================================================================================
+// reconstructTasksFromRootTaskLike
+// =====================================================================================================================
+
 test('reconstructTasksFromRootTaskLike', t => {
   function check(taskBefore, mustPass, mustBeExecutable) {
     // Serialize and deserialize it to convert it into a task-like object
     const json = JSON.stringify(taskBefore);
-    console.log(`*************** TASK JSON ${json}`);
+    //console.log(`*************** TASK JSON ${json}`);
     const taskLike = JSON.parse(json);
-    console.log(`*************** TASK LIKE ${stringify(taskLike)}`);
+    //console.log(`*************** TASK LIKE ${stringify(taskLike)}`);
     equal(t, TaskState.toTaskStateFromStateLike(taskLike.state), taskBefore.state, `TaskLike state `);
     equal(t, taskLike.attempts, taskBefore.attempts, `TaskLike attempts `);
 
@@ -242,6 +251,438 @@ test('reconstructTasksFromRootTaskLike', t => {
 
   taskB.abandon('Dead', new Error("Black plague"), true);
   check(taskB, true, true);
+
+  t.end();
+});
+
+// =====================================================================================================================
+// task state changes
+// =====================================================================================================================
+
+test('task state initial', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  t.ok(task.unstarted, `${task.name} must be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task succeed()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Complete it
+  task.succeed();
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.ok(task.isSuccess(), `${task.name} must be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task success()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Complete it
+  task.success('MySuccessCode');
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.ok(task.isSuccess(), `${task.name} must be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task fail()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Fail it
+  task.fail(new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.failed, `${task.name} must be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.ok(task.isFailure(), `${task.name} must be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task failure()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Fail it
+  task.failure('MyFailureCode', new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.failed, `${task.name} must be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.ok(task.isFailure(), `${task.name} must be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task reject()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Reject it
+  task.reject('Rotten', new Error('Yuck'), false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task discard()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Reject it
+  task.discard('AttemptsExceeded', undefined, false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.ok(task.isDiscarded(), `${task.name} must be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+
+test('task abandon()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Reject it
+  task.abandon('Forgotten', undefined, false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.ok(task.isAbandoned(), `${task.name} must be Abandoned`);
+
+  t.end();
+});
+
+
+test('task succeed() then fail() then succeed()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Complete it
+  task.succeed();
+
+  // Fail it
+  task.fail(new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.failed, `${task.name} must be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.ok(task.isFailure(), `${task.name} must be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Re-complete it
+  task.succeed();
+
+  t.notOk(task.unstarted, `${task.name} must not be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must not be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must not be rejected`);
+
+  t.ok(task.isSuccess(), `${task.name} must be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task succeed() then cannot reject()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Complete it
+  task.succeed();
+
+  // Cannot reject it
+  task.reject('Rotten', new Error('Yuck'), false);
+
+  t.notOk(task.unstarted, `${task.name} must not be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must not be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must not be rejected`);
+
+  t.ok(task.isSuccess(), `${task.name} must be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task fail() then succeed()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Fail it
+  task.fail(new Error('Boom'));
+
+  // Complete it
+  task.succeed();
+
+  t.notOk(task.unstarted, `${task.name} must not be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must not be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must not be rejected`);
+
+  t.ok(task.isSuccess(), `${task.name} must be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task fail() then reject()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Fail it
+  task.fail(new Error('Boom'));
+
+  // Reject it
+  task.reject('Rotten', new Error('Yuck'), false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task reject() then cannot succeed(), cannot fail()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Reject it
+  task.reject('Rotten', new Error('Yuck'), false);
+
+  // Cannot complete it
+  task.succeed();
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Cannot fail it
+  task.fail(new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task succeed() then fail() then reject() then cannot succeed(), cannot fail()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Complete it
+  task.succeed();
+
+  // Fail it
+  task.fail(new Error('Boom'));
+
+  // Reject it
+  task.reject('Rotten', new Error('Yuck'), false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Cannot re-complete it
+  task.succeed();
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Cannot re-fail it
+  task.fail(new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
+  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+// =====================================================================================================================
+// task incrementAttempts
+// =====================================================================================================================
+
+test('task incrementAttempts', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 2, `${task.name} attempts must be 2`);
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 3, `${task.name} attempts must be 3`);
+
+  // Complete it
+  task.succeed();
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 3, `${task.name} attempts must still be 3`);
+
+  // Fail it
+  task.fail(new Error('Badoom'));
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 4, `${task.name} attempts must be 4`);
+
+  // Reject it
+  task.reject('NoReason', undefined, false);
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 4, `${task.name} attempts must still be 4`);
 
   t.end();
 });

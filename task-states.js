@@ -19,7 +19,7 @@
 const UNSTARTED_CODE = 'Unstarted';
 const SUCCEEDED_CODE = 'Succeeded';
 const FAILED_CODE = 'Failed';
-const REJECTED_CODE = 'Failed';
+const REJECTED_CODE = 'Rejected';
 const DISCARDED_CODE = 'Discarded';
 const ABANDONED_CODE = 'Abandoned';
 
@@ -66,6 +66,14 @@ class TaskState {
   }
 
   /**
+   * Returns true if this state is an incomplete state (i.e. not completed and not rejected); false otherwise
+   * @returns {boolean} true if incomplete; false otherwise
+   */
+  get incomplete() {
+    return !this.completed && !this.rejected;
+  }
+
+  /**
    * Returns true if this state is a failed state (i.e. not completed, not rejected, but has an error); false otherwise.
    * @return {boolean} true if failed; false otherwise.
    */
@@ -77,7 +85,7 @@ class TaskState {
    * Returns true if this state is a finalised state (i.e. either completed or rejected); false otherwise
    * @returns {boolean} true if a finalised state; false otherwise
    */
-  isFinalised() {
+  get finalised() {
     return this.completed || this.rejected;
   }
 

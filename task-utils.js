@@ -99,10 +99,18 @@ function getTasks(tasksByName) {
 function getTasksAndSubTasks(tasksByName) {
   // First get all of the tasks on the given tasksByName map
   const tasks = getTasks(tasksByName);
+
   const allTasksAndSubTasks = [];
+
   // Collect all tasks and all of their subtasks recursively
-  tasks.forEach(task => task.forEach(t => allTasksAndSubTasks.push(t)));
+  tasks.forEach(task => forEach(task, t => allTasksAndSubTasks.push(t)));
+
   return allTasksAndSubTasks;
+}
+
+function forEach(task, callback) {
+  callback(task);
+  task.subTasks.forEach(t => forEach(t, callback));
 }
 
 /**

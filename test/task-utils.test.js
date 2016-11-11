@@ -12,17 +12,9 @@ const taskUtils = require('../task-utils');
 const getTask = taskUtils.getTask;
 const getSubTask = taskUtils.getSubTask;
 const getTasks = taskUtils.getTasks;
+const getTasksAndSubTasks = taskUtils.getTasksAndSubTasks;
 const setTask = taskUtils.setTask;
-// const getTaskState = taskUtils.getTaskState;
-// const getTaskResult = taskUtils.getTaskResult;
-// const getTaskProperty = taskUtils.getTaskProperty;
-// const getTaskAttempts = taskUtils.getTaskAttempts;
-// const incrementTaskAttempts = taskUtils.incrementTaskAttempts;
-// const setTaskState = taskUtils.setTaskState;
-// const setTaskResult = taskUtils.setTaskResult;
-// const setTaskProperty = taskUtils.setTaskProperty;
-// const setTaskStateIfNecessary = taskUtils.setTaskStateIfNecessary;
-// const resetTaskStateAndResultIfNotComplete = taskUtils.resetTaskStateAndResultIfNotComplete;
+const replaceTasksWithNewTasksUpdatedFromOld = taskUtils.replaceTasksWithNewTasksUpdatedFromOld;
 
 const taskDefs = require('../task-defs');
 const TaskDef = taskDefs.TaskDef;
@@ -46,39 +38,10 @@ const Task = Tasks.Task;
 // const toTaskState = states.toTaskState;
 // //const isCompleted = states.isCompleted;
 
+const Arrays = require('core-functions/arrays');
+
 const strings = require('core-functions/strings');
 const stringify = strings.stringify;
-
-// //TO DO remove this workaround later for removal of getOrCreateTask from task-utils.js
-// function getOrCreateTask(target, tasksName, taskName) {
-//   let task = getTask(target, tasksName, taskName);
-//   if (!task) {
-//     const taskDef = TaskDef.defineTask(taskName, () => {});
-//     task = Task.createTask(taskDef);
-//     setTask(target, tasksName, taskName, task);
-//   }
-//   return task;
-// }
-// //TO DO remove this workaround for removal of getOrCreateTask from task-utils.js
-// function incrementTaskAttempts(target, tasksName, taskName) {
-//   getOrCreateTask(target, tasksName, taskName);
-//   return taskUtils.incrementTaskAttempts(target, tasksName, taskName);
-// }
-// //TO DO remove this workaround for removal of getOrCreateTask from task-utils.js
-// function setTaskState(target, tasksName, taskName, state, incrementAttempts) {
-//   getOrCreateTask(target, tasksName, taskName);
-//   return taskUtils.setTaskState(target, tasksName, taskName, state, incrementAttempts);
-// }
-// //TO DO remove this workaround for removal of getOrCreateTask from task-utils.js
-// function setTaskResult(target, tasksName, taskName, result) {
-//   getOrCreateTask(target, tasksName, taskName);
-//   return taskUtils.setTaskResult(target, tasksName, taskName, result);
-// }
-// //TO DO remove this workaround for removal of getOrCreateTask from task-utils.js
-// function setTaskProperty(target, tasksName, taskName, propertyName, value) {
-//   getOrCreateTask(target, tasksName, taskName);
-//   return taskUtils.setTaskProperty(target, tasksName, taskName, propertyName, value);
-// }
 
 //======================================================================================================================
 // getTask
@@ -129,10 +92,10 @@ test('getTask with a real Task returns it', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processAllTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -147,7 +110,7 @@ test('getTask with a real Task returns it', t => {
   const origTask = Task.createTask(taskDef);
 
   // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  const processOneTasks = msg.myTasks.ones;
 
   processOneTasks[taskName] = origTask;
 
@@ -165,10 +128,10 @@ test('getTask with a Task-like returns it', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processAllTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -186,7 +149,7 @@ test('getTask with a Task-like returns it', t => {
   const origTaskLike = JSON.parse(JSON.stringify(origTask));
 
   // Set the named task-like on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  const processOneTasks = msg.myTasks.ones;
   processOneTasks[taskName] = origTaskLike;
 
   // Get should return the task just registered
@@ -253,10 +216,10 @@ test('getTasks with real tasks returns them', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processAllTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -270,7 +233,7 @@ test('getTasks with real tasks returns them', t => {
   const task0 = Task.createTask(taskDef);
 
   // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  const processOneTasks = msg.myTasks.ones;
   setTask(processOneTasks, taskName, task0);
 
   // Get should return the task just registered
@@ -286,9 +249,9 @@ test('getTasks with real tasks returns them', t => {
 // setTask
 //======================================================================================================================
 test('setTask', t => {
-  function check(source, taskName, task) {
-    setTask(source, taskName, task);
-    const actual = getTask(source, taskName);
+  function check(tasksByName, taskName, task) {
+    setTask(tasksByName, taskName, task);
+    const actual = getTask(tasksByName, taskName);
     t.deepEqual(actual, task, `setTask (${stringify(actual)}) must be (${stringify(task)})`);
   }
 
@@ -383,8 +346,8 @@ test('getSubTask with multiple "tasks" and "sub-tasks" returns each', t => {
 });
 
 test('getSubTask with real sub-Tasks and sub-sub-Tasks returns them', t => {
-  function check(source, taskName, subTaskName, expected) {
-    const subTask = getSubTask(source, taskName, subTaskName);
+  function check(tasksByName, taskName, subTaskName, expected) {
+    const subTask = getSubTask(tasksByName, taskName, subTaskName);
     t.deepEqual(subTask, expected, `getSubTask(${taskName}, ${stringify(subTaskName)}) must be ${stringify(expected ? expected.name : expected)}`);
   }
 
@@ -392,10 +355,10 @@ test('getSubTask with real sub-Tasks and sub-sub-Tasks returns them', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processAllTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -415,7 +378,7 @@ test('getSubTask with real sub-Tasks and sub-sub-Tasks returns them', t => {
   const origTask = Task.createTask(taskDef);
 
   // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  const processOneTasks = msg.myTasks.ones;
 
   processOneTasks[taskName] = origTask;
 
@@ -452,8 +415,8 @@ test('getSubTask with real sub-Tasks and sub-sub-Tasks returns them', t => {
 });
 
 test('getSubTask with sub-task-likes and sub-sub-task-likes returns them', t => {
-  function check(source, taskName, subTaskName, expected) {
-    const subTask = getSubTask(source, taskName, subTaskName);
+  function check(tasksByName, taskName, subTaskName, expected) {
+    const subTask = getSubTask(tasksByName, taskName, subTaskName);
     t.deepEqual(subTask, expected, `getSubTask(${taskName}, ${stringify(subTaskName)}) must be ${stringify(expected ? expected.name : expected)}`);
   }
 
@@ -461,10 +424,10 @@ test('getSubTask with sub-task-likes and sub-sub-task-likes returns them', t => 
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processAllTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -487,7 +450,7 @@ test('getSubTask with sub-task-likes and sub-sub-task-likes returns them', t => 
   const origTaskLike = JSON.parse(JSON.stringify(origTask));
 
   // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  const processOneTasks = msg.myTasks.ones;
 
   processOneTasks[taskName] = origTaskLike;
 
@@ -524,469 +487,438 @@ test('getSubTask with sub-task-likes and sub-sub-task-likes returns them', t => 
 });
 
 
-// test('getOrCreateTask with no tasks and no task returns new task', t => {
-//   const o = {};
-//   const task = getOrCreateTask(o, 'tasks', 'task1');
-//   t.ok(task, 'task must be defined');
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks.task1, 'o.tasks.task1 must be defined');
-//   t.equal(task, o.tasks.task1, 'task must match o.tasks.task1');
-//   t.end();
-// });
-//
-// test('getOrCreateTask with defined task returns it', t => {
-//   const o = { tasks: { task1: {} } };
-//   const task1 = o.tasks.task1;
-//   const task = getOrCreateTask(o, 'tasks', 'task1');
-//   t.ok(task, 'task must be defined');
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks.task1, 'o.tasks.task1 must be defined');
-//   t.equal(task, task1, 'task must match task1');
-//   t.equal(task, o.tasks.task1, 'task must match o.tasks.task1');
-//   t.end();
-// });
-//
-// test('getTaskState with no tasks and no task & no state, returns undefined', t => {
-//   const o = {};
-//   const taskState = getTaskState(o, 'tasks', 'task2');
-//   t.notOk(taskState, 'task state must not be defined yet');
-//   t.notOk(o.tasks, 'o.tasks must not be defined');
-//   t.end();
-// });
-//
-// test('getTaskState with tasks, but no task, returns undefined', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.notOk(taskState, `task ${taskName} state must not be defined yet`);
-//   t.notOk(o.tasks[taskName], `o.tasks[${taskName}] must not be defined yet`);
-//   t.end();
-// });
-//
-// test('getTaskState with defined task state returns it', t => {
-//   const taskName = 'task1';
-//   const err = new Error('Smash');
-//   const state = new Failed(err);
-//   const o = { tasks: { [taskName]: { state: state} } };
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   const task = getTask(o, 'tasks', taskName);
-//   t.ok(taskState, `task ${taskName} state must be defined`);
-//   t.equal(taskState, state, `task ${taskName} state must match`);
-//   t.end();
-// });
-//
-// test('getTaskResult with no tasks and no task & no result, returns undefined', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const taskResult = getTaskResult(o, 'tasks', taskName);
-//   t.notOk(taskResult, `task ${taskName} result must not be defined yet`);
-//   t.notOk(o.tasks, 'o.tasks must not be defined');
-//   t.end();
-// });
-//
-// test('getTaskResult with tasks, but no task, returns undefined', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const taskResult = getTaskResult(o, 'tasks', taskName);
-//   t.notOk(taskResult, `task ${taskName} result must not be defined yet`);
-//   t.notOk(o.tasks[taskName], `o.tasks[${taskName}] must not be defined yet`);
-//   t.end();
-// });
-//
-// test('getTaskResult with defined task result returns it', t => {
-//   const taskName = 'task1';
-//   const result = 'Yo';
-//   const o = { tasks: { [taskName]: { result: result} } };
-//   const taskResult = getTaskResult(o, 'tasks', taskName);
-//   const task = getTask(o, 'tasks', taskName);
-//   t.ok(taskResult, `task ${taskName} result must be defined`);
-//   t.equal(taskResult, result, `task ${taskName} result must match`);
-//   t.end();
-// });
-//
-// test('getTaskAttempts with no tasks and no task & no attempts, returns undefined', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts, 0, `task ${taskName} attempts must be zero`);
-//   t.notOk(taskAttempts, `task ${taskName} attempts must not be defined yet`);
-//   t.notOk(o.tasks, 'o.tasks must not be defined');
-//   t.end();
-// });
-//
-// test('getTaskAttempts with tasks, but no task, returns undefined', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts, 0, `task ${taskName} attempts must be zero`);
-//   t.notOk(taskAttempts, `task ${taskName} attempts must not be defined yet`);
-//   t.notOk(o.tasks[taskName], `o.tasks[${taskName}] must not be defined yet`);
-//   t.end();
-// });
-//
-// test('getTaskAttempts with defined task attempts returns it', t => {
-//   const taskName = 'task1';
-//   const attempts = 77;
-//   const o = { tasks: { [taskName]: { attempts: attempts} } };
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   const task = getTask(o, 'tasks', taskName);
-//   t.ok(taskAttempts, `task ${taskName} attempts must be defined`);
-//   t.equal(taskAttempts, attempts, `task ${taskName} attempts must match`);
-//   t.end();
-// });
-//
-// test('getTaskProperty with no tasks and no task & no property value, returns undefined', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const propertyName = 'propertyName3';
-//   const taskPropertyValue = getTaskProperty(o, 'tasks', taskName, propertyName);
-//   t.notOk(taskPropertyValue, `task ${taskName} ${propertyName} value must not be defined yet`);
-//   t.notOk(o.tasks, 'o.tasks must not be defined');
-//   t.end();
-// });
-//
-// test('getTaskProperty with tasks, but no task, returns undefined', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const propertyName = 'propertyName5';
-//   const taskPropertyValue = getTaskProperty(o, 'tasks', taskName, propertyName);
-//   t.notOk(taskPropertyValue, `task ${taskName} ${propertyName} value must not be defined yet`);
-//   t.notOk(o.tasks[taskName], `o.tasks[${taskName}] must not be defined yet`);
-//   t.end();
-// });
-//
-// test('getTaskProperty with defined task propertyValue returns it', t => {
-//   const taskName = 'task1';
-//   const propertyName = 'propertyName7';
-//   const propertyValue = 'Yo';
-//   const o = { tasks: { [taskName]: { [propertyName]: propertyValue} } };
-//   const taskPropertyValue = getTaskProperty(o, 'tasks', taskName, propertyName);
-//   const task = getTask(o, 'tasks', taskName);
-//   t.ok(taskPropertyValue, `task ${taskName} ${propertyName} value must be defined`);
-//   t.equal(taskPropertyValue, propertyValue, `task ${taskName} ${propertyName} value must match`);
-//   t.end();
-// });
-//
-// test('incrementTaskAttempts with no tasks and no task & no attempts, sets it to one', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const o1  = incrementTaskAttempts(o, 'tasks', taskName);
-//   t.equal(o1, o, 'same object');
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts, 1, `task ${taskName} attempts must be one`);
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].attempts, `o.tasks[${taskName}].attempts must be defined`);
-//   t.end();
-// });
-//
-// test('incrementTaskAttempts with tasks, but no task, sets it to one', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const o1 = incrementTaskAttempts(o, 'tasks', taskName);
-//   t.equal(o1, o, 'same object');
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts, 1, `task ${taskName} attempts must be one`);
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].attempts, `o.tasks[${taskName}].attempts must be defined`);
-//   t.end();
-// });
-//
-// test('incrementTaskAttempts with defined task attempts, increments it', t => {
-//   const taskName = 'task1';
-//   const attempts = 77;
-//   const o = { tasks: { [taskName]: { attempts: attempts} } };
-//   const o1 = incrementTaskAttempts(o, 'tasks', taskName);
-//   t.equal(o1, o, 'same object');
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.ok(taskAttempts, `task ${taskName} attempts must be defined`);
-//   t.equal(taskAttempts, attempts + 1, `task ${taskName} attempts is original plus one`);
-//
-//   const o2 = incrementTaskAttempts(o, 'tasks', taskName);
-//   t.equal(o2, o, 'same object');
-//   const taskAttempts2 = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts2, attempts + 2, `task ${taskName} attempts is original plus two`);
-//   t.end();
-// });
-//
-//
-// test('setTaskState with no tasks and no task & no state and incrementAttempts true, updates the state and attempts to 1', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const state = new Failure('Missing');
-//   const o1 = setTaskState(o, 'tasks', taskName, state, true);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState, state, `task ${taskName} state must match`);
-//
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts, 1, `task ${taskName} state must be one`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].state, `o.tasks[${taskName}].state must be defined`);
-//   t.end();
-// });
-//
-// test('setTaskState with tasks, but no task and incrementAttempts true, updates the state and attempts to 1', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const state = new Success('Exists');
-//   const o1 = setTaskState(o, 'tasks', taskName, state, true);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState, state, `task ${taskName} state must match`);
-//
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts, 1, `task ${taskName} attempts must be one`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].state, `o.tasks[${taskName}].state must be defined`);
-//   t.ok(o.tasks[taskName].attempts, `o.tasks[${taskName}].attempts must be defined`);
-//   t.end();
-// });
-//
-// test('setTaskState with defined task state and attempts and incrementAttempts true, updates the state and increments the attempts', t => {
-//   const taskName = 'task1';
-//   const state = new Failed(new Error('Thump'));
-//   const attempts = 69;
-//   const o = { tasks: { [taskName]: { state: UNSTARTED, attempts: attempts } } };
-//   const o1 = setTaskState(o, 'tasks', taskName, state, true);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState, state, `task ${taskName} state must match`);
-//
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.ok(taskAttempts, `task ${taskName} attempts must be defined`);
-//   t.equal(taskAttempts, attempts + 1, `task ${taskName} attempts is original plus one`);
-//
-//   // Simulate a reset at start of 2nd run
-//   setTaskState(o, 'tasks', taskName, UNSTARTED, false);
-//
-//   const state2 = SUCCEEDED;
-//   const o2 = setTaskState(o, 'tasks', taskName, state2, true);
-//   t.equal(o2, o, 'same object');
-//
-//   const taskState2 = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState2, state2, `task ${taskName} state 2 must match`);
-//
-//   const taskAttempts2 = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts2, attempts + 2, `task ${taskName} attempts is original plus two`);
-//   t.end();
-// });
-//
-// test('setTaskState with no tasks and no task & no state and incrementAttempts false, updates the state only', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const state = new Failure('Missing');
-//   const o1 = setTaskState(o, 'tasks', taskName, state, false);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState, state, `task ${taskName} state must match`);
-//
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.notOk(taskAttempts, `task ${taskName} attempts must not be defined`);
-//   t.equal(taskAttempts, 0, `task ${taskName} attempts is zero`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].state, `o.tasks[${taskName}].state must be defined`);
-//   t.notOk(o.tasks[taskName].attempts, `o.tasks[${taskName}].attempts must not be defined yet`);
-//   t.end();
-// });
-//
-// test('setTaskState with tasks, but no task and incrementAttempts false, updates the state only', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const state = new Success('Exists');
-//   const o1 = setTaskState(o, 'tasks', taskName, state, false);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState, state, `task ${taskName} state must match`);
-//
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.notOk(taskAttempts, `task ${taskName} attempts must not be defined`);
-//   t.equal(taskAttempts, 0, `task ${taskName} attempts is zero`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].state, `o.tasks[${taskName}].state must be defined`);
-//   t.notOk(o.tasks[taskName].attempts, `o.tasks[${taskName}].attempts must not be defined yet`);
-//   t.end();
-// });
-//
-// test('setTaskState with defined task state and attempts and incrementAttempts false, updates the state only', t => {
-//   const taskName = 'task1';
-//   const state = new Failed(new Error('Thump'));
-//   const attempts = 69;
-//   const o = { tasks: { [taskName]: { state: state, attempts: attempts } } };
-//   const o1 = setTaskState(o, 'tasks', taskName, state, false);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState, state, `task ${taskName} state must match`);
-//
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts, attempts, `task ${taskName} attempts still has original value`);
-//
-//   const state2 = SUCCEEDED;
-//   const o2 = setTaskState(o, 'tasks', taskName, state2, false);
-//   t.equal(o2, o, 'same object');
-//
-//   const taskState2 = getTaskState(o, 'tasks', taskName);
-//   t.equal(taskState2, state2, `task ${taskName} state must match`);
-//
-//   const taskAttempts2 = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts2, attempts, `task ${taskName} attempts 2 still has original value`);
-//   t.end();
-// });
-//
-// test('setTaskState with defined task state and attempts and incrementAttempts true, updates the state and increments the attempts', t => {
-//   const taskName = 'task1';
-//   const code = 'Failed';
-//   const error = new Error('Thump');
-//   const state = new Failed(error);
-//   const attempts = 69;
-//   const o = { tasks: { [taskName]: { state: UNSTARTED, attempts: attempts } } };
-//
-//   // Update #1
-//   const o1 = setTaskState(o, 'tasks', taskName, toTaskState(code, false, error, false, undefined), true);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskState = getTaskState(o, 'tasks', taskName);
-//   t.deepEqual(taskState, state, `task ${taskName} state must match`);
-//
-//   const taskAttempts = getTaskAttempts(o, 'tasks', taskName);
-//   t.ok(taskAttempts, `task ${taskName} attempts must be defined`);
-//   t.equal(taskAttempts, attempts + 1, `task ${taskName} attempts is original plus one`);
-//
-//   // Simulate a new run by resetting the task state back to incomplete
-//   setTaskState(o, 'tasks', taskName, UNSTARTED, false);
-//
-//   const code2 = SUCCEEDED_CODE;
-//   const state2 = SUCCEEDED;
-//   // Update #2
-//   const o2 = setTaskState(o, 'tasks', taskName, toTaskState(code2, true, undefined, false, undefined), false);
-//   t.equal(o2, o, 'same object');
-//
-//   const taskState2 = getTaskState(o, 'tasks', taskName);
-//   t.deepEqual(taskState2, state2, `task ${taskName} state 2 must match`);
-//
-//   const taskAttempts2 = getTaskAttempts(o, 'tasks', taskName);
-//   t.equal(taskAttempts2, attempts + 1, `task ${taskName} attempts 2 is still original plus one`);
-//   t.end();
-// });
-//
-// test('setTaskResult with no tasks and no task & no result, updates the result', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const result = 1.2345;
-//   const o1 = setTaskResult(o, 'tasks', taskName, result);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskResult = getTaskResult(o, 'tasks', taskName);
-//   t.equal(taskResult, result, `task ${taskName} result must match`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].result, `o.tasks[${taskName}].result must be defined`);
-//   t.end();
-// });
-//
-// test('setTaskResult with tasks, but no task & no result, updates the result', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const result = 4.567;
-//   const o1 = setTaskResult(o, 'tasks', taskName, result);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskResult = getTaskResult(o, 'tasks', taskName);
-//   t.equal(taskResult, result, `task ${taskName} result must match`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName].result, `o.tasks[${taskName}].result must be defined`);
-//   t.end();
-// });
-//
-// test('setTaskResult with defined task result, updates the result', t => {
-//   const taskName = 'task1';
-//   const result = 7.89;
-//   const o = { tasks: { [taskName]: { result: result } } };
-//   const o1 = setTaskResult(o, 'tasks', taskName, result);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskResult = getTaskResult(o, 'tasks', taskName);
-//   t.equal(taskResult, result, `task ${taskName} result must match`);
-//
-//   const result2 = result * 2;
-//   const o2 = setTaskResult(o, 'tasks', taskName, result2);
-//   t.equal(o2, o, 'same object');
-//
-//   const taskResult2 = getTaskResult(o, 'tasks', taskName);
-//   t.equal(taskResult2, result2, `task ${taskName} result 2 must match`);
-//   t.end();
-// });
-//
-// test('setTaskProperty with no tasks and no task & no property value, updates the property value', t => {
-//   const o = {};
-//   const taskName = 'task2';
-//   const propertyName = 'propertyName53';
-//   const propertyValue = 2.999;
-//   const o1 = setTaskProperty(o, 'tasks', taskName, propertyName, propertyValue);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskPropertyValue = getTaskProperty(o, 'tasks', taskName, propertyName);
-//   t.equal(taskPropertyValue, propertyValue, `task ${taskName} ${propertyName} value must match`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName][propertyName], `o.tasks[${taskName}][${propertyName}] value must be defined`);
-//   t.end();
-// });
-//
-// test('setTaskProperty with tasks, but no task & no propertyValue, updates the propertyValue', t => {
-//   const o = { tasks: { task1: {} } };
-//   const taskName = 'task2';
-//   const propertyName = 'propertyName54';
-//   const propertyValue = 4.999;
-//   const o1 = setTaskProperty(o, 'tasks', taskName, propertyName, propertyValue);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskPropertyValue = getTaskProperty(o, 'tasks', taskName, propertyName);
-//   t.equal(taskPropertyValue, propertyValue, `task ${taskName} ${propertyName} value must match`);
-//
-//   t.ok(o.tasks, 'o.tasks must be defined');
-//   t.ok(o.tasks[taskName], `o.tasks[${taskName}] must be defined`);
-//   t.ok(o.tasks[taskName][propertyName], `o.tasks[${taskName}][${propertyName}] value must be defined`);
-//   t.end();
-// });
-//
-// test('setTaskProperty with defined task propertyValue, updates the propertyValue', t => {
-//   const taskName = 'task1';
-//   const propertyName = 'propertyName55';
-//   const propertyValue = 7.999;
-//   const o = { tasks: { [taskName]: { propertyValue: propertyValue } } };
-//   const o1 = setTaskProperty(o, 'tasks', taskName, propertyName, propertyValue);
-//   t.equal(o1, o, 'same object');
-//
-//   const taskPropertyValue = getTaskProperty(o, 'tasks', taskName, propertyName);
-//   t.equal(taskPropertyValue, propertyValue, `task ${taskName} ${propertyName} value must match`);
-//
-//   const propertyValue2 = propertyValue * 2;
-//   const o2 = setTaskProperty(o, 'tasks', taskName, propertyName, propertyValue2);
-//   t.equal(o2, o, 'same object');
-//
-//   const taskPropertyValue2 = getTaskProperty(o, 'tasks', taskName, propertyName);
-//   t.equal(taskPropertyValue2, propertyValue2, `task ${taskName} ${propertyName} value must match`);
-//   t.end();
-// });
+//======================================================================================================================
+// getTasksAndSubTasks
+//======================================================================================================================
+
+test('getTasksAndSubTasks with tasks or task-likes returns them', t => {
+  function check(tasksByName, desc, expectedLength, expectedTaskNames) {
+    const tasksAndSubTasks = getTasksAndSubTasks(tasksByName);
+
+    const tasksAndSubTasksNames = tasksAndSubTasks.map(t => t.name); //.sort();
+    const expectedNames = expectedTaskNames; //.sort();
+
+    t.equal(tasksAndSubTasks.length, expectedLength, `getTasksAndSubTasks(${desc}) length must be ${expectedLength}`);
+    t.deepEqual(tasksAndSubTasksNames, expectedNames, `getTasksAndSubTasks(${desc}) names (${stringify(tasksAndSubTasksNames)}) must be ${stringify(expectedNames)}`)
+  }
+
+  // Set the named task on the tasks-by-name object
+  const tasksByName = {arb1: 'Arbitrary 1'};
+  check(tasksByName, 'with none', 0, []);
+
+  // Create a real task
+  const taskName = 'Task 1';
+  const taskDef = TaskDef.defineTask(taskName, () => {
+  });
+
+  const subTaskDefs = taskDef.defineSubTasks(['SubTask 1', 'SubTask 2']);
+  subTaskDefs[0].defineSubTasks(['SubTask 1.1', 'SubTask 1.2']);
+
+  const subSubTaskDefs = subTaskDefs[1].defineSubTasks(['SubTask 2.1', 'SubTask 2.2']);
+  subSubTaskDefs[1].defineSubTasks(['SubTask 2.2.1', 'SubTask 2.2.2']);
+
+  const origTask = Task.createTask(taskDef);
+
+  // Check with Task hierarchy
+  tasksByName[taskName] = origTask;
+
+  const expectedTaskNames = ['Task 1', 'SubTask 1', 'SubTask 1.1', 'SubTask 1.2', 'SubTask 2', 'SubTask 2.1', 'SubTask 2.2', 'SubTask 2.2.1', 'SubTask 2.2.2'];
+
+  check(tasksByName, 'with Tasks', 9, expectedTaskNames);
+
+  // Convert original task into a task-like
+  const origTaskLike = JSON.parse(JSON.stringify(origTask));
+
+  t.ok(!(origTaskLike instanceof Task && Task.isTaskLike(origTaskLike)), 'origTaskLike must be task-like, but not a Task');
+
+  tasksByName[taskName] = origTaskLike;
+
+  check(tasksByName, 'with task-likes', 9, expectedTaskNames);
+
+  t.end();
+});
+
+//======================================================================================================================
+// getTasksAndSubTasks
+//======================================================================================================================
+
+function checkReplaceTasks(t, tasksByName, activeTaskDefs, desc, origTaskDefs, origTasks, origTaskLikes, expectedNames) {
+  const expectedNamesSorted = expectedNames.sort();
+
+  //console.log(`################### origTaskLikes = ${stringify(origTaskLikes)}`);
+  const orig = Task.getTasksAndSubTasks(origTaskLikes);
+  //console.log(`################### orig = ${stringify(orig)}`);
+  const origNamesSorted = orig.map(t => t.name).sort();
+  const before = getTasksAndSubTasks(tasksByName);
+  const beforeNamesSorted = before.map(t => t.name).sort();
+  before.forEach(task => {
+    //t.notOk(task instanceof Task, ` replaceTasks BEFORE ${task.name} must NOT be instance of Task`);
+    t.ok(Task.isTaskLike(task) && !(task instanceof Task), `replaceTasks(${desc}) BEFORE ${task.name} must be task-like, but NOT a Task`);
+  });
+  t.equal(beforeNamesSorted.length, origNamesSorted.length, `replaceTasks(${desc}) BEFORE all tasks length must be ${origNamesSorted.length}`);
+  t.deepEqual(beforeNamesSorted, origNamesSorted, `replaceTasks(${desc}) BEFORE all task names (${stringify(beforeNamesSorted)}) must be ${stringify(origNamesSorted)}`)
+
+  // Replace old with new
+  const newTasksAndAbandonedTasks = taskUtils.replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs);
+
+  const afterTaskNamesSorted = getTasks(tasksByName).map(t => t.name).sort();
+
+  const after = getTasksAndSubTasks(tasksByName);
+  const afterNames = after.map(t => t.name); //.sort();
+  const afterNamesSorted = afterNames.sort();
+
+  after.forEach(task => {
+    t.ok(task instanceof Task, `replaceTasks(${desc}) AFTER ${task.name} must be instance of Task`);
+  });
+
+  const origTaskLikeNames = origTaskLikes.map(t => t.name);
+  const activeTaskDefNames = activeTaskDefs.map(d => d.name);
+
+  const expectedTaskNames = Arrays.distinct(origTaskLikeNames.concat(activeTaskDefNames)).sort(); //((a,b) => a.length < b.length ? -1 ? a.length === b.length ? a < b : 0 : 1);
+
+  //t.equal(tasks.length, expectedTaskNames.length, `top-level tasks length must be ${activeTaskDefs.length}`);
 
 
+  t.equal(afterNames.length, expectedNames.length, `replaceTasks(${desc}) AFTER all tasks length must be ${expectedNames.length}`);
+  t.deepEqual(afterNamesSorted, expectedNamesSorted, `replaceTasks(${desc}) AFTER all names (${stringify(afterNamesSorted)}) must be ${stringify(expectedNamesSorted)}`)
+  t.deepEqual(afterTaskNamesSorted, expectedTaskNames, `replaceTasks(${desc}) AFTER task names (${stringify(afterTaskNamesSorted)}) must be ${stringify(expectedTaskNames)}`)
+
+  //console.log(`****************** new tasks (${desc}) = ${stringify(newTasksAndAbandonedTasks[0])}`);
+  //console.log(`****************** abandoned (${desc}) = ${stringify(newTasksAndAbandonedTasks[1])}`);
+
+  return newTasksAndAbandonedTasks;
+}
+
+test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 0: No old tasks and no new tasks', t => {
+  const tasksByName = {arb1: 'Arbitrary 1'};
+  checkReplaceTasks(t, tasksByName, [], 'with none', [], [], [], []);
+
+  t.end();
+});
+
+test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 1: No old tasks', t => {
+  const tasksByName = {arb1: 'Arbitrary 1'};
+
+  // Create real tasks
+  const taskName1 = 'Task 1';
+  const taskDef1 = TaskDef.defineTask(taskName1, () => {
+  });
+  const taskName2 = 'Task 2';
+  const taskDef2 = TaskDef.defineTask(taskName2, () => {
+  });
+  const taskName3 = 'Task 3';
+  const taskDef3 = TaskDef.defineTask(taskName3, () => {
+  });
+
+  const task1SubTaskDefs = taskDef1.defineSubTasks(['SubTask 1A', 'SubTask 1B']);
+  task1SubTaskDefs[0].defineSubTasks(['SubTask 1A-1', 'SubTask 1A-2']);
+
+  const subTask1BSubTaskDefs = task1SubTaskDefs[1].defineSubTasks(['SubTask 1B-1', 'SubTask 1B-2']);
+  subTask1BSubTaskDefs[1].defineSubTasks(['SubTask 1B-2a', 'SubTask 1B-2b']);
+
+  const origTaskDefs = [taskDef1, taskDef2, taskDef3];
+
+  const task1 = Task.createTask(taskDef1);
+  const task2 = Task.createTask(taskDef2);
+  const task3 = Task.createTask(taskDef3);
+
+  // Convert original tasks into task-likes
+  const taskLike1 = JSON.parse(JSON.stringify(task1));
+  const taskLike2 = JSON.parse(JSON.stringify(task2));
+  const taskLike3 = JSON.parse(JSON.stringify(task3));
+
+  const expectedNames = [
+    'Task 1',
+    'SubTask 1A', 'SubTask 1A-1', 'SubTask 1A-2',
+    'SubTask 1B', 'SubTask 1B-1', 'SubTask 1B-2', 'SubTask 1B-2a', 'SubTask 1B-2b',
+    'Task 2',
+    'Task 3'];
+
+  // Scenario 1: No old tasks
+  const desc = '0 old, 3 new';
+  const newTasksAndAbandoned1 = checkReplaceTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3], desc,
+    origTaskDefs, [], [], expectedNames);
+
+  const newTasks1 = newTasksAndAbandoned1[0];
+  const abandoned1 = newTasksAndAbandoned1[1];
+
+  t.equal(newTasks1.length, 3, '3 new tasks');
+  t.equal(abandoned1.length, 0, '0 abandoned');
+
+  // Check states
+  const t1 = newTasks1.find(t => t.name === 'Task 1');
+  t.ok(t1, `${t1.name} must be one of the new tasks`);
+  t1.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+  const t2 = newTasks1.find(t => t.name === 'Task 2');
+  t.ok(t2, `${t2.name} must be one of the new tasks`);
+  t2.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+  const t3 = newTasks1.find(t => t.name === 'Task 3');
+  t.ok(t3, `${t3.name} must be one of the new tasks`);
+  t3.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+
+
+  t.end();
+});
+
+test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 2: All old tasks are still active tasks', t => {
+  const tasksByName = {arb1: 'Arbitrary 1'};
+
+  // Create real tasks
+  const taskName1 = 'Task 1';
+  const taskDef1 = TaskDef.defineTask(taskName1, () => {
+  });
+  const taskName2 = 'Task 2';
+  const taskDef2 = TaskDef.defineTask(taskName2, () => {
+  });
+  const taskName3 = 'Task 3';
+  const taskDef3 = TaskDef.defineTask(taskName3, () => {
+  });
+
+  const task1SubTaskDefs = taskDef1.defineSubTasks(['SubTask 1A', 'SubTask 1B']);
+  task1SubTaskDefs[0].defineSubTasks(['SubTask 1A-1', 'SubTask 1A-2']);
+
+  const subTask1BSubTaskDefs = task1SubTaskDefs[1].defineSubTasks(['SubTask 1B-1', 'SubTask 1B-2']);
+  subTask1BSubTaskDefs[1].defineSubTasks(['SubTask 1B-2a', 'SubTask 1B-2b']);
+
+  const origTaskDefs = [taskDef1, taskDef2, taskDef3];
+
+  const task1 = Task.createTask(taskDef1);
+  const task2 = Task.createTask(taskDef2);
+  const task3 = Task.createTask(taskDef3);
+
+  const origTasks = [task1, task2, task3];
+
+  // Convert original tasks into task-likes
+  const taskLike1 = JSON.parse(JSON.stringify(task1));
+  const taskLike2 = JSON.parse(JSON.stringify(task2));
+  const taskLike3 = JSON.parse(JSON.stringify(task3));
+
+  // Check with Task hierarchy
+  const expectedNames = [
+    'Task 1',
+    'SubTask 1A', 'SubTask 1A-1', 'SubTask 1A-2',
+    'SubTask 1B', 'SubTask 1B-1', 'SubTask 1B-2', 'SubTask 1B-2a', 'SubTask 1B-2b',
+    'Task 2',
+    'Task 3'];
+
+  // Scenario 2: All old tasks are still active tasks
+  tasksByName[taskName1] = taskLike1;
+  tasksByName[taskName2] = taskLike2;
+  tasksByName[taskName3] = taskLike3;
+
+  const desc = '3 old, 3 new';
+  const newTasksAndAbandoned2 = checkReplaceTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3], desc,
+    origTaskDefs, origTasks, [taskLike1, taskLike2, taskLike3], expectedNames);
+
+  const newTasks2 = newTasksAndAbandoned2[0];
+  const abandoned2 = newTasksAndAbandoned2[1];
+
+  t.equal(newTasks2.length, 3, '3 new tasks');
+  t.equal(abandoned2.length, 0, '0 abandoned');
+
+  // Check states
+  const t1 = newTasks2.find(t => t.name === 'Task 1');
+  t.ok(t1, `${t1.name} must be one of the new tasks`);
+  t1.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+  const t2 = newTasks2.find(t => t.name === 'Task 2');
+  t.ok(t2, `${t2.name} must be one of the new tasks`);
+  t2.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+  const t3 = newTasks2.find(t => t.name === 'Task 3');
+  t.ok(t3, `${t3.name} must be one of the new tasks`);
+  t3.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+
+
+  t.end();
+});
+
+test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 3: Active task definitions excludes task 1, so task 1 must become abandoned', t => {
+  const tasksByName = {arb1: 'Arbitrary 1'};
+
+  // Create real tasks
+  const taskName1 = 'Task 1';
+  const taskDef1 = TaskDef.defineTask(taskName1, () => {
+  });
+  const taskName2 = 'Task 2';
+  const taskDef2 = TaskDef.defineTask(taskName2, () => {
+  });
+  const taskName3 = 'Task 3';
+  const taskDef3 = TaskDef.defineTask(taskName3, () => {
+  });
+
+  const task1SubTaskDefs = taskDef1.defineSubTasks(['SubTask 1A', 'SubTask 1B']);
+  task1SubTaskDefs[0].defineSubTasks(['SubTask 1A-1', 'SubTask 1A-2']);
+
+  const subTask1BSubTaskDefs = task1SubTaskDefs[1].defineSubTasks(['SubTask 1B-1', 'SubTask 1B-2']);
+  subTask1BSubTaskDefs[1].defineSubTasks(['SubTask 1B-2a', 'SubTask 1B-2b']);
+
+  const origTaskDefs = [taskDef1, taskDef2, taskDef3];
+
+  const task1 = Task.createTask(taskDef1);
+  const task2 = Task.createTask(taskDef2);
+  const task3 = Task.createTask(taskDef3);
+
+  const origTasks = [task1, task2, task3];
+
+  // Convert original tasks into task-likes
+  const taskLike1 = JSON.parse(JSON.stringify(task1));
+  const taskLike2 = JSON.parse(JSON.stringify(task2));
+  const taskLike3 = JSON.parse(JSON.stringify(task3));
+
+  // Check with Task hierarchy
+  const origTaskLikes = [taskLike1, taskLike2, taskLike3];
+
+  const expectedNames = [
+    'Task 1',
+    'SubTask 1A', 'SubTask 1A-1', 'SubTask 1A-2',
+    'SubTask 1B', 'SubTask 1B-1', 'SubTask 1B-2', 'SubTask 1B-2a', 'SubTask 1B-2b',
+    'Task 2',
+    'Task 3'];
+
+  // Scenario 3: Change active task definitions to exclude task 1, which should cause it to become abandoned
+  tasksByName[taskName1] = taskLike1;
+  tasksByName[taskName2] = taskLike2;
+  tasksByName[taskName3] = taskLike3;
+
+  const desc = '3 old, 2 new';
+  const newTasksAndAbandoned3 = checkReplaceTasks(t, tasksByName, [taskDef2, taskDef3], desc, origTaskDefs, origTasks, origTaskLikes, expectedNames);
+
+  const newTasks3 = newTasksAndAbandoned3[0];
+  const abandoned3 = newTasksAndAbandoned3[1];
+  t.equal(newTasks3.length, 2, `2 new tasks`);
+  t.equal(abandoned3.length, 1, `1 abandoned`);
+
+  // Check states
+  const t1 = abandoned3.find(t => t.name === 'Task 1');
+  t.ok(t1, `${t1.name} must be one of the abandoned`);
+  t1.forEach(task => {
+    t.ok(task.isAbandoned(), `${task.name} must be abandoned`);
+  });
+  const t2 = newTasks3.find(t => t.name === 'Task 2');
+  t.ok(t2, `${t2.name} must be one of the new tasks`);
+  t2.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+  const t3 = newTasks3.find(t => t.name === 'Task 3');
+  t.ok(t3, `${t3.name} must be one of the new tasks`);
+  t3.forEach(task => {
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+  });
+
+  t.end();
+});
+
+test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 4: Old finalised tasks must not be reset to unstarted, but old failed tasks must be reset', t => {
+  const tasksByName = {arb1: 'Arbitrary 1'};
+
+  // Create real tasks
+  const taskName1 = 'Task 1';
+  const taskDef1 = TaskDef.defineTask(taskName1, () => {
+  });
+  const taskName2 = 'Task 2';
+  const taskDef2 = TaskDef.defineTask(taskName2, () => {
+  });
+  const taskName3 = 'Task 3';
+  const taskDef3 = TaskDef.defineTask(taskName3, () => {
+  });
+
+  const task1SubTaskDefs = taskDef1.defineSubTasks(['SubTask 1A', 'SubTask 1B']);
+  task1SubTaskDefs[0].defineSubTasks(['SubTask 1A-1', 'SubTask 1A-2']);
+
+  const subTask1BSubTaskDefs = task1SubTaskDefs[1].defineSubTasks(['SubTask 1B-1', 'SubTask 1B-2']);
+  subTask1BSubTaskDefs[1].defineSubTasks(['SubTask 1B-2a', 'SubTask 1B-2b']);
+
+  const origTaskDefs = [taskDef1, taskDef2, taskDef3];
+
+  const task1 = Task.createTask(taskDef1);
+
+  // Fail task 1 recursively
+  task1.forEach(task => {
+    task.fail(new Error('Planned failure'))
+    task.incrementAttempts();
+  });
+  task1.forEach(task => {
+    t.ok(task.isFailure() && task.failed, `BEFORE ${task.name} must be Failure and failed`);
+  });
+
+  const task2 = Task.createTask(taskDef2);
+
+  // Finalise task 2 with rejection
+  task2.incrementAttempts();
+  task2.incrementAttempts();
+  task2.reject('Rejected task 2A', undefined, true);
+
+  const task3 = Task.createTask(taskDef3);
+
+  // Finalise task 3 with success
+  task3.incrementAttempts();
+  task3.incrementAttempts();
+  task3.incrementAttempts();
+  task3.succeed();
+
+
+  const origTasks = [task1, task2, task3];
+
+  // Convert original tasks into task-likes
+  const taskLike1 = JSON.parse(JSON.stringify(task1));
+  const taskLike2 = JSON.parse(JSON.stringify(task2));
+  const taskLike3 = JSON.parse(JSON.stringify(task3));
+
+  // Check with Task hierarchy
+  const origTaskLikes = [taskLike1, taskLike2, taskLike3];
+
+  const expectedNames = [
+    'Task 1',
+    'SubTask 1A', 'SubTask 1A-1', 'SubTask 1A-2',
+    'SubTask 1B', 'SubTask 1B-1', 'SubTask 1B-2', 'SubTask 1B-2a', 'SubTask 1B-2b',
+    'Task 2',
+    'Task 3'];
+
+  // Scenario 4: Old finalised tasks must not be reset to unstarted, but old failed tasks must be reset
+  tasksByName[taskName1] = taskLike1;
+  tasksByName[taskName2] = taskLike2;
+  tasksByName[taskName3] = taskLike3;
+
+  const desc = '3 old (1 failed, 2 finalised)';
+  const newTasksAndAbandoned4 = checkReplaceTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3], desc, origTaskDefs,
+    origTasks, origTaskLikes, expectedNames);
+
+  const newTasks4 = newTasksAndAbandoned4[0];
+  const abandoned4 = newTasksAndAbandoned4[1];
+  t.equal(newTasks4.length, 3, `3 new tasks`);
+  t.equal(abandoned4.length, 0, `0 abandoned`);
+
+  // Check states
+  const t1 = newTasks4.find(t => t.name === 'Task 1');
+  t.ok(t1, `${t1.name} must be one of the new tasks`);
+  t1.forEach(task => {
+    t.ok(task.unstarted, `AFTER ${task.name} must be unstarted`);
+    t.equal(task.attempts, 1, `AFTER ${task.name} attempts must be 1`);
+  });
+  const t2 = newTasks4.find(t => t.name === 'Task 2');
+  t.ok(t2, `${t2.name} must be one of the new tasks`);
+  t2.forEach(task => {
+    t.ok(task.rejected, `AFTER ${task.name} must be rejected`);
+    t.ok(task.isRejected(), `AFTER ${task.name} must be Rejected`);
+    t.equal(task.attempts, 2, `AFTER ${task.name} attempts must be 2`);
+  });
+  const t3 = newTasks4.find(t => t.name === 'Task 3');
+  t.ok(t3, `${t3.name} must be one of the new tasks`);
+  t3.forEach(task => {
+    t.ok(task.isSuccess() && task.completed, `${task.name} must be Success and completed`);
+    t.equal(task.attempts, 3, `AFTER ${task.name} attempts must be 3`);
+  });
+
+  t.end();
+});
