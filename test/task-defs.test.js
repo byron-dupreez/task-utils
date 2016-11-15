@@ -12,8 +12,8 @@ const taskDefs = require('../task-defs');
 const TaskDef = taskDefs.TaskDef;
 // const defineTask = TaskDef.defineTask;
 // const getRootTaskDef = TaskDef.getRootTaskDef;
-const ensureAllTaskDefsDistinct = taskDefs.FOR_TESTING.ensureAllTaskDefsDistinct;
-const areSubTaskNamesDistinct = taskDefs.FOR_TESTING.areSubTaskNamesDistinct;
+const ensureAllTaskDefsDistinct = taskDefs.FOR_TESTING_ONLY.ensureAllTaskDefsDistinct;
+const areSubTaskNamesDistinct = taskDefs.FOR_TESTING_ONLY.areSubTaskNamesDistinct;
 
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;

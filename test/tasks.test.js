@@ -235,7 +235,7 @@ test('reconstructTasksFromRootTaskLike', t => {
   check(taskA, true, true);
 
   // succeed it
-  taskA.success('Ok');
+  taskA.success('Ok', undefined);
   check(taskA, true, true);
 
   // Create a complex task from a complex task definition
@@ -283,7 +283,7 @@ test('task succeed()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed();
+  task.succeed(undefined);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -305,7 +305,7 @@ test('task success()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.success('MySuccessCode');
+  task.success('MySuccessCode', undefined);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -439,7 +439,7 @@ test('task succeed() then fail() then succeed()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed();
+  task.succeed(undefined);
 
   // Fail it
   task.fail(new Error('Boom'));
@@ -457,7 +457,7 @@ test('task succeed() then fail() then succeed()', t => {
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Re-complete it
-  task.succeed();
+  task.succeed(undefined);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -479,7 +479,7 @@ test('task succeed() then cannot reject()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed();
+  task.succeed(undefined);
 
   // Cannot reject it
   task.reject('Rotten', new Error('Yuck'), false);
@@ -507,7 +507,7 @@ test('task fail() then succeed()', t => {
   task.fail(new Error('Boom'));
 
   // Complete it
-  task.succeed();
+  task.succeed(undefined);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -557,7 +557,7 @@ test('task reject() then cannot succeed(), cannot fail()', t => {
   task.reject('Rotten', new Error('Yuck'), false);
 
   // Cannot complete it
-  task.succeed();
+  task.succeed(undefined);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -594,7 +594,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed();
+  task.succeed(undefined);
 
   // Fail it
   task.fail(new Error('Boom'));
@@ -615,7 +615,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot re-complete it
-  task.succeed();
+  task.succeed(undefined);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -667,7 +667,7 @@ test('task incrementAttempts', t => {
   t.equal(task.attempts, 3, `${task.name} attempts must be 3`);
 
   // Complete it
-  task.succeed();
+  task.succeed(undefined);
 
   task.incrementAttempts();
   t.equal(task.attempts, 3, `${task.name} attempts must still be 3`);
@@ -686,3 +686,239 @@ test('task incrementAttempts', t => {
 
   t.end();
 });
+
+// =====================================================================================================================
+// createMasterTask
+// =====================================================================================================================
+
+function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
+  t.equal(masterTask.attempts, 0, 'master attempts must be 0');
+  masterTask.slaveTasks.forEach(st => {
+    t.equal(st.attempts, 0, `slave (${st.name}) attempts must be 0`);
+  });
+
+  // Increment attempts x 2 on master task
+  masterTask.incrementAttempts();
+  masterTask.incrementAttempts();
+  t.equal(masterTask.attempts, 2, 'master attempts must be 2');
+  masterTask.slaveTasks.forEach(st => {
+    t.equal(st.attempts, 2, `slave (${st.name}) attempts must be 2`);
+  });
+
+  // Succeed the master task
+  masterTask.succeed(undefined);
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.isSuccess() && st.completed, `slave (${st.name}) must be Success`);
+  });
+
+  // Fail the master task
+  masterTask.fail(new Error('Err'));
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.isFailure() && st.failed, `slave (${st.name}) must be Failure`);
+  });
+
+  // Re-succeed the master task
+  masterTask.succeed(undefined);
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.isSuccess() && st.completed, `slave (${st.name}) must be Success again`);
+  });
+
+  // Re-fail the master task
+  masterTask.fail(new Error('Err'));
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.isFailure() && st.failed, `slave (${st.name}) must be Failure again`);
+  });
+
+  if (!skipReject) {
+    // Re-succeed the master task
+    masterTask.reject();
+    masterTask.slaveTasks.forEach(st => {
+      t.ok(st.isRejected() && st.rejected, `slave (${st.name}) must be Rejected`);
+    });
+  }
+}
+
+test('createMasterTask', t => {
+  function check(taskDef, slaveTasks, mustPass, mustBeExecutable) {
+    const prefix = `createMasterTask(${taskDef ? taskDef.name : taskDef}, ${stringify(slaveTasks ? slaveTasks.map(t => t.name) : slaveTasks)})`;
+    try {
+      const task = Task.createMasterTask(taskDef, slaveTasks);
+      if (mustPass) {
+        t.pass(`${prefix} must pass`);
+      } else {
+        t.fail(`${prefix} must fail - (${stringify(task)})`)
+      }
+      okNotOk(t, task, mustPass, `must be created`, `must not be created`, prefix);
+      checkTask(t, task, taskDef, mustBeExecutable);
+      t.ok(task.isMasterTask(), 'must be a master task');
+      t.deepEqual(task.slaveTasks, slaveTasks, `slave tasks must match`);
+
+      t.deepEqual(Task.getTasksAndSubTasks(task.slaveTasks), Task.getTasksAndSubTasks(slaveTasks), `all slave tasks recursively must match`);
+      return task;
+
+    } catch (err) {
+      if (mustPass) {
+        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+      } else {
+        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+      }
+      return undefined;
+    }
+  }
+  // Create a simple master task from a simple task definition
+  const taskDefA = TaskDef.defineTask('Task A', execute1);
+
+  // Must have at least one slave task
+  check(taskDefA, [], false, true);
+
+  // Must have slave tasks with exactly the same definition
+  const slaveTaskANot = Task.createTask(TaskDef.defineTask('Task A', execute1));
+  check(taskDefA, [slaveTaskANot], false, true);
+
+  // One slave task with same definition works
+  const slaveTaskA1 = Task.createTask(taskDefA);
+  check(taskDefA, [slaveTaskA1], true, true);
+
+  // Two slave tasks with same definition works
+  const slaveTaskA2 = Task.createTask(taskDefA);
+
+  const masterTaskA = check(taskDefA, [slaveTaskA1, slaveTaskA2], true, true);
+  checkSlavesStatesAndAttempts(t, masterTaskA, false);
+
+
+  // Create a complex master task from a complex task definition
+  const taskDefB = TaskDef.defineTask('Task B', execute1);
+  const subTaskDefsB = taskDefB.defineSubTasks(['SubTask B1', 'SubTask B2', 'SubTask B3']);
+  const subTaskDefB1 = subTaskDefsB[0];
+  subTaskDefB1.defineSubTasks(['SubTask B1a', 'SubTask B1b', 'SubTask B1c']);
+  const subTaskDefB2 = subTaskDefsB[1];
+  subTaskDefB2.defineSubTasks(['SubTask B2a', 'SubTask B2b']);
+
+  // Must not have a slave task with a different definition
+  check(taskDefB, [Task.createTask(taskDefA)], false, true);
+
+  // 3 slaves - same definition - ok
+  const slave1 = Task.createTask(taskDefB);
+  const slave2 = Task.createTask(taskDefB);
+
+  const slave3 = Task.createTask(taskDefB);
+  const slave4 = Task.createTask(taskDefB);
+  const masterSlave5 = Task.createMasterTask(taskDefB, [slave3, slave4]);
+
+  // 2 slaves and 1 (master) slave (with 2 sub-slaves) works
+  const masterTaskB = check(taskDefB, [slave1, slave2, masterSlave5], true, true);
+  checkSlavesStatesAndAttempts(t, masterTaskB, true);
+
+  // Fail master task B to be able to reset it
+  masterTaskB.fail(new Error('Temp fail'));
+  masterTaskB.reset();
+
+  // Fail slave 1
+  const slave1Error = new Error('Slave 1 error');
+  slave1.fail(slave1Error);
+
+  // Reject slave 2
+  const slave2Error = new Error('Slave 2 reject error');
+  slave2.reject('MyReason', slave2Error, true);
+
+  // Complete master slave 5
+  const masterSlave5SuccessCode = 'Master slave 5 success code';
+  masterSlave5.success(masterSlave5SuccessCode, undefined);
+
+  // Now fail master task B, which should have NO impact on its slave tasks, since they are already failed/rejected/completed
+  const masterTaskBError = new Error('Master task B error');
+  masterTaskB.fail(masterTaskBError);
+
+  // Check states
+  t.ok(masterTaskB.isFailure(), `Master task B (${stringify(masterTaskB.state)}) must be Failure`);
+  t.equal(masterTaskB.state.error, masterTaskBError.toString(), `Master task B (${stringify(masterTaskB.state)}) must be failed with error (${masterTaskBError})`);
+
+  t.ok(slave1.isFailure(), `Slave 1 (${stringify(slave1.state)}) must be Failure`);
+  t.equal(slave1.state.error, slave1Error.toString(), `Slave 1 (${stringify(slave1.state)}) must be failed with error (${slave1Error})`);
+
+  t.ok(slave2.isRejected(), `Slave 2 (${stringify(slave2.state)}) must be Rejected`);
+  t.equal(slave2.state.error, slave2Error.toString(), `Slave 2 must be rejected with error (${slave2Error})`);
+
+  t.ok(masterSlave5.isFailure(), `Master-slave 5 (${stringify(masterSlave5.state)}) must be Failure`);
+  t.equal(masterSlave5.state.error, masterTaskBError.toString(), `Master-slave 5 must be failed with error (${masterTaskBError})`);
+  t.ok(slave3.isFailure(), `Sub-slave 3 (${stringify(slave3.state)}) must be Failure`);
+  t.equal(slave3.state.error, masterTaskBError.toString(), `Slave 3 must be failed with error (${masterTaskBError})`);
+  t.ok(slave4.isFailure(), `Sub-slave 4 (${stringify(slave4.state)}) must be Failure`);
+  t.equal(slave4.state.error, masterTaskBError.toString(), `Slave 4 must be failed with error (${masterTaskBError})`);
+
+  // Check master sub-tasks
+  const masterSubTaskB1 = masterTaskB.getSubTask('SubTask B1');
+  t.ok(masterSubTaskB1.state.unstarted, `Master sub-task B1 (${stringify(masterSubTaskB1.state)}) must be unstarted`);
+
+  const slave1SubTaskB1 = slave1.getSubTask('SubTask B1');
+  t.ok(slave1SubTaskB1.state.unstarted, `Slave 1 sub-task B1 (${stringify(slave1SubTaskB1.state)}) must be unstarted`);
+
+  // Rejections always ripple down to sub-tasks too
+  const slave2SubTaskB1 = slave2.getSubTask('SubTask B1');
+  t.ok(slave2SubTaskB1.state.rejected, `Slave 2 sub-task B1 (${stringify(slave2SubTaskB1.state)}) must be rejected`);
+
+  const masterSlave5SubTaskB1 = masterSlave5.getSubTask('SubTask B1');
+  t.ok(masterSlave5SubTaskB1.state.unstarted, `Master-slave 5 sub-task B1 (${stringify(masterSlave5SubTaskB1.state)}) must be unstarted`);
+
+  const slave3SubTaskB1 = slave3.getSubTask('SubTask B1');
+  t.ok(slave3SubTaskB1.state.unstarted, `Slave 3 sub-task B1 (${stringify(slave3SubTaskB1.state)}) must be unstarted`);
+
+  const slave4SubTaskB1 = slave4.getSubTask('SubTask B1');
+  t.ok(slave4SubTaskB1.state.unstarted, `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be unstarted`);
+
+  // Fail the master-slave 5 sub-task B1, must trigger failures to its slave tasks 3 & 4
+  const masterSlave5SubTaskB1Error = new Error('masterSlave5SubTaskB1Error');
+  masterSlave5SubTaskB1.fail(masterSlave5SubTaskB1Error);
+
+  t.ok(masterSlave5SubTaskB1.state.isFailure(), `Master-slave 5 sub-task B1 (${stringify(masterSlave5SubTaskB1.state)}) must be Failure`);
+  t.equal(masterSlave5SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Master-slave 5 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
+
+  t.ok(slave3SubTaskB1.state.isFailure(), `Slave 3 sub-task B1 (${stringify(slave3SubTaskB1.state)}) must be Failure`);
+  t.equal(slave3SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Slave 3 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
+
+  t.ok(slave4SubTaskB1.state.isFailure(), `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be Failure`);
+  t.equal(slave4SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Slave 4 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
+
+  // Complete the master sub-task B1, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
+  masterSubTaskB1.success('masterSubTaskB1SuccessCode', undefined);
+
+  t.ok(masterSubTaskB1.state.isSuccess(), `Master sub-task B1 (${stringify(masterSubTaskB1.state)}) must be Success`);
+  t.ok(slave1SubTaskB1.state.isSuccess(), `Slave 1 sub-task B1 (${stringify(slave1SubTaskB1.state)}) must be Success`);
+  t.ok(slave2SubTaskB1.state.rejected, `Slave 2 sub-task B1 (${stringify(slave2SubTaskB1.state)}) must be rejected`);
+  t.ok(masterSlave5SubTaskB1.state.isSuccess(), `Master-slave 5 sub-task B1 (${stringify(masterSlave5SubTaskB1.state)}) must be Success`);
+  t.ok(slave3SubTaskB1.state.isSuccess(), `Slave 3 sub-task B1 (${stringify(slave3SubTaskB1.state)}) must be Success`);
+  t.ok(slave4SubTaskB1.state.isSuccess(), `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be Success`);
+
+  // Sub-sub tasks must still be unstarted
+  const masterSubTaskB1a = masterSubTaskB1.getSubTask('SubTask B1a');
+  t.ok(masterSubTaskB1a.state.unstarted, `Master sub-task B1a (${stringify(masterSubTaskB1a.state)}) must be unstarted`);
+
+  const slave1SubTaskB1a = slave1SubTaskB1.getSubTask('SubTask B1a');
+  t.ok(slave1SubTaskB1a.state.unstarted, `Slave 1 sub-task B1a (${stringify(slave1SubTaskB1a.state)}) must be unstarted`);
+
+  const slave2SubTaskB1a = slave2SubTaskB1.getSubTask('SubTask B1a');
+  t.ok(slave2SubTaskB1a.state.rejected, `Slave 2 sub-task B1a (${stringify(slave1SubTaskB1a.state)}) must be rejected`);
+
+  const masterSlave5SubTaskB1a = masterSlave5SubTaskB1.getSubTask('SubTask B1a');
+  t.ok(masterSlave5SubTaskB1a.state.unstarted, `Master-slave 5 sub-task B1a (${stringify(masterSlave5SubTaskB1a.state)}) must be unstarted`);
+
+  const slave3SubTaskB1a = slave3SubTaskB1.getSubTask('SubTask B1a');
+  t.ok(slave3SubTaskB1a.state.unstarted, `Slave 3 sub-task B1a (${stringify(slave3SubTaskB1a.state)}) must be unstarted`);
+
+  const slave4SubTaskB1a = slave4SubTaskB1.getSubTask('SubTask B1a');
+  t.ok(slave4SubTaskB1a.state.unstarted, `Slave 4 sub-task B1a (${stringify(slave4SubTaskB1a.state)}) must be unstarted`);
+
+
+  // Complete the master sub-task B1a, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
+  masterSubTaskB1a.succeed(undefined);
+
+  t.ok(masterSubTaskB1a.state.isSuccess(), `Master sub-task B1a (${stringify(masterSubTaskB1a.state)}) must be Success`);
+  t.ok(slave1SubTaskB1a.state.isSuccess(), `Slave 1 sub-task B1a (${stringify(slave1SubTaskB1a.state)}) must be Success`);
+  t.ok(slave2SubTaskB1a.state.rejected, `Slave 2 sub-task B1a (${stringify(slave2SubTaskB1a.state)}) must be rejected`);
+  t.ok(masterSlave5SubTaskB1a.state.isSuccess(), `Master-slave 5 sub-task B1a (${stringify(masterSlave5SubTaskB1a.state)}) must be Success`);
+  t.ok(slave3SubTaskB1a.state.isSuccess(), `Slave 3 sub-task B1a (${stringify(slave3SubTaskB1a.state)}) must be Success`);
+  t.ok(slave4SubTaskB1a.state.isSuccess(), `Slave 4 sub-task B1a (${stringify(slave4SubTaskB1a.state)}) must be Success`);
+
+  t.end();
+});
+

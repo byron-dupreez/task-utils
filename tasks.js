@@ -6,10 +6,9 @@
  * @author Byron du Preez
  */
 module.exports = {
-  FOR_TESTING: {
+  FOR_TESTING_ONLY: {
     ensureAllTasksDistinct: ensureAllTasksDistinct,
-    reconstructTaskDefsFromRootTaskLike: reconstructTaskDefsFromRootTaskLike,
-    wrapExecuteTask: wrapExecuteTask
+    reconstructTaskDefsFromRootTaskLike: reconstructTaskDefsFromRootTaskLike
   }
 };
 
@@ -47,7 +46,7 @@ const isNotBlank = Strings.isNotBlank;
 const stringify = Strings.stringify;
 
 const Promises = require('core-functions/promises');
-const isPromise = Promises.isPromise;
+//const isPromise = Promises.isPromise;
 
 const Arrays = require('core-functions/arrays');
 const isDistinct = Arrays.isDistinct;
@@ -83,6 +82,7 @@ class Task {
    *
    * @param {TaskDef} taskDef - the definition of this task
    * @param {Task|null|undefined} [parent] - an optional parent task
+   * @throws {Error} an error if the requested task is invalid
    */
   constructor(taskDef, parent) {
     // Validate the given task definition
@@ -135,9 +135,9 @@ class Task {
     Object.defineProperty(this, 'name', {value: taskName, enumerable: true});
     Object.defineProperty(this, 'definition', {value: taskDef, enumerable: false});
     Object.defineProperty(this, 'executable', {value: executable, enumerable: true});
-    // Set this task's execute function to first increment its number of attempts and then invoke the original, actual execute function
+    // Create a new task execute function from the task and its execute function using the configured factory function
     Object.defineProperty(this, 'execute', {
-      value: executable ? wrapExecuteTask(self, taskExecute) : undefined,
+      value: executable ? Task.taskExecuteFactory(self, taskExecute) : undefined,
       enumerable: false
     });
 
@@ -181,11 +181,16 @@ class Task {
     this._state = TaskState.UNSTARTED;
     this._attempts = 0;
 
-    // The task's result must NOT be enumerable, since the result may end up being an object that references this task,
-    // which would create a circular dependency
+    // The task's optional result must NOT be enumerable, since the result may end up being an object that references
+    // this task, which would create a circular dependency
     Object.defineProperty(this, '_result', {value: undefined, writable: true, enumerable: false});
 
+    // The task's optional error must NOT be enumerable, since an error is not JSON serializable
+    Object.defineProperty(this, '_error', {value: undefined, writable: true, enumerable: false});
+
     Object.defineProperty(this, '_slaveTasks', {value: [], writable: true, enumerable: false});
+
+    Object.defineProperty(this, '_frozen', {value: false, writable: true, enumerable: false});
   }
 
   /** The state of this task **/
@@ -211,6 +216,11 @@ class Task {
   /** The result of this task (if executed successfully) **/
   get result() {
     return this._result;
+  }
+
+  /** The error encountered during execution of this task (if failed); otherwise undefined **/
+  get error() {
+    return this._error;
   }
 
   /**
@@ -260,6 +270,21 @@ class Task {
    */
   getSubTask(subTaskName) {
     return this._subTasksByName.get(subTaskName);
+  }
+
+  /**
+   * Returns the existing sub-task with the given name if it exists on this task; otherwise creates and adds a new
+   * sub-task with the given name to this task and returns it.
+   * @param {string} subTaskName - the name of the sub-task to retrieve or add
+   * @returns {Task} the named sub-task if it exists; otherwise a new sub-task
+   */
+  getOrAddSubTask(subTaskName) {
+    const subTask = this._subTasksByName.get(subTaskName);
+    if (subTask) {
+      return subTask;
+    }
+    const subTaskDef = this.definition.defineSubTask(subTaskName);
+    return new Task(subTaskDef, this);
   }
 
   /**
@@ -406,15 +431,22 @@ class Task {
 
   /**
    * Increments the number of attempts at this task, but ONLY if the task is in an incomplete (non-finalised) state!
+   * If recursively is true, then also applies the increment to each of this task' sub-tasks recursively; otherwise
+   * if false or undefined, then does not increment attempts on sub-tasks.
+   * @param {boolean|undefined} [recursively] - whether to also apply the increment to sub-tasks recursively or not
    */
-  incrementAttempts() {
+  incrementAttempts(recursively) {
     if (this.incomplete) {
       this._attempts = this._attempts + 1;
+    }
+    // If recursively, then also apply the increment to each of this task's sub-tasks
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.incrementAttempts(recursively));
+    }
 
-      // If this is a master task then ripple the increment attempts to each of its slave tasks
-      if (this.isMasterTask()) {
-        this._slaveTasks.forEach(slaveTask => slaveTask.incrementAttempts());
-      }
+    // If this is a master task then ripple the increment attempts to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.incrementAttempts(recursively));
     }
   }
 
@@ -429,27 +461,32 @@ class Task {
 
   /**
    * Changes this task's state to Succeeded (if it is not already finalised).
+   * @param {*} [result] - the optional result to store on the task
    */
-  succeed() {
+  succeed(result) {
     if (this.incomplete) {
       this._state = TaskState.SUCCEEDED;
+      this._result = result;
     }
-    // If this is a master task then ripple the state change to each of its slave tasks
+    // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.succeed());
+      this._slaveTasks.forEach(slaveTask => slaveTask.succeed(result));
     }
   }
 
   /**
    * Changes this task's state to a Success state with the given code (if it is not already finalised).
+   * @param {string} code - the success code to use
+   * @param {*} [result] - the optional result to store on the task
    */
-  success(code) {
+  success(code, result) {
     if (this.incomplete) {
       this._state = new Success(code);
+      this._result = result;
     }
-    // If this is a master task then ripple the state change to each of its slave tasks
+    // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.success(code));
+      this._slaveTasks.forEach(slaveTask => slaveTask.success(code, result));
     }
   }
 
@@ -465,6 +502,7 @@ class Task {
     }
     if (!this.rejected && !this.failed) {
       this._state = new Failed(error);
+      this._error = error;
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
@@ -485,6 +523,7 @@ class Task {
     }
     if (!this.rejected && !this.isFailure()) {
       this._state = new Failure(code, error);
+      this._error = error;
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
@@ -622,7 +661,7 @@ class Task {
    * @param {Task[]} slaveTasks - the slave tasks of this master task
    * @returns {Task} this task
    */
-  _setSlaveTasks(slaveTasks) {
+  setSlaveTasks(slaveTasks) {
     const slaves = slaveTasks ? slaveTasks : [];
     // Set this master task's slave tasks to the given ones
     this._slaveTasks = slaves;
@@ -637,29 +676,37 @@ class Task {
     for (let j = 0; j < this._subTasks.length; ++j) {
       const masterSubTask = this._subTasks[j];
       const slaveSubTasks = slaves.map(t => t.getSubTask(masterSubTask.name)).filter(s => !!s);
-      masterSubTask._setSlaveTasks(slaveSubTasks);
+      masterSubTask.setSlaveTasks(slaveSubTasks);
     }
     return this;
   }
 
   /**
-   * Copies this master task's and its sub-tasks' states to its slave tasks and their sub-tasks recursively.
-   * @returns {Task} this task
+   * Freezes this task and all of its sub-tasks to prevent any further changes.
    */
-  copyStateToSlaveTasks() {
-    // Set this master task's slave tasks states to its state
-    for (let i = 0; i < this._slaveTasks.length; ++i) {
-      const slaveTask = this._slaveTasks[i];
-      if (slaveTask.incomplete) {
-        slaveTask._state = this._state;
+  freeze() {
+    if (!this._frozen) {
+      // Recursively freeze each of this task's sub-tasks
+      this._subTasks.forEach(subTask => subTask.freeze());
+
+      // If this is a master task then freeze each of its slave tasks
+      if (this.isMasterTask()) {
+        this._slaveTasks.forEach(slaveTask => slaveTask.freeze());
       }
-    }
-    // Recursively do the same for each of this master task's sub-tasks
-    for (let j = 0; j < this._subTasks.length; ++j) {
-      const masterSubTask = this._subTasks[j];
-      masterSubTask.copyStateToSlaveTasks();
+
+      // Freeze this task
+      this._frozen = true;
+      Object.freeze(this);
     }
     return this;
+  }
+
+  /**
+   * Returns true if this task has been frozen; false otherwise.
+   * @returns {boolean} true if frozen; otherwise false
+   */
+  isFrozen() {
+    return this._frozen;
   }
 
 }
@@ -692,8 +739,8 @@ if (!Task.createTask) {
  * definitions recursively (if any) and sets its slave tasks to the given slaveTasks and its number of attempts to the
  * minimum of its slave task's number of attempts.
  *
- * A master task is a the task that is actually executed in place of its slave tasks and its states and attempt
- * increments will be copied down recursively to its slave tasks post execution (see {@linkcode copyStateFromMasterTask}).
+ * A master task is a the task that is actually executed in place of its slave tasks and its state changes and attempt
+ * increments will be applied to its slave tasks as well.
  *
  * @param {TaskDef} taskDef - the definition of the master task (and subtasks) to be created
  * @param {Task[]} slaveTasks - the slave tasks to this master task
@@ -703,13 +750,13 @@ function createMasterTask(taskDef, slaveTasks) {
   if (!slaveTasks || slaveTasks.length <= 0) {
     throw new Error(`Cannot create a master task (${taskDef.name}) without slave tasks`);
   }
-  if (!slaveTasks.every(slaveTask => slaveTask.name === taskDef.name)) {
+  if (!slaveTasks.every(slaveTask => slaveTask instanceof Task && slaveTask.name === taskDef.name && slaveTask.definition === taskDef)) {
     throw new Error(`Cannot create a master task (${taskDef.name}) with mismatched slave tasks (${stringify(slaveTasks.map(t => t.name))})`);
   }
   // Create the master task
   const masterTask = new Task(taskDef, undefined);
   // Set the master task's slave tasks to the given ones recursively and set its attempts to the least of its slave tasks attempts
-  masterTask._setSlaveTasks(slaveTasks);
+  masterTask.setSlaveTasks(slaveTasks);
 
   return masterTask;
 }
@@ -1054,34 +1101,34 @@ function ensureAllTasksDistinct(parent, proposedTask) {
 }
 
 //======================================================================================================================
-// Task execute function wrapper
+// Task execute factory function and default task execute factory functions
 //======================================================================================================================
 
 /**
- * Returns a wrapper execute function around the given task's original execute function (taskExecute), which when
- * subsequently executed will do the following:
- * - Nothing at all if the task is fully finalised (other than logging a warning); otherwise:
- * - First increments the number of attempts on the task.
- * - Next executes the task's actual, original execute function and then based on the outcome:
- *  - If the execute function completes successfully, updates the task's result with the result obtained and also
- *    sets its state to Completed, but ONLY if the task is still in an Unstarted state AND if it either has no
- *    subtasks or if all of its subtasks are fully finalised.
- *  - If the execute function throws an exception or returns a rejected promise, sets its state to Failed with the
- *    error encountered, but ONLY if the task is not already in a rejected or failed state.
+ * A default task execute factory function that on invocation will return a task execute function that wraps the given
+ * task's original execute function and supplements and alters its execution behaviour as follows:
+ * - If the task is already fully finalised, then does nothing (other than logging a warning); otherwise:
+ *   - First increments the number of attempts on the task (and recursively on all of its sub-tasks).
+ *   - Next executes the task's actual, original execute function on the task and then based on the outcome:
+ *     - If the execute function completes successfully, updates the task's result with the result obtained and also
+ *       sets its state to Succeeded, but ONLY if the task is still in an Unstarted state.
+ *     - If the execute function throws an exception or returns a rejected promise, sets its state to Failed with the
+ *       error encountered, but ONLY if the task is not already in a rejected or failed state.
  *
  * @param {Task} task - the task to be executed
- * @param {Function} taskExecute - the task's original execute function
- * @returns {Function} a wrapper function, which will invoke the task's original execute function
+ * @param {Function} execute - the task's original execute function (provided by its task definition)
+ * @returns {Function} a wrapper execute function, which will invoke the task's original execute function
  */
-function wrapExecuteTask(task, taskExecute) {
-  function executeWithUpdates() {
+function defaultTaskExecuteFactory(task, execute) {
+  function executeAndUpdateState() {
     if (!task.isFullyFinalised()) {
-      // First increment the number of attempts on this task, since its starting to execute
-      task.incrementAttempts();
+      // First increment the number of attempts on this task (and all of its sub-tasks recursively), since its starting
+      // to execute
+      task.incrementAttempts(true);
       // Then execute the actual execute function
       try {
         // Execute the task's function
-        const result = taskExecute.apply(task, arguments);
+        const result = execute.apply(task, arguments);
 
         // If this task is still in an unstarted state after its execute function completes then complete it
 
@@ -1093,51 +1140,75 @@ function wrapExecuteTask(task, taskExecute) {
           return promise
             .then(
               result => {
-                completeTaskIfStillUnstarted(task, result);
-                //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+                Task.completeTaskIfStillUnstarted(task, result, console);
                 return result;
               },
               err => {
-                failTaskIfNotRejectedNorFailed(task, err);
-                //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+                Task.failTaskIfNotRejectedNorFailed(task, err, console);
                 return Promise.reject(err);
               }
             );
         } else {
           // Simple non-promise result
-          completeTaskIfStillUnstarted(task, result);
-          //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+          Task.completeTaskIfStillUnstarted(task, result, console);
           return result;
         }
       } catch (err) {
-        failTaskIfNotRejectedNorFailed(task, err);
-        //if (task.isMasterTask()) task.copyStateToSlaveTasks();
+        Task.failTaskIfNotRejectedNorFailed(task, err, console);
         throw err;
       }
     } else {
       console.warn(`Attempted to execute a fully finalised task (${task.name}) - ${stringify(task)}`);
-      return task._result;
+      return task.completed ? task.result : undefined;
     }
   }
 
-  return executeWithUpdates;
+  return executeAndUpdateState;
+}
+if (!Task.defaultTaskExecuteFactory) {
+  Task.defaultTaskExecuteFactory = defaultTaskExecuteFactory;
+}
+
+
+/**
+ * Set the task execute factory, if undefined, to the default task execute factory.
+ */
+if (!Task.taskExecuteFactory) {
+  Task.taskExecuteFactory = defaultTaskExecuteFactory;
 }
 
 /**
- * Updates the given task's result (if not already defined) with the given result and also sets its state to Completed,
+ * Updates the given task's result (if not already defined) with the given result and also sets its state to Succeeded,
  * but ONLY if the task is still in an Unstarted state AND if it either has no subtasks or if all of its subtasks are
  * fully finalised.
  * @param {Task} task - the task to update
  * @param {*} result - the result of successful invocation of the task's original execute function
+ * @param {console|{warn:Function,error:Function}} logger - the logger to use for logging errors and warnings
  */
-function completeTaskIfStillUnstarted(task, result) {
+function completeTaskIfStillUnstarted(task, result, logger) {
   // If this task is still in an unstarted state after its execute function completed successfully, then help it along
   if (task.unstarted) { //} && (task.subTasks.length <= 0 || task.subTasks.every(t => t.isFullyFinalised()))) {
-    task.succeed();
+    // If the task is already frozen, then its too late to change its state
+    if (task.isFrozen()) {
+      logger.warn(`Task (${task.name}) is frozen in state (${stringify(task.state)}) and cannot be updated to Succeeded`);
+      return;
+    }
+    try {
+      // Attempt to succeed the task
+      task.succeed(result);
+
+    } catch (err) {
+      if (err instanceof TypeError && err.message.indexOf(`Cannot assign to read only property '_state'`) !== -1) {
+        // The task has been frozen and can no longer be updated
+        logger.warn(`Task (${task.name}) is frozen in state (${stringify(task.state)}) and cannot be updated to Succeeded`);
+      } else {
+        logger.error(`Failed to change task (${task.name}) state from (${stringify(task.state)}) to Succeeded due to unexpected error (${err})`, err.stack);
+      }
+    }
   }
-  if (!task._result) {
-    task._result = result;
-  }
+}
+if (!Task.completeTaskIfStillUnstarted) {
+  Task.completeTaskIfStillUnstarted = completeTaskIfStillUnstarted;
 }
 
 /**
@@ -1145,17 +1216,38 @@ function completeTaskIfStillUnstarted(task, result) {
  * not already in a failed state.
  * @param {Task} task - the task to update
  * @param {Error} error - the error encountered during execution of the task's original execute function
+ * @param {console|{warn:Function,error:Function}} logger - the logger to use for logging errors and warnings
  */
-function failTaskIfNotRejectedNorFailed(task, error) {
-  // If this task is still in an unstarted state after its execute function failed, then help it along
-  // or the task was completed, but subsequently failed
-  if (!task.rejected && !task.isFailure()) {
-    if (task.completed) {
-      console.warn(`Failing completed task (${task.name}) in state (${stringify(task._state)}) due to subsequent error (${stringify(error)})`, error.stack);
+function failTaskIfNotRejectedNorFailed(task, error, logger) {
+  // If this task is not already rejected or failed, then fail it
+  if (!task.rejected && !task.failed) {
+    // If the task is already frozen, then its too late to change its state
+    if (task.isFrozen()) {
+      logger.warn(`Task (${task.name}) is frozen in state (${stringify(task.state)}) and cannot be updated to Failed with error (${stringify(error)})`, error.stack);
+      return;
     }
-    task.fail(error);
+    try {
+      const wasCompleted = task.completed;
+      const beforeState = task.state;
+
+      // Attempt to fail the task with the given error
+      task.fail(error);
+
+      if (wasCompleted) {
+        logger.warn(`Failed completed task (${task.name}) in state (${stringify(beforeState)}) due to subsequent error (${stringify(error)})`, error.stack);
+      }
+    } catch (err) {
+      if (err instanceof TypeError && err.message.indexOf(`Cannot assign to read only property '_state'`) !== -1) {
+        // The task has been frozen and can no longer be updated
+        logger.warn(`Task (${task.name}) is frozen in state (${stringify(task.state)}) and cannot be updated to Failed with error (${stringify(error)})`, error.stack);
+      } else {
+        logger.error(`Failed to change task (${task.name}) state from (${stringify(task.state)}) to Failed with error (${stringify(error)}) due to unexpected error (${stringify(err)})`, err.stack, error.stack);
+      }
+    }
   } else {
-    console.warn(`Ignoring attempt to fail ${task.rejected ? 'rejected' : 'previously failed'} task (${task.name}) in state (${stringify(task._state)}) - ignoring new error (${stringify(error)})`, error.stack)
+    logger.warn(`Ignoring attempt to fail ${task.rejected ? 'rejected' : 'previously failed'} task (${task.name}) in state (${stringify(task.state)}) - ignoring new error (${stringify(error)})`, error.stack);
   }
 }
-
+if (!Task.failTaskIfNotRejectedNorFailed) {
+  Task.failTaskIfNotRejectedNorFailed = failTaskIfNotRejectedNorFailed;
+}

@@ -54,8 +54,8 @@ test('getTask with no tasks returns undefined', t => {
   const t1 = getTask(null, 'task1');
   t.notOk(t1, 'task must not be defined');
 
-  const tasks = {};
-  const t2 = getTask(tasks, 'task1');
+  const tasksByName = {};
+  const t2 = getTask(tasksByName, 'task1');
   t.notOk(t2, 'task must not be defined');
 
   const obj = {myTasks: {}};
@@ -845,7 +845,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 4: Old finalised tasks m
 
   // Fail task 1 recursively
   task1.forEach(task => {
-    task.fail(new Error('Planned failure'))
+    task.fail(new Error('Planned failure'));
     task.incrementAttempts();
   });
   task1.forEach(task => {
@@ -865,7 +865,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 4: Old finalised tasks m
   task3.incrementAttempts();
   task3.incrementAttempts();
   task3.incrementAttempts();
-  task3.succeed();
+  task3.succeed(undefined);
 
 
   const origTasks = [task1, task2, task3];

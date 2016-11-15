@@ -20,7 +20,7 @@ const isDistinct = Arrays.isDistinct;
 const isArrayOfType = Arrays.isArrayOfType;
 
 module.exports = {
-  FOR_TESTING: {
+  FOR_TESTING_ONLY: {
     ensureAllTaskDefsDistinct: ensureAllTaskDefsDistinct,
     areSubTaskNamesDistinct: areSubTaskNamesDistinct
   },
@@ -74,6 +74,7 @@ class TaskDef {
    * @param {Function|undefined} [execute] - the optional function to be executed when a task created using this
    * definition is started
    * @param {TaskDef|undefined} [parent] - an optional parent task definition
+   * @throws {Error} an error if the requested task definition is invalid
    */
   constructor(name, execute, parent) {
     // Validate the given name
@@ -171,6 +172,7 @@ class TaskDef {
   /**
    * Creates and adds a single non-executable, internal subTask definition with the given name to this task definition.
    * @param {string} subTaskName - the name of the new non-executable, internal subTask definition
+   * @throws {Error} an error if the given name is blank or not a string or not distinct
    */
   defineSubTask(subTaskName) {
     if (!isString(subTaskName) || isBlank(subTaskName)) {

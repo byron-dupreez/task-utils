@@ -1,4 +1,4 @@
-# task-utils v3.0.0
+# task-utils v3.0.1
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -143,6 +143,31 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 3.0.1
+- Changes to `tasks.js` module:
+  - Renamed `wrapExecuteTask` function to `defaultTaskExecuteFactory`
+  - Added `_frozen` and `_error` properties to Task class
+  - Added get `error` method to Task class
+  - Added `getOrAddSubTask` method to Task class
+  - Added optional `recursively` argument to `incrementAttempts` method on Task class
+  - Added optional `result` arguments to `succeed` and `success` methods on Task class
+  - Changed `fail` and `failure` methods to set new `_error` property
+  - Added `freeze` and `isFrozen` methods to Task class
+  - Removed unused `copyStateToSlaveTasks` method from Task class
+  - Changed static `createMasterTask` method to ensure that slave tasks have same definitions as master task
+  - Changed `defaultTaskExecuteFactory` function:
+    - To recursively increment the number of attempts on a task's sub-tasks
+    - To a static method on Task class
+  - Added a static `taskExecuteFactory` method to Task class that defaults to `defaultTaskExecuteFactory`
+    and can be changed to use an alternative task execute factory
+  - Changed `completeTaskIfStillUnstarted` and `failTaskIfNotRejectedNorFailed` functions:
+    - To static methods on Task class
+    - To accept an optional `logger` argument
+    - To catch and log warnings & errors when state changes are attempted after a task is frozen
+  - Minor changes to unit tests to synchronize with code changes
+  - Added unit tests for static `createMasterTask` method on Task class
+- Updated `core-functions` dependency to version 2.0.3
 
 ### 3.0.0
 - Changes and fixes to `task-states` module
