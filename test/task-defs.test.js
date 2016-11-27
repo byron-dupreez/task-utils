@@ -20,27 +20,27 @@ const stringify = Strings.stringify;
 
 const testing = require('./testing');
 const okNotOk = testing.okNotOk;
-const checkOkNotOk = testing.checkOkNotOk;
+//const checkOkNotOk = testing.checkOkNotOk;
 const checkMethodOkNotOk = testing.checkMethodOkNotOk;
 const equal = testing.equal;
-const checkEqual = testing.checkEqual;
-const checkMethodEqual = testing.checkMethodEqual;
+// const checkEqual = testing.checkEqual;
+// const checkMethodEqual = testing.checkMethodEqual;
 
 const states = require('../task-states');
 // Common state codes
-const SUCCEEDED_CODE = states.SUCCEEDED_CODE;
+// const SUCCEEDED_CODE = states.SUCCEEDED_CODE;
 // TaskState singletons
-const UNSTARTED = states.UNSTARTED;
-const SUCCEEDED = states.SUCCEEDED;
+// const UNSTARTED = states.UNSTARTED;
+// const SUCCEEDED = states.SUCCEEDED;
 // TaskState classes
-//const TaskState = states.TaskState;
-//const Unstarted = states.Unstarted;
-const Success = states.Success;
-const Failure = states.Failure;
-//const Succeeded = states.Succeeded;
-const Failed = states.Failed;
-//const toTaskState = states.toTaskState;
-//const isCompleted = states.isCompleted;
+// const TaskState = states.TaskState;
+// const Unstarted = states.Unstarted;
+// const Success = states.Success;
+// const Failure = states.Failure;
+// const Succeeded = states.Succeeded;
+// const Failed = states.Failed;
+// const toTaskState = states.toTaskState;
+// const isCompleted = states.isCompleted;
 
 // const statuses = require('../task-statuses');
 // const getTask = statuses.ONLY_FOR_TESTING.getTask;
@@ -269,11 +269,11 @@ test('new TaskDef', t => {
   // SubTask with parent & execute
   const subTaskDefB = checkNewTaskDef(t, 'SubTaskB', undefined, taskDefA, true, false);
 
-  console.log(`taskDefA=${stringify(taskDefA)}`);
-  console.log(`subTaskDefB=${stringify(subTaskDefB)}`);
+  //console.log(`taskDefA=${stringify(taskDefA)}`);
+  //console.log(`subTaskDefB=${stringify(subTaskDefB)}`);
   equal(t, taskDefA.subTaskDefs.length, 1, `TaskDef (${taskDefA.name}) subTaskDefs length `);
 
-  const subTaskDefC = checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, true, false);
+  /*const subTaskDefC =*/ checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, true, false);
 
   equal(t, taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length `);
 
@@ -303,7 +303,7 @@ test('new TaskDef', t => {
 });
 
 test('defineTask', t => {
-  const taskDefA = checkDefineTask(t, 'TaskDA', execute1, true, true);
+  /*const taskDefA =*/ checkDefineTask(t, 'TaskDA', execute1, true, true);
 
   // Task with non-string or blank name
   checkDefineTask(t, undefined, execute1, false, true);
@@ -437,12 +437,12 @@ test('getRootTaskDef', t => {
   checkGetRoot(t, taskDef, taskDef, true);
 
   // with 3 subTasks 1A,B,C
-  const subTasks1 = taskDef.defineSubTasks(['SubTask 1A', 'SubTask 1B', 'SubTask 1C']);
+  /*const subTasks1 =*/ taskDef.defineSubTasks(['SubTask 1A', 'SubTask 1B', 'SubTask 1C']);
   const subTask1A = taskDef.subTaskDefs[0];
   const subTask1B = taskDef.subTaskDefs[1];
   const subTask1C = taskDef.subTaskDefs[2];
   // and subTask 1B with 2 sub-subTasks 2A,B
-  const subTasks2 = subTask1B.defineSubTasks(['SubTask 2A', 'SubTask 2B']);
+  /*const subTasks2 =*/ subTask1B.defineSubTasks(['SubTask 2A', 'SubTask 2B']);
   const subTask2A = subTask1B.subTaskDefs[0];
   const subTask2B = subTask1B.subTaskDefs[1];
 
@@ -457,7 +457,9 @@ test('getRootTaskDef', t => {
   checkGetRoot(t, taskDef2, taskDef2, true);
 
   // Create an infinite loop
-  function noop() {}
+  function noop() {
+  }
+
   // Can only do the following if temporarily allow parent to be updatable (bad)
   // const t1 = new TaskDef('T1', noop, undefined);
   // const t2 = new TaskDef('T2', undefined, t1);
@@ -480,6 +482,7 @@ test('areSubTaskNamesDistinct', t => {
   function check(parent, proposedNames, expected) {
     equal(t, areSubTaskNamesDistinct(parent, proposedNames), expected, `areSubTaskNamesDistinct(<${parent.name} ${stringify(parent.subTaskDefs.map(t => t.name))}>, ${stringify(proposedNames)}) ->`);
   }
+
   // Create task
   const taskDef = TaskDef.defineTask('Task 1', execute1);
   // with 3 subTasks 1A,B,C
@@ -584,7 +587,7 @@ test('ensureAllTaskDefsDistinct', t => {
   check(subTask2A, taskDef2, true);
   check(taskDef2, subTask2A, true);
 
-  const subTask1C = taskDef.subTaskDefs[2];
+  //const subTask1C = taskDef.subTaskDefs[2];
 
   t.end();
 });

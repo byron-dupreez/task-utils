@@ -1,4 +1,4 @@
-# task-utils v3.0.1
+# task-utils v3.0.2
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -143,6 +143,13 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 3.0.2
+- Changes to `tasks.js` module:
+  - Changed logic to support tracking the last executed at date-time on a task and task-like
+  - Added `_lastExecutedAt` property and `lastExecutedAt` getter
+  - Added `updateLastExecutedAt` function to update the last executed at date-time on a task and on its sub-tasks (if 
+    recursively is true) and on its slave tasks (if its a master task)
 
 ### 3.0.1
 - Changes to `tasks.js` module:

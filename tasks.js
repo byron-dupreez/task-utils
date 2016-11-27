@@ -19,6 +19,7 @@ module.exports = {
  * @property {boolean} executable - whether or not this task is executable
  * @property {TaskStateLike} state - tht state of the task
  * @property {number} attempts - the number of attempts at the task
+ * @property {string} lastExecutedAt - the ISO date-time at which the task was last executed (if executed)
  * @property {TaskLike[]} subTasks - an array of zero or more non-executable, internal subTasks of this task
  */
 
@@ -45,7 +46,7 @@ const Strings = require('core-functions/strings');
 const isNotBlank = Strings.isNotBlank;
 const stringify = Strings.stringify;
 
-const Promises = require('core-functions/promises');
+/*const Promises =*/ require('core-functions/promises');
 //const isPromise = Promises.isPromise;
 
 const Arrays = require('core-functions/arrays');
@@ -72,6 +73,7 @@ const isDistinct = Arrays.isDistinct;
  * internally by their top-level parent task's execute function
  * @property {TaskState} state - tht state of the task
  * @property {number} attempts - the number of attempts at the task
+ * @property {string} lastExecutedAt - the ISO date-time at which the task was last executed (if executed)
  * @property {*} [result] - the result of the task (if any)
  */
 class Task {
@@ -180,6 +182,7 @@ class Task {
     // Set the task's initial state, attempts and result
     this._state = TaskState.UNSTARTED;
     this._attempts = 0;
+    this._lastExecutedAt = '';
 
     // The task's optional result must NOT be enumerable, since the result may end up being an object that references
     // this task, which would create a circular dependency
@@ -213,6 +216,11 @@ class Task {
     return this._attempts;
   }
 
+  /** The ISO date-time at which this task was last executed (or undefined if never executed) **/
+  get lastExecutedAt() {
+    return this._lastExecutedAt;
+  }
+
   /** The result of this task (if executed successfully) **/
   get result() {
     return this._result;
@@ -224,8 +232,8 @@ class Task {
   }
 
   /**
-   * Customized toJSON method, which is used by {@linkcode JSON.stringify} to output the internal _state and _attempts
-   * properties without their underscores.
+   * Customized toJSON method, which is used by {@linkcode JSON.stringify} to output the internal _state, _attempts and
+   * _lastExecuteAt properties without their underscores.
    */
   toJSON() {
     return {
@@ -233,6 +241,7 @@ class Task {
       executable: this.executable,
       state: this._state,
       attempts: this._attempts,
+      lastExecutedAt: this._lastExecutedAt,
       subTasks: this._subTasks
     };
   }
@@ -430,9 +439,31 @@ class Task {
   }
 
   /**
+   * Updates this task's last executed at date-time to the given executed at date-time. If recursively is true, then
+   * also applies the update to each of this task' sub-tasks recursively.
+   * @param {Date|string} executedAt - the ISO date-time at which this task was executed
+   * @param {boolean|undefined} [recursively] - whether to also apply the update to sub-tasks recursively or not
+   */
+  updateLastExecutedAt(executedAt, recursively) {
+    const lastExecutedAt = executedAt instanceof Date ? executedAt.toISOString() : executedAt;
+    if (this.incomplete) {
+      this._lastExecutedAt = lastExecutedAt;
+    }
+
+    // If recursively, then also apply the update to each of this task's sub-tasks
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.updateLastExecutedAt(lastExecutedAt, recursively));
+    }
+
+    // If this is a master task then ripple the update to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.updateLastExecutedAt(lastExecutedAt, recursively));
+    }
+  }
+
+  /**
    * Increments the number of attempts at this task, but ONLY if the task is in an incomplete (non-finalised) state!
-   * If recursively is true, then also applies the increment to each of this task' sub-tasks recursively; otherwise
-   * if false or undefined, then does not increment attempts on sub-tasks.
+   * If recursively is true, then also applies the increment to each of this task' sub-tasks recursively.
    * @param {boolean|undefined} [recursively] - whether to also apply the increment to sub-tasks recursively or not
    */
   incrementAttempts(recursively) {
@@ -622,6 +653,10 @@ class Task {
       this._attempts += oldTask._attempts;
     }
 
+    if (oldTask._lastExecutedAt) {
+      this._lastExecutedAt = oldTask._lastExecutedAt;
+    }
+
     // Recursively update the corresponding subTask for each of the old task's subTasks
     if (oldTask._subTasks && oldTask._subTasks.length > 0) {
       const oldSubTasks = oldTask._subTasks;
@@ -667,9 +702,14 @@ class Task {
     this._slaveTasks = slaves;
 
     // Set this master task's number of attempts to the minimum of all of its slave task's numbers of attempts
+    // Set this master task's last executed at date-time to the maximum of all of its slave task's last executed at date-times
     for (let i = 0; i < slaves.length; ++i) {
       const slaveTaskAttempts = slaves[i]._attempts;
       this._attempts = i == 0 ? slaveTaskAttempts : Math.min(this._attempts, slaveTaskAttempts);
+
+      const slaveTaskLastExecutedAt = slaves[i]._lastExecutedAt;
+      this._lastExecutedAt = i == 0 ? slaveTaskLastExecutedAt :
+        slaveTaskLastExecutedAt > this._lastExecutedAt ? slaveTaskLastExecutedAt : this._lastExecutedAt;
     }
 
     // Recursively do the same for each of this master task's sub-tasks
@@ -897,11 +937,12 @@ function reconstructTasksFromRootTaskLike(taskLike) {
   // Reconstruct all of the pseudo task and subTasks using the reconstructed root task definition
   const task = new Task(taskDef, undefined);
 
-  /** Recursively copies the taskLike's state and number of attempts to its corresponding task. */
-  function copyStateAndAttempts(taskLike, task) {
+  /** Recursively copies the taskLike's state, number of attempts and last executed at to its corresponding task. */
+  function copyStateAttemptsAndLastExecutedAt(taskLike, task) {
     task._state = taskLike.state instanceof TaskState ? taskLike.state :
       TaskState.toTaskStateFromStateLike(taskLike.state);
     task._attempts = taskLike.attempts;
+    task._lastExecutedAt = taskLike.lastExecutedAt;
     //task._result = undefined; // a TaskLike has NO result (since it is explicitly NOT enumerable and also NOT included in the toJSON method)
 
     // Recursively repeat this process for each of the taskLike's subTasks
@@ -909,13 +950,13 @@ function reconstructTasksFromRootTaskLike(taskLike) {
       for (let i = 0; i < taskLike.subTasks.length; ++i) {
         const subTaskLike = taskLike.subTasks[i];
         const subTask = task.getSubTask(subTaskLike.name);
-        copyStateAndAttempts(subTaskLike, subTask);
+        copyStateAttemptsAndLastExecutedAt(subTaskLike, subTask);
       }
     }
   }
 
   // Finally recursively copy the taskLike's state, attempts and result to its corresponding task
-  copyStateAndAttempts(taskLike, task);
+  copyStateAttemptsAndLastExecutedAt(taskLike, task);
   return task;
 }
 
@@ -1125,6 +1166,8 @@ function defaultTaskExecuteFactory(task, execute) {
       // First increment the number of attempts on this task (and all of its sub-tasks recursively), since its starting
       // to execute
       task.incrementAttempts(true);
+      task.updateLastExecutedAt(new Date(), true);
+
       // Then execute the actual execute function
       try {
         // Execute the task's function

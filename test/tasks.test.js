@@ -688,6 +688,70 @@ test('task incrementAttempts', t => {
 });
 
 // =====================================================================================================================
+// task incrementAttempts
+// =====================================================================================================================
+
+test('task incrementAttempts', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  t.equal(task.lastExecutedAt, '', `${task.name} lastExecutedAt must be ''`);
+
+  let dt = '2016-11-27T17:10:00.000Z';
+  task.updateLastExecutedAt(dt, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
+
+  dt = '2016-11-27T17:10:00.111Z';
+  task.updateLastExecutedAt(dt, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
+
+  dt = '2016-11-27T17:10:00.222Z';
+  task.updateLastExecutedAt(dt, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
+
+  // Complete it
+  task.succeed(undefined);
+
+  let dt0 = '2016-11-27T17:10:00.333Z';
+  task.updateLastExecutedAt(dt0, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
+
+  // Fail it
+  task.fail(new Error('Badoom'));
+
+  dt = '2016-11-27T17:10:00.444Z';
+  task.updateLastExecutedAt(dt, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
+
+  // Reject it
+  task.reject('NoReason', undefined, false);
+
+  dt0 = '2016-11-27T17:10:00.555Z';
+  task.updateLastExecutedAt(dt0, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
+
+  // Make task more complex
+  const subTaskB = task.getOrAddSubTask('SubTask B');
+  const subSubTaskC = subTaskB.getOrAddSubTask('SubSubTask C');
+  t.equal(subTaskB.lastExecutedAt, '', `${subTaskB.name} lastExecutedAt must be ''`);
+  t.equal(subSubTaskC.lastExecutedAt, '', `${subSubTaskC.name} lastExecutedAt must be ''`);
+
+  let dt1 = '2016-11-27T17:10:00.666Z';
+  task.updateLastExecutedAt(dt1, false);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
+  t.equal(subTaskB.lastExecutedAt, '', `${subTaskB.name} lastExecutedAt must still be ''`);
+  t.equal(subSubTaskC.lastExecutedAt, '', `${subSubTaskC.name} lastExecutedAt must still be ''`);
+
+  dt1 = '2016-11-27T17:10:00.777Z';
+  task.updateLastExecutedAt(dt1, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
+  t.equal(subTaskB.lastExecutedAt, dt1, `${subTaskB.name} lastExecutedAt must be '${dt1}'`);
+  t.equal(subSubTaskC.lastExecutedAt, dt1, `${subSubTaskC.name} lastExecutedAt must be '${dt1}'`);
+
+  t.end();
+});
+
+// =====================================================================================================================
 // createMasterTask
 // =====================================================================================================================
 
