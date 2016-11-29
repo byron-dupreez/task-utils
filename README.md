@@ -1,4 +1,4 @@
-# task-utils v3.0.2
+# task-utils v3.0.3
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -143,6 +143,10 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 3.0.3
+- Updated `core-functions` dependency to version 2.0.7
+- Updated `tape` dependency to 4.6.3
 
 ### 3.0.2
 - Changes to `tasks.js` module:
