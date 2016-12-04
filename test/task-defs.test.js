@@ -27,35 +27,6 @@ const equal = testing.equal;
 // const checkMethodEqual = testing.checkMethodEqual;
 
 const states = require('../task-states');
-// Common state codes
-// const SUCCEEDED_CODE = states.SUCCEEDED_CODE;
-// TaskState singletons
-// const UNSTARTED = states.UNSTARTED;
-// const SUCCEEDED = states.SUCCEEDED;
-// TaskState classes
-// const TaskState = states.TaskState;
-// const Unstarted = states.Unstarted;
-// const Success = states.Success;
-// const Failure = states.Failure;
-// const Succeeded = states.Succeeded;
-// const Failed = states.Failed;
-// const toTaskState = states.toTaskState;
-// const isCompleted = states.isCompleted;
-
-// const statuses = require('../task-statuses');
-// const getTask = statuses.ONLY_FOR_TESTING.getTask;
-// const getOrCreateTask = statuses.getOrCreateTask;
-// const getTaskState = statuses.getTaskState;
-// const getTaskResult = statuses.getTaskResult;
-// const getTaskProperty = statuses.getTaskProperty;
-// const getTaskAttempts = statuses.getTaskAttempts;
-// const incrementTaskAttempts = statuses.incrementTaskAttempts;
-// const setTaskState = statuses.setTaskState;
-// const setTaskStateDetails = statuses.setTaskStateDetails;
-// const setTaskResult = statuses.setTaskResult;
-// const setTaskProperty = statuses.setTaskProperty;
-// const setTaskStateIfNecessary = statuses.setTaskStateIfNecessary;
-// const resetTaskStateAndResultIfNotComplete = statuses.resetTaskStateAndResultIfNotComplete;
 
 function execute1() {
   console.log(`Executing execute1 on task (${this.name})`);

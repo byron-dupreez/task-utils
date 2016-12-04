@@ -53,7 +53,7 @@ function checkTask(t, task, taskDef, mustBeExecutable) {
 
     if (task.parent) {
       //console.log(`************** task.parent.subTasks = ${stringify(task.parent.subTasks.map(t => t.name))}`);
-      const self = task.parent._subTasks.find(t => t.name === taskName);
+      const self = task.parent.subTasks.find(t => t.name === taskName);
       //console.log(`************** self = ${stringify(self)}`);
       equal(t, task, self, `Parent (${task.parent.name}) contains new task (${taskName})`);
     }
@@ -61,6 +61,7 @@ function checkTask(t, task, taskDef, mustBeExecutable) {
     for (let i = 0; i < taskDef.subTaskDefs.length; ++i) {
       const subTaskDef = taskDef.subTaskDefs[i];
       const subTask = task.subTasks[i];
+      t.ok(subTask.isSubTask(), `task (${task.name} sub-task (${subTask.name}) must be isSubTask`);
       checkTask(t, subTask, subTaskDef, false);
     }
   }
@@ -159,21 +160,21 @@ test('new Task', t => {
   // Add a subtask B to Task A
   const subTaskDefB = new TaskDef('SubTask B', undefined, taskA.definition);
   const subTaskB = check(subTaskDefB, taskA, true, false);
-  equal(t, subTaskB._subTasks.length, 0, `SubTask (${subTaskB.name}) subTasks length `);
-  equal(t, taskA._subTasks.length, 1, `Task (${taskA.name}) subTasks length `);
+  equal(t, subTaskB.subTasks.length, 0, `SubTask (${subTaskB.name}) subTasks length `);
+  equal(t, taskA.subTasks.length, 1, `Task (${taskA.name}) subTasks length `);
 
   // Add a subtask B1 to SubTask B
   const subTaskDefB1 = new TaskDef('SubTask B1', undefined, subTaskB.definition);
   const subTaskB1 = check(subTaskDefB1, subTaskB, true, false);
-  equal(t, subTaskB1._subTasks.length, 0, `SubTask (${subTaskB1.name}) subTasks length `);
-  equal(t, subTaskB._subTasks.length, 1, `SubTask (${subTaskB.name}) subTasks length `);
-  equal(t, taskA._subTasks.length, 1, `Task (${taskA.name}) subTasks length `);
+  equal(t, subTaskB1.subTasks.length, 0, `SubTask (${subTaskB1.name}) subTasks length `);
+  equal(t, subTaskB.subTasks.length, 1, `SubTask (${subTaskB.name}) subTasks length `);
+  equal(t, taskA.subTasks.length, 1, `Task (${taskA.name}) subTasks length `);
 
   // Add another subtask C to Task A
   const subTaskDefC = new TaskDef('SubTask C', undefined, taskA.definition);
   const subTaskC = check(subTaskDefC, taskA, true, false);
-  equal(t, subTaskC._subTasks.length, 0, `SubTask (${subTaskC.name}) subTasks length `);
-  equal(t, taskA._subTasks.length, 2, `Task (${taskA.name}) subTasks length `);
+  equal(t, subTaskC.subTasks.length, 0, `SubTask (${subTaskC.name}) subTasks length `);
+  equal(t, taskA.subTasks.length, 2, `Task (${taskA.name}) subTasks length `);
 
   // Ensure duplicates are not possible
   check(subTaskDefB, taskA, false, false);
@@ -231,11 +232,11 @@ test('reconstructTasksFromRootTaskLike', t => {
   check(taskA, true, true);
 
   // fail it
-  taskA.failure('Failure', new Error("Feeling ill"));
+  taskA.failAs('Failure', new Error("Feeling ill"));
   check(taskA, true, true);
 
   // succeed it
-  taskA.success('Ok', undefined);
+  taskA.completeAs('Ok', undefined);
   check(taskA, true, true);
 
   // Create a complex task from a complex task definition
@@ -266,11 +267,10 @@ test('task state initial', t => {
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.notOk(task.rejected, `${task.name} must NOT be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -288,11 +288,10 @@ test('task succeed()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.notOk(task.rejected, `${task.name} must NOT be rejected`);
 
-  t.ok(task.isSuccess(), `${task.name} must be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -300,21 +299,62 @@ test('task succeed()', t => {
   t.end();
 });
 
-test('task success()', t => {
+test('task completeAs()', t => {
   // Create a simple task from a simple task definition
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.success('MySuccessCode', undefined);
+  task.completeAs('MySuccessState', undefined);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.notOk(task.rejected, `${task.name} must NOT be rejected`);
 
-  t.ok(task.isSuccess(), `${task.name} must be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task timeout()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Time it out
+  task.timeout(new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timedOut`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task timeoutAs()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Fail it
+  task.timeoutAs('MyTimeoutState', new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timedOut`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -332,11 +372,10 @@ test('task fail()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.ok(task.failed, `${task.name} must be failed`);
   t.notOk(task.rejected, `${task.name} must NOT be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.ok(task.isFailure(), `${task.name} must be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -344,21 +383,20 @@ test('task fail()', t => {
   t.end();
 });
 
-test('task failure()', t => {
+test('task failAs()', t => {
   // Create a simple task from a simple task definition
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Fail it
-  task.failure('MyFailureCode', new Error('Boom'));
+  task.failAs('MyFailureState', new Error('Boom'));
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.ok(task.failed, `${task.name} must be failed`);
   t.notOk(task.rejected, `${task.name} must NOT be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.ok(task.isFailure(), `${task.name} must be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -376,11 +414,10 @@ test('task reject()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -398,11 +435,10 @@ test('task discard()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.ok(task.isDiscarded(), `${task.name} must be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -421,11 +457,10 @@ test('task abandon()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.ok(task.isAbandoned(), `${task.name} must be Abandoned`);
@@ -433,6 +468,43 @@ test('task abandon()', t => {
   t.end();
 });
 
+test('task succeed() then timeout() then succeed()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Complete it
+  task.succeed(undefined);
+
+  // Fail it
+  task.timeout(new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timed out`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Re-complete it
+  task.succeed(undefined);
+
+  t.notOk(task.unstarted, `${task.name} must not be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must not be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must not be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
 
 test('task succeed() then fail() then succeed()', t => {
   // Create a simple task from a simple task definition
@@ -447,11 +519,10 @@ test('task succeed() then fail() then succeed()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.ok(task.failed, `${task.name} must be failed`);
   t.notOk(task.rejected, `${task.name} must NOT be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.ok(task.isFailure(), `${task.name} must be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -462,11 +533,10 @@ test('task succeed() then fail() then succeed()', t => {
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
   t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must not be failed`);
   t.notOk(task.rejected, `${task.name} must not be rejected`);
 
-  t.ok(task.isSuccess(), `${task.name} must be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -487,12 +557,59 @@ test('task succeed() then cannot reject()', t => {
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
   t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must not be failed`);
   t.notOk(task.rejected, `${task.name} must not be rejected`);
 
-  t.ok(task.isSuccess(), `${task.name} must be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task timeout() then succeed()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Time it out
+  task.timeout(new Error('Boom'));
+
+  // Complete it
+  task.succeed(undefined);
+
+  t.notOk(task.unstarted, `${task.name} must not be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must not be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must not be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task timeout() then reject()', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+
+  // Time it out
+  task.timeout(new Error('Boom'));
+
+  // Reject it
+  task.reject('Rotten', new Error('Yuck'), false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
@@ -512,11 +629,10 @@ test('task fail() then succeed()', t => {
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
   t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must not be failed`);
   t.notOk(task.rejected, `${task.name} must not be rejected`);
 
-  t.ok(task.isSuccess(), `${task.name} must be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -537,11 +653,10 @@ test('task fail() then reject()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -549,7 +664,7 @@ test('task fail() then reject()', t => {
   t.end();
 });
 
-test('task reject() then cannot succeed(), cannot fail()', t => {
+test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t => {
   // Create a simple task from a simple task definition
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
@@ -562,11 +677,10 @@ test('task reject() then cannot succeed(), cannot fail()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -577,11 +691,24 @@ test('task reject() then cannot succeed(), cannot fail()', t => {
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
+  t.ok(task.isRejected(), `${task.name} must be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Cannot time it out
+  task.timeout(new Error('Boom'));
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
   t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -605,11 +732,10 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -620,11 +746,10 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -635,11 +760,10 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
   t.notOk(task.failed, `${task.name} must NOT be failed`);
   t.ok(task.rejected, `${task.name} must be rejected`);
 
-  t.notOk(task.isSuccess(), `${task.name} must NOT be Success`);
-  t.notOk(task.isFailure(), `${task.name} must NOT be Failure`);
   t.ok(task.isRejected(), `${task.name} must be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
@@ -688,10 +812,10 @@ test('task incrementAttempts', t => {
 });
 
 // =====================================================================================================================
-// task incrementAttempts
+// task updateLastExecutedAt
 // =====================================================================================================================
 
-test('task incrementAttempts', t => {
+test('task updateLastExecutedAt', t => {
   // Create a simple task from a simple task definition
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
@@ -772,32 +896,96 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   // Succeed the master task
   masterTask.succeed(undefined);
   masterTask.slaveTasks.forEach(st => {
-    t.ok(st.isSuccess() && st.completed, `slave (${st.name}) must be Success`);
+    t.ok(st.completed, `slave (${st.name}) must be completed (after 1st succeed)`);
   });
 
   // Fail the master task
-  masterTask.fail(new Error('Err'));
+  const err1 = new Error('Fail 1st - err1');
+  masterTask.fail(err1);
   masterTask.slaveTasks.forEach(st => {
-    t.ok(st.isFailure() && st.failed, `slave (${st.name}) must be Failure`);
+    t.ok(st.failed, `slave (${st.name}) must be failed (1st fail after 1st succeed)`);
+    t.equal(st.state.error, err1.toString(), `slave (${st.name}) state error (${st.state.error}) must be err1 (1st fail after 1st succeed)`);
+    t.equal(st.error, err1, `slave (${st.name}) error (${st.error}) must be err1 (1st fail after 1st succeed)`);
   });
 
-  // Re-succeed the master task
-  masterTask.succeed(undefined);
+  // Re-complete the master task
+  masterTask.complete(undefined);
   masterTask.slaveTasks.forEach(st => {
-    t.ok(st.isSuccess() && st.completed, `slave (${st.name}) must be Success again`);
+    t.ok(st.completed, `slave (${st.name}) must be completed again (after 2nd complete)`);
+    t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 2nd complete)`);
+    t.equal(st.error, undefined, `slave (${st.name}) error (${st.error}) must be undefined (after 2nd complete)`);
   });
 
   // Re-fail the master task
-  masterTask.fail(new Error('Err'));
+  const err2 = new Error('Fail 2nd - err2');
+  masterTask.fail(err2);
+  t.ok(masterTask.failed, `masterTask (${masterTask.name}) must be failed again (2nd fail after 2nd complete)`);
   masterTask.slaveTasks.forEach(st => {
-    t.ok(st.isFailure() && st.failed, `slave (${st.name}) must be Failure again`);
+    t.ok(st.failed, `slave (${st.name}) must be failed again (after 2nd fail)`);
+    t.equal(st.state.error, err2.toString(), `slave (${st.name}) state error (${st.state.error}) must be err2 (2nd fail after 2nd complete)`);
+    t.equal(st.error, err2, `slave (${st.name}) error (${st.error}) must be err2 (2nd fail after 2nd complete)`);
+  });
+
+  // Reset the master task (must clear failures)
+  masterTask.reset();
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.unstarted, `slave (${st.name}) must be unstarted (after 1st reset)`);
+    t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 1st reset)`);
+    t.equal(st.error, undefined, `slave (${st.name}) error (${st.error}) must be undefined (after 1st reset)`);
+  });
+
+  // Timeout the master task
+  const err3 = new Error('Timeout 1st - err3');
+  masterTask.timeout(err3);
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.timedOut, `slave (${st.name}) must be timed out (1st timeout after 1st reset)`);
+    t.equal(st.state.error, err3.toString(), `slave (${st.name}) state error (${st.state.error}) must be err3 (1st timeout after 1st reset)`);
+    t.equal(st.error, err3, `slave (${st.name}) error (${st.error}) must be err3 (1st timeout after 1st reset)`);
+  });
+
+  // Re-complete the master task again
+  masterTask.complete(undefined);
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.completed, `slave (${st.name}) must be completed again (after 3rd complete)`);
+    t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 3rd complete)`);
+    t.equal(st.error, undefined, `slave (${st.name}) error (${st.error}) must be undefined (after 3rd complete)`);
+  });
+
+  // Re-timeout the master task
+  const err4 = new Error('Timeout 2nd - err4');
+  masterTask.timeout(err4);
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.timedOut, `slave (${st.name}) must be timed out again (2nd timeout after 3rd complete)`);
+    t.equal(st.state.error, err4.toString(), `slave (${st.name}) state error (${st.state.error}) must be err4 (2nd timeout after 3rd complete)`);
+    t.equal(st.error, err4, `slave (${st.name}) error (${st.error}) must be err4 (2nd timeout after 3rd complete)`);
+  });
+
+  // Reset the master task again (must clear timeouts)
+  masterTask.reset();
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.unstarted, `slave (${st.name}) must be unstarted (after 2nd reset)`);
+    t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 2nd reset)`);
+    t.equal(st.error, undefined, `slave (${st.name}) error (${st.error}) must be undefined (after 2nd reset)`);
+  });
+
+  // Re-fail the master task
+  const err5 = new Error('Fail 3rd - err5');
+  masterTask.fail(err5);
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.failed, `slave (${st.name}) must be failed again (3rd fail after 2nd reset)`);
+    t.equal(st.state.error, err5.toString(), `slave (${st.name}) state error (${st.state.error}) must be err5 (3rd fail after 2nd reset)`);
+    t.equal(st.error, err5, `slave (${st.name}) error (${st.error}) must be err5 (3rd fail after 2nd reset)`);
   });
 
   if (!skipReject) {
-    // Re-succeed the master task
-    masterTask.reject();
+    // Reject the master task
+    const err6 = new Error('Reject - err5');
+    masterTask.reject('Bob did it', err6);
     masterTask.slaveTasks.forEach(st => {
+      t.ok(st.rejected, `slave (${st.name}) must be rejected`);
       t.ok(st.isRejected() && st.rejected, `slave (${st.name}) must be Rejected`);
+      t.equal(st.state.error, err6.toString(), `slave (${st.name}) state error (${st.state.error}) must be err6 (after reject)`);
+      t.equal(st.error, err6, `slave (${st.name}) error (${st.error}) must be err6 (after reject)`);
     });
   }
 }
@@ -886,28 +1074,28 @@ test('createMasterTask', t => {
   slave2.reject('MyReason', slave2Error, true);
 
   // Complete master slave 5
-  const masterSlave5SuccessCode = 'Master slave 5 success code';
-  masterSlave5.success(masterSlave5SuccessCode, undefined);
+  const masterSlave5CompletedState = 'Master slave 5 completed state';
+  masterSlave5.completeAs(masterSlave5CompletedState, undefined);
 
   // Now fail master task B, which should have NO impact on its slave tasks, since they are already failed/rejected/completed
   const masterTaskBError = new Error('Master task B error');
   masterTaskB.fail(masterTaskBError);
 
   // Check states
-  t.ok(masterTaskB.isFailure(), `Master task B (${stringify(masterTaskB.state)}) must be Failure`);
+  t.ok(masterTaskB.failed, `Master task B (${stringify(masterTaskB.state)}) must be Failure`);
   t.equal(masterTaskB.state.error, masterTaskBError.toString(), `Master task B (${stringify(masterTaskB.state)}) must be failed with error (${masterTaskBError})`);
 
-  t.ok(slave1.isFailure(), `Slave 1 (${stringify(slave1.state)}) must be Failure`);
+  t.ok(slave1.failed, `Slave 1 (${stringify(slave1.state)}) must be Failure`);
   t.equal(slave1.state.error, slave1Error.toString(), `Slave 1 (${stringify(slave1.state)}) must be failed with error (${slave1Error})`);
 
   t.ok(slave2.isRejected(), `Slave 2 (${stringify(slave2.state)}) must be Rejected`);
   t.equal(slave2.state.error, slave2Error.toString(), `Slave 2 must be rejected with error (${slave2Error})`);
 
-  t.ok(masterSlave5.isFailure(), `Master-slave 5 (${stringify(masterSlave5.state)}) must be Failure`);
+  t.ok(masterSlave5.failed, `Master-slave 5 (${stringify(masterSlave5.state)}) must be Failure`);
   t.equal(masterSlave5.state.error, masterTaskBError.toString(), `Master-slave 5 must be failed with error (${masterTaskBError})`);
-  t.ok(slave3.isFailure(), `Sub-slave 3 (${stringify(slave3.state)}) must be Failure`);
+  t.ok(slave3.failed, `Sub-slave 3 (${stringify(slave3.state)}) must be Failure`);
   t.equal(slave3.state.error, masterTaskBError.toString(), `Slave 3 must be failed with error (${masterTaskBError})`);
-  t.ok(slave4.isFailure(), `Sub-slave 4 (${stringify(slave4.state)}) must be Failure`);
+  t.ok(slave4.failed, `Sub-slave 4 (${stringify(slave4.state)}) must be Failure`);
   t.equal(slave4.state.error, masterTaskBError.toString(), `Slave 4 must be failed with error (${masterTaskBError})`);
 
   // Check master sub-tasks
@@ -930,28 +1118,28 @@ test('createMasterTask', t => {
   const slave4SubTaskB1 = slave4.getSubTask('SubTask B1');
   t.ok(slave4SubTaskB1.state.unstarted, `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be unstarted`);
 
-  // Fail the master-slave 5 sub-task B1, must trigger failures to its slave tasks 3 & 4
+  // Fail the master-slave 5 sub-task B1, must trigger fail on its slave tasks 3 & 4
   const masterSlave5SubTaskB1Error = new Error('masterSlave5SubTaskB1Error');
   masterSlave5SubTaskB1.fail(masterSlave5SubTaskB1Error);
 
-  t.ok(masterSlave5SubTaskB1.state.isFailure(), `Master-slave 5 sub-task B1 (${stringify(masterSlave5SubTaskB1.state)}) must be Failure`);
+  t.ok(masterSlave5SubTaskB1.state.failed, `Master-slave 5 sub-task B1 (${stringify(masterSlave5SubTaskB1.state)}) must be Failure`);
   t.equal(masterSlave5SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Master-slave 5 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
 
-  t.ok(slave3SubTaskB1.state.isFailure(), `Slave 3 sub-task B1 (${stringify(slave3SubTaskB1.state)}) must be Failure`);
+  t.ok(slave3SubTaskB1.state.failed, `Slave 3 sub-task B1 (${stringify(slave3SubTaskB1.state)}) must be Failure`);
   t.equal(slave3SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Slave 3 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
 
-  t.ok(slave4SubTaskB1.state.isFailure(), `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be Failure`);
+  t.ok(slave4SubTaskB1.state.failed, `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be Failure`);
   t.equal(slave4SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Slave 4 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
 
   // Complete the master sub-task B1, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
-  masterSubTaskB1.success('masterSubTaskB1SuccessCode', undefined);
+  masterSubTaskB1.completeAs('masterSubTaskB1SuccessState', undefined);
 
-  t.ok(masterSubTaskB1.state.isSuccess(), `Master sub-task B1 (${stringify(masterSubTaskB1.state)}) must be Success`);
-  t.ok(slave1SubTaskB1.state.isSuccess(), `Slave 1 sub-task B1 (${stringify(slave1SubTaskB1.state)}) must be Success`);
+  t.ok(masterSubTaskB1.state.completed, `Master sub-task B1 (${stringify(masterSubTaskB1.state)}) must be completed`);
+  t.ok(slave1SubTaskB1.state.completed, `Slave 1 sub-task B1 (${stringify(slave1SubTaskB1.state)}) must be completed`);
   t.ok(slave2SubTaskB1.state.rejected, `Slave 2 sub-task B1 (${stringify(slave2SubTaskB1.state)}) must be rejected`);
-  t.ok(masterSlave5SubTaskB1.state.isSuccess(), `Master-slave 5 sub-task B1 (${stringify(masterSlave5SubTaskB1.state)}) must be Success`);
-  t.ok(slave3SubTaskB1.state.isSuccess(), `Slave 3 sub-task B1 (${stringify(slave3SubTaskB1.state)}) must be Success`);
-  t.ok(slave4SubTaskB1.state.isSuccess(), `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be Success`);
+  t.ok(masterSlave5SubTaskB1.state.completed, `Master-slave 5 sub-task B1 (${stringify(masterSlave5SubTaskB1.state)}) must be completed`);
+  t.ok(slave3SubTaskB1.state.completed, `Slave 3 sub-task B1 (${stringify(slave3SubTaskB1.state)}) must be completed`);
+  t.ok(slave4SubTaskB1.state.completed, `Slave 4 sub-task B1 (${stringify(slave4SubTaskB1.state)}) must be completed`);
 
   // Sub-sub tasks must still be unstarted
   const masterSubTaskB1a = masterSubTaskB1.getSubTask('SubTask B1a');
@@ -976,12 +1164,12 @@ test('createMasterTask', t => {
   // Complete the master sub-task B1a, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
   masterSubTaskB1a.succeed(undefined);
 
-  t.ok(masterSubTaskB1a.state.isSuccess(), `Master sub-task B1a (${stringify(masterSubTaskB1a.state)}) must be Success`);
-  t.ok(slave1SubTaskB1a.state.isSuccess(), `Slave 1 sub-task B1a (${stringify(slave1SubTaskB1a.state)}) must be Success`);
+  t.ok(masterSubTaskB1a.state.completed, `Master sub-task B1a (${stringify(masterSubTaskB1a.state)}) must be completed`);
+  t.ok(slave1SubTaskB1a.state.completed, `Slave 1 sub-task B1a (${stringify(slave1SubTaskB1a.state)}) must be completed`);
   t.ok(slave2SubTaskB1a.state.rejected, `Slave 2 sub-task B1a (${stringify(slave2SubTaskB1a.state)}) must be rejected`);
-  t.ok(masterSlave5SubTaskB1a.state.isSuccess(), `Master-slave 5 sub-task B1a (${stringify(masterSlave5SubTaskB1a.state)}) must be Success`);
-  t.ok(slave3SubTaskB1a.state.isSuccess(), `Slave 3 sub-task B1a (${stringify(slave3SubTaskB1a.state)}) must be Success`);
-  t.ok(slave4SubTaskB1a.state.isSuccess(), `Slave 4 sub-task B1a (${stringify(slave4SubTaskB1a.state)}) must be Success`);
+  t.ok(masterSlave5SubTaskB1a.state.completed, `Master-slave 5 sub-task B1a (${stringify(masterSlave5SubTaskB1a.state)}) must be completed`);
+  t.ok(slave3SubTaskB1a.state.completed, `Slave 3 sub-task B1a (${stringify(slave3SubTaskB1a.state)}) must be completed`);
+  t.ok(slave4SubTaskB1a.state.completed, `Slave 4 sub-task B1a (${stringify(slave4SubTaskB1a.state)}) must be completed`);
 
   t.end();
 });

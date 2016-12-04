@@ -1,4 +1,4 @@
-# task-utils v3.0.5
+# task-utils v4.0.0
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -32,22 +32,29 @@ In Node.js:
 ```js
 const states = require('task-utils/task-states');
 
-// TaskState constructors
+// TaskState constructor
 const TaskState = states.TaskState;
+// TimeoutError constructor
+const TimeoutError = states.TimeoutError;
 
 // TaskState direct subclasses
 const Unstarted = states.Unstarted; // rather use TaskState.UNSTARTED singleton
-const Success = states.Success;
-const Failure = states.Failure;
-const Rejection = states.Rejection;
+const CompletedState = states.CompletedState;
+const TimedOutState = states.TimedOutState;
+const FailedState = states.FailedState;
+const RejectedState = states.RejectedState;
 
-// Success subclasses
+// CompletedState subclasses
+const Completed = states.Completed; // rather use TaskState.COMPLETED singleton
 const Succeeded = states.Succeeded; // rather use TaskState.SUCCEEDED singleton
 
-// Failure subclasses
+// TimedOutState subclasses
+const TimedOut = states.TimedOut;
+
+// FailedState subclasses
 const Failed = states.Failed;
 
-// Rejection subclasses
+// RejectedState subclasses
 const Rejected = states.Rejected;
 const Discarded = states.Discarded;
 const Abandoned = states.Abandoned;
@@ -55,19 +62,30 @@ const Abandoned = states.Abandoned;
 // Example unstarted state
 const unstarted = TaskState.UNSTARTED; // or more wasteful: new Unstarted();
 
-// Example success states
-const success = new Success('MySuccessCode');
+// Example completed states
+const completed = TaskState.COMPLETED; // or more wasteful: new Completed();
 const succeeded = TaskState.SUCCEEDED; // or more wasteful: new Succeeded();
 
+const customCompletedState = new CompletedState('MyCompletedState');
+
+// Example timed out states
+const timedOut = new TimedOut();
+const timedOut2 = new TimedOut(new Error('My optional error that triggered timeout ...'));
+
+const customTimedOutState = new TimedOutState('MyTimedOutState');
+const customTimedOutState2 = new TimedOutState('MyTimedOutState', new TimeoutError('My optional error that triggered timeout ...'));
+
 // Example failure states
-const failure = new Failure('MyFailureCode', new Error('Kaboom'));
 const failed = new Failed(new Error('Another error'));
 
+const customFailedState = new FailedState('MyFailedState', new Error('Kaboom'));
+
 // Example rejection states
-const rejection = new Rejection('MyRejectionCode', 'My reason for rejection', new Error('My optional error'));
-const rejected = new Rejected('My reason for rejecting', new Error('Another optional error'));
+const rejected = new Rejected('My reason for rejecting', new Error('My optional error that triggered reject ...'));
 const discarded = new Discarded('My reason for discarding');
 const abandoned = new Abandoned('My reason for abandoning');
+
+const customRejectedState = new RejectedState('MyRejectionState', 'My reason for rejecting', new Error('My optional error'));
 ```
 
 * To use the task definition class (TaskDef)
@@ -143,6 +161,39 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 4.0.0
+- Added support for timeouts to `TaskState` and `Task` classes and cleaned-up their APIs
+- Changes to `task-states` module:
+  - Added a new `TimeoutError` subclass of `Error`
+  - Changes to `TaskStateLike` and `TaskState` typedefs:
+    - Renamed `code` property to `name`
+    - Added new `timedOut` property
+  - Changes to `TaskState` class:
+    - Renamed `code` property to `name`
+    - Changed all properties to private properties with underscore-prefixed names and with public `get` property accessors 
+      with their original names, e.g. old `completed` property was renamed to `_completed` with a `get completed()` accessor 
+    - Added a new private `_timedOut` property with a public `get timedOut()` accessor
+    - Added a `toJSON` method to output the private, underscore-prefixed properties with their public property names
+    - Removed `isSuccess`, `isFailure` and `isRejection` methods
+    - Changed `TaskState` constructor to accept a new `timedOut` argument
+    - Renamed `Success` subclass to `CompletedState`
+    - Added a new `Completed` subclass of the `CompletedState` class
+    - Added a new `TimedOutState` subclass 
+    - Added a new `TimedOut` subclass of the `TimedOutState` class
+    - Renamed `Failure` subclass to `FailedState`
+    - Renamed `Rejection` subclass to `RejectedState`
+    - Added a new singleton `Completed` state instance as static `COMPLETED` property
+    - Added new `COMPLETED_NAME` and `TIMED_OUT_NAME` static constant properties for new state names
+- Changes to `tasks` module:
+  - Added new get `timedOut` property
+  - Removed `isSuccess` and `isFailure` methods
+  - Added new `complete`, `timeout`, `timeoutAs` and `rejectAs` methods
+  - Renamed `success` method to `completeAs`
+  - Renamed `failure` method to `failAs`
+  - Added new optional `recursively` argument to `complete`, `succeed`, `completeAs`, `timeout`, `timeoutAs`, `fail`, 
+   `failAs` and `rejectedAs` methods
+- Updated `core-functions` dependency to version 2.0.10
 
 ### 3.0.5
 - Updated `core-functions` dependency to version 2.0.9

@@ -25,19 +25,6 @@ module.exports = {
 
 const states = require('./task-states');
 const TaskState = states.TaskState;
-// TaskState direct subclasses
-//const Unstarted = states.Unstarted; // rather use UNSTARTED singleton
-const Success = states.Success;
-const Failure = states.Failure;
-//const Rejection = states.Rejection;
-// Success subclasses
-//const Succeeded = states.Succeeded; // rather use SUCCEEDED singleton
-// Failure subclasses
-const Failed = states.Failed;
-// Rejection subclasses
-const Rejected = states.Rejected;
-const Discarded = states.Discarded;
-const Abandoned = states.Abandoned;
 
 const taskDefs = require('./task-defs');
 const TaskDef = taskDefs.TaskDef;
@@ -46,7 +33,8 @@ const Strings = require('core-functions/strings');
 const isNotBlank = Strings.isNotBlank;
 const stringify = Strings.stringify;
 
-/*const Promises =*/ require('core-functions/promises');
+/*const Promises =*/
+require('core-functions/promises');
 //const isPromise = Promises.isPromise;
 
 const Arrays = require('core-functions/arrays');
@@ -196,37 +184,37 @@ class Task {
     Object.defineProperty(this, '_frozen', {value: false, writable: true, enumerable: false});
   }
 
-  /** The state of this task **/
+  /** The state of this task */
   get subTasks() {
     return this._subTasks;
   }
 
-  /** The slave tasks of this master task or an empty list of not a master task **/
+  /** The slave tasks of this master task or an empty list of not a master task */
   get slaveTasks() {
     return this._slaveTasks;
   }
 
-  /** The state of this task **/
+  /** The state of this task */
   get state() {
     return this._state;
   }
 
-  /** The number of attempts at this task **/
+  /** The number of attempts at this task */
   get attempts() {
     return this._attempts;
   }
 
-  /** The ISO date-time at which this task was last executed (or undefined if never executed) **/
+  /** The ISO date-time at which this task was last executed (or undefined if never executed) */
   get lastExecutedAt() {
     return this._lastExecutedAt;
   }
 
-  /** The result of this task (if executed successfully) **/
+  /** The result of this task (if executed successfully) */
   get result() {
     return this._result;
   }
 
-  /** The error encountered during execution of this task (if failed); otherwise undefined **/
+  /** The actual error encountered during execution of this task (if failed, timed out or rejected); otherwise undefined */
   get error() {
     return this._error;
   }
@@ -246,12 +234,11 @@ class Task {
     };
   }
 
-
   /**
    * Returns true if this task is a super-task, i.e. if it has any sub-tasks; false otherwise.
    * @returns {boolean} true if super-task; false otherwise
    */
-  isSuperTask()  {
+  isSuperTask() {
     return this._subTasks.length > 0;
   }
 
@@ -348,6 +335,14 @@ class Task {
   }
 
   /**
+   * Returns true if this task is timed out (i.e. in any of the timeout states); false otherwise
+   * @returns {boolean} true if timed out; false otherwise
+   */
+  get timedOut() {
+    return this._state.timedOut;
+  }
+
+  /**
    * Returns true if this task is rejected (i.e. in any of the rejected states); false otherwise
    * @returns {boolean} true if rejected; false otherwise
    */
@@ -378,22 +373,6 @@ class Task {
    */
   isFullyFinalised() {
     return this.finalised && this._subTasks.every(subTask => subTask.isFullyFinalised());
-  }
-
-  /**
-   * Returns true if this task is in a Success state; false otherwise
-   * @returns {boolean} true if in a Success state; false otherwise
-   */
-  isSuccess() {
-    return this._state.isSuccess();
-  }
-
-  /**
-   * Returns true if this task is in a Failure state; false otherwise
-   * @returns {boolean} true if in a Failure state; false otherwise
-   */
-  isFailure() {
-    return this._state.isFailure();
   }
 
   /**
@@ -429,6 +408,7 @@ class Task {
     if (this.incomplete || (this.completed && this.isRootTask() && this.isSuperTask() && !this.isFullyFinalised())) {
       this._state = TaskState.UNSTARTED;
       this._result = undefined;
+      this._error = undefined;
     }
     this._subTasks.forEach(subTask => subTask.reset());
 
@@ -491,87 +471,188 @@ class Task {
   }
 
   /**
-   * Changes this task's state to Succeeded (if it is not already finalised).
+   * Completes this task with a Completed state and the given optional result (if it is not already finalised) and also
+   * completes any and all of its subTasks recursively (if recursively is true).
    * @param {*} [result] - the optional result to store on the task
+   * @param {boolean|undefined} [recursively] - whether or not to recursively complete all of this task's sub-tasks as well
    */
-  succeed(result) {
+  complete(result, recursively) {
+    if (this.incomplete) {
+      this._state = TaskState.COMPLETED;
+      this._result = result;
+      this._error = undefined;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.complete(result, recursively));
+    }
+    // If this is a master task then ripple the state change and result to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.complete(result, recursively));
+    }
+  }
+
+  /**
+   * Completes this task with a Succeeded state and the given optional result (if it is not already finalised) and also
+   * succeeds any and all of its subTasks recursively (if recursively is true).
+   * @param {*} [result] - the optional result to store on the task
+   * @param {boolean|undefined} [recursively] - whether or not to recursively succeed all of this task's sub-tasks as well
+   */
+  succeed(result, recursively) {
     if (this.incomplete) {
       this._state = TaskState.SUCCEEDED;
       this._result = result;
+      this._error = undefined;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.succeed(result, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.succeed(result));
+      this._slaveTasks.forEach(slaveTask => slaveTask.succeed(result, recursively));
     }
   }
 
   /**
-   * Changes this task's state to a Success state with the given code (if it is not already finalised).
-   * @param {string} code - the success code to use
+   * Completes this this task with a completed state with the given state name and the given optional result (if it is
+   * not already finalised) and also completes any and all of its subTasks recursively (if recursively is true).
+   * @param {string} stateName - the name of the complete state
    * @param {*} [result] - the optional result to store on the task
+   * @param {boolean|undefined} [recursively] - whether or not to recursively complete all of this task's sub-tasks as well
    */
-  success(code, result) {
+  completeAs(stateName, result, recursively) {
     if (this.incomplete) {
-      this._state = new Success(code);
+      this._state = stateName === TaskState.COMPLETED_NAME ? TaskState.COMPLETED :
+        stateName === TaskState.SUCCEEDED_NAME ? TaskState.SUCCEEDED : new states.CompletedState(stateName);
       this._result = result;
+      this._error = undefined;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.completeAs(stateName, result, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.success(code, result));
+      this._slaveTasks.forEach(slaveTask => slaveTask.completeAs(stateName, result, recursively));
     }
   }
 
   /**
-   * Changes this task's state to a Failed state with the given error. Note that failures are allowed to override a
-   * completed state, but NOT a rejected or existing failure state.
+   * Times out this task with a TimedOut state with the given error and also times out any and all of its subTasks
+   * recursively (if recursively is true).
    *
-   * @param {Error} error - the error that triggered this failure
+   * Note that timeouts are allowed to override a completed state, but NOT an existing timed out, rejected or failed state.
+   *
+   * @param {Error|undefined} [error] - the optional error that triggered this timed out state
+   * @param {boolean|undefined} [recursively] - whether or not to recursively timeout all of this task's sub-tasks as well
    */
-  fail(error) {
+  timeout(error, recursively) {
+    if (!this.timedOut && !this.rejected && !this.failed) {
+      this._state = new states.TimedOut(error);
+      this._result = undefined;
+      this._error = error;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.timeout(error, recursively));
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.timeout(error, recursively));
+    }
+  }
+
+  /**
+   * Times out this task with a timed out state with the given name and optional error and also times out any and all of
+   * its subTasks recursively (if recursively is true).
+   *
+   * Note that timeouts are allowed to override a completed state, but NOT an existing timed out, rejected or failed state.
+   *
+   * @param {string} stateName - the name of the timed out state
+   * @param {Error|undefined} [error] - the optional error that triggered this timed out state
+   * @param {boolean|undefined} [recursively] - whether or not to recursively timeout all of this task's sub-tasks as well
+   */
+  timeoutAs(stateName, error, recursively) {
+    if (!this.timedOut && !this.rejected && !this.failed) {
+      this._state = stateName === TaskState.TIMED_OUT_NAME ? new states.TimedOut(error) :
+        new states.TimedOutState(stateName, error);
+      this._result = undefined;
+      this._error = error;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.timeoutAs(stateName, error, recursively));
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.timeoutAs(stateName, error, recursively));
+    }
+  }
+
+  /**
+   * Fails this task with a Failed state with the given error and also fails any and all of its subTasks recursively (if
+   * recursively is true).
+   *
+   * Note that failures are allowed to override a completed state, but NOT a timed out, rejected or existing failed state.
+   *
+   * @param {Error} error - the error that triggered the failed state
+   * @param {boolean|undefined} [recursively] - whether or not to recursively fail all of this task's sub-tasks as well
+   */
+  fail(error, recursively) {
     if (!error) {
       throw new Error(`Cannot change task (${this.name}) state to failed without an error`);
     }
-    if (!this.rejected && !this.failed) {
-      this._state = new Failed(error);
+    if (!this.timedOut && !this.rejected && !this.failed) {
+      this._state = new states.Failed(error);
+      this._result = undefined;
       this._error = error;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.fail(error, recursively));
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.fail(error));
+      this._slaveTasks.forEach(slaveTask => slaveTask.fail(error, recursively));
     }
   }
 
   /**
-   * Changes this task's state to a Failure state with the given code and error. Note that failures are allowed to
-   * override a completed state, but NOT a rejected state or existing failure state.
+   * Fails this task with a failed state with the given state name and error and also fails any and all of its subTasks
+   * recursively (if recursively is true).
    *
-   * @param {string} code - the descriptive code for this failure
-   * @param {Error} error - the error that triggered this failure
+   * Note that failures are allowed to override a completed state, but NOT a timed out, rejected or existing failed state.
+   *
+   * @param {string} stateName - the name of the failed state
+   * @param {Error} error - the error that triggered the failed state
+   * @param {boolean|undefined} [recursively] - whether or not to recursively fail all of this task's sub-tasks as well
    */
-  failure(code, error) {
+  failAs(stateName, error, recursively) {
     if (!error) {
-      throw new Error(`Cannot change task (${this.name}) state to a failure without an error`);
+      throw new Error(`Cannot change task (${this.name}) state to failed without an error`);
     }
-    if (!this.rejected && !this.isFailure()) {
-      this._state = new Failure(code, error);
+    if (!this.timedOut && !this.rejected && !this.failed) {
+      this._state = stateName === TaskState.FAILED_NAME ? new states.Failed(error) :
+        new states.FailedState(stateName, error);
+      this._result = undefined;
       this._error = error;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.failAs(stateName, error, recursively));
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.failure(code, error));
+      this._slaveTasks.forEach(slaveTask => slaveTask.failAs(stateName, error, recursively));
     }
   }
 
   /**
-   * Rejects this task (if it is not already finalised) and also rejects any and all of its subTasks recursively that
-   * are not already finalised (if recursively is true).
+   * Rejects this task with a Rejected state with the given reason and optional error (if it is not already finalised)
+   * and also rejects any and all of its subTasks recursively that are not already finalised (if recursively is true).
    * @param {string} reason - the reason this task is being rejected
    * @param {Error|undefined} [error] - an optional error that triggered this
-   * @param {boolean} recursively - whether or not to recursively reject all of this task's sub-tasks as well
+   * @param {boolean|undefined} [recursively] - whether or not to recursively reject all of this task's sub-tasks as well
    */
   reject(reason, error, recursively) {
     if (this.incomplete) {
-      this._state = new Rejected(reason, error);
+      this._state = new states.Rejected(reason, error);
+      this._result = undefined;
+      this._error = error;
     }
     if (recursively) {
       this._subTasks.forEach(subTask => subTask.reject(reason, error, recursively));
@@ -583,15 +664,17 @@ class Task {
   }
 
   /**
-   * Discards this task (if it is not already finalised) and also discards any and all of its subTasks recursively that
-   * are not already finalised (if recursively is true).
+   * Rejects this task with a Discarded state with the given reason and optional error (if it is not already finalised)
+   * and also discards any and all of its subTasks recursively that are not already finalised (if recursively is true).
    * @param {string} reason - the reason this task is being discarded
    * @param {Error|undefined} [error] - an optional error that triggered this
-   * @param {boolean} recursively - whether or not to recursively discard all of this task's sub-tasks as well
+   * @param {boolean|undefined} [recursively] - whether or not to recursively discard all of this task's sub-tasks as well
    */
   discard(reason, error, recursively) {
     if (this.incomplete) {
-      this._state = new Discarded(reason, error);
+      this._state = new states.Discarded(reason, error);
+      this._result = undefined;
+      this._error = error;
     }
     if (recursively) {
       this._subTasks.forEach(subTask => subTask.discard(reason, error, recursively));
@@ -603,15 +686,17 @@ class Task {
   }
 
   /**
-   * Abandons this task (if it is not already finalised) and also abandons any and all of its subTasks recursively that
-   * are not already finalised (if recursively is true).
+   * Rejects this task with an Abandoned state with the given reason and optional error (if it is not already finalised)
+   * and also abandons any and all of its subTasks recursively that are not already finalised (if recursively is true).
    * @param {string} reason - the reason this task is being abandoned
    * @param {Error|undefined} [error] - an optional error that triggered this
-   * @param {boolean} recursively - whether or not to recursively abandon all of this task's sub-tasks as well
+   * @param {boolean|undefined} [recursively] - whether or not to recursively abandon all of this task's sub-tasks as well
    */
   abandon(reason, error, recursively) {
     if (this.incomplete) {
-      this._state = new Abandoned(reason, error);
+      this._state = new states.Abandoned(reason, error);
+      this._result = undefined;
+      this._error = error;
     }
     if (recursively) {
       this._subTasks.forEach(subTask => subTask.abandon(reason, error, recursively));
@@ -619,6 +704,33 @@ class Task {
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
       this._slaveTasks.forEach(slaveTask => slaveTask.abandon(reason, error, recursively));
+    }
+  }
+
+  /**
+   * Rejects this task with a rejected state with the given state name, reason and optional error (if it is not already
+   * finalised) and also rejects any and all of its subTasks recursively that are not already finalised (if recursively
+   * is true).
+   * @param {string} stateName - the name of the rejected state
+   * @param {string} reason - the reason this task is being rejected
+   * @param {Error|undefined} [error] - an optional error that triggered this
+   * @param {boolean|undefined} [recursively] - whether or not to recursively reject all of this task's sub-tasks as well
+   */
+  rejectAs(stateName, reason, error, recursively) {
+    if (this.incomplete) {
+      this._state = stateName === TaskState.REJECTED_NAME ? new states.Rejected(reason, error) :
+        stateName === TaskState.DISCARDED_NAME ? new states.Discarded(reason, error) :
+          stateName === TaskState.ABANDONED_NAME ? new states.Abandoned(reason, error) :
+            new states.RejectedState(stateName, reason, error);
+      this._result = undefined;
+      this._error = error;
+    }
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.rejectAs(stateName, reason, error, recursively));
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.rejectAs(stateName, reason, error, recursively));
     }
   }
 
@@ -642,10 +754,15 @@ class Task {
       throw new Error(`Cannot update task (${stringify(this)}) from mismatched prior version (${stringify(oldTask)})`);
     }
 
-    // Set this task's state and result to the old task's state and result, but ONLY if the old state was final
-    if (oldTask._state && oldTask._state.finalised) {
+    if (oldTask._state) {
+      // Set this task's state to the old task's state
       this._state = oldTask._state;
-      this._result = oldTask._result;
+
+      // Set this task's result to the old task's result, but ONLY if the old state was completed; otherwise to undefined
+      this._result = oldTask._state.completed ? oldTask._result : undefined;
+
+      // Set this task's error to the old task's error, but ONLY if the old state was rejected; otherwise to undefined
+      this._error = oldTask._state.rejected ? oldTask._error : undefined;
     }
 
     // Add the old task's number of attempts (if defined) to this task's number of attempts
@@ -653,6 +770,7 @@ class Task {
       this._attempts += oldTask._attempts;
     }
 
+    // Copy the old task's last executed at date-time (if defined) to this task
     if (oldTask._lastExecutedAt) {
       this._lastExecutedAt = oldTask._lastExecutedAt;
     }
@@ -690,9 +808,9 @@ class Task {
 
   /**
    * Sets this master task's and its corresponding sub-tasks' slave tasks to the given slave tasks and their sub-tasks
-   * recursively and sets the master task's and its sub-tasks' attempts to the least of their respective slave tasks'
-   * attempts.
-   * @private
+   * recursively and sets the master task's and its sub-tasks': attempts to the least of their respective slave tasks'
+   * attempts; and last executed at date-times to the most recent of their respective slave tasks' last executed at
+   * date-times.
    * @param {Task[]} slaveTasks - the slave tasks of this master task
    * @returns {Task} this task
    */
@@ -989,7 +1107,14 @@ function createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions) {
 
   // Update each of the newly created tasks with the relevant information from the prior version of each of these tasks
   const oldTasksByName = new Map(oldTasks.map(t => [t.name, t]));
-  const updatedNewTasks = newTasks.map(newTask => newTask.updateFromPriorVersion(oldTasksByName.get(newTask.name)));
+
+  const updatedNewTasks = newTasks.map(newTask => {
+    // Update the new task with the old task's details (if any)
+    const updatedTask = newTask.updateFromPriorVersion(oldTasksByName.get(newTask.name));
+    // Reset the updated task to clear out any previous incomplete (i.e. failed and timed out) states inherited from the old task
+    updatedTask.reset();
+    return updatedTask;
+  });
 
   // Collect any and all old tasks, which no longer appear amongst the list of active new tasks, and create new abandoned task from them
   const inactiveOldTasks = oldTasks.filter(oldTask => activeTaskNames.indexOf(oldTask.name) === -1);
