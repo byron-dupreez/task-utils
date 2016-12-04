@@ -1,4 +1,4 @@
-# task-utils v4.0.0
+# task-utils v4.0.1
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -118,7 +118,7 @@ const taskA = Task.createTask(taskADef);
 
 * To use the task utilities
 ```js
-const taskUtils = require('task-utils/tasks');
+const taskUtils = require('task-utils/task-utils');
 
 const tasksByName = {}; // or any object to which you are attaching tasks
 
@@ -161,6 +161,9 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 4.0.1
+- Fixed defect in this `README.md`
 
 ### 4.0.0
 - Added support for timeouts to `TaskState` and `Task` classes and cleaned-up their APIs
