@@ -925,12 +925,12 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 4: Old finalised tasks m
   task3.incrementAttempts(true);
   task3.incrementAttempts(true);
   task3.incrementAttempts(true);
-  task3.succeed(undefined, true);
+  task3.succeed(undefined, true, true);
 
   const task4 = Task.createTask(taskDef4);
 
   // Timeout task 4 recursively
-  task4.timeout(new Error('Planned timeout'), true);
+  task4.timeout(new Error('Planned timeout'), true, true);
   task4.incrementAttempts(true);
   task4.incrementAttempts(true);
   task4.incrementAttempts(true);
@@ -1063,7 +1063,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
   // Fail task 1 recursively and then mark itself as completed
   task1.fail(new Error('Planned fail 1'), true);
   task1.incrementAttempts(true);
-  task1.complete(undefined);
+  task1.complete(undefined, true);
 
   task1.subTasks.forEach(task => {
     t.ok(task.failed, `BEFORE ${task.name} must be failed`);
@@ -1086,7 +1086,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
   const task3 = Task.createTask(taskDef3);
 
   // Timeout task 3 recursively and then mark itself as rejected
-  task3.timeout(new Error('Planned timeout 3'), true);
+  task3.timeout(new Error('Planned timeout 3'), true, true);
   task3.incrementAttempts(true);
   task3.incrementAttempts(true);
   task3.incrementAttempts(true);
@@ -1100,12 +1100,12 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
   const task4 = Task.createTask(taskDef4);
 
   // Timeout task 4 recursively and then mark itself as completed
-  task4.timeout(new Error('Planned timeout 4'), true);
+  task4.timeout(new Error('Planned timeout 4'), true, true);
   task4.incrementAttempts(true);
   task4.incrementAttempts(true);
   task4.incrementAttempts(true);
   task4.incrementAttempts(true);
-  task4.complete(undefined, false);
+  task4.complete(undefined, true, false);
 
   task4.subTasks.forEach(task => {
     t.ok(task.timedOut, `BEFORE ${task.name} must be timed out`);

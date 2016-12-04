@@ -471,117 +471,126 @@ class Task {
   }
 
   /**
-   * Completes this task with a Completed state and the given optional result (if it is not already finalised) and also
-   * completes any and all of its subTasks recursively (if recursively is true).
+   * Completes this task with a Completed state and the given optional result, but ONLY if the task is still incomplete
+   * and EITHER NOT timed out OR overrideTimedOut is true. If recursively is true, then also completes any and all of
+   * its subTasks recursively.
+   *
    * @param {*} [result] - the optional result to store on the task
+   * @param {boolean|undefined} [overrideTimedOut] - whether this complete is allowed to override an existing timedOut state or not
    * @param {boolean|undefined} [recursively] - whether or not to recursively complete all of this task's sub-tasks as well
    */
-  complete(result, recursively) {
-    if (this.incomplete) {
+  complete(result, overrideTimedOut, recursively) {
+    if (this.incomplete && (overrideTimedOut || !this.timedOut)) {
       this._state = TaskState.COMPLETED;
       this._result = result;
       this._error = undefined;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.complete(result, recursively));
+      this._subTasks.forEach(subTask => subTask.complete(result, overrideTimedOut, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.complete(result, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.complete(result, overrideTimedOut, recursively));
     }
   }
 
   /**
-   * Completes this task with a Succeeded state and the given optional result (if it is not already finalised) and also
-   * succeeds any and all of its subTasks recursively (if recursively is true).
+   * Completes this task with a Succeeded state and the given optional result, but ONLY if the task is still incomplete
+   * and EITHER NOT timed out OR overrideTimedOut is true. If recursively is true, then also succeeds any and all of its
+   * subTasks recursively.
+   *
    * @param {*} [result] - the optional result to store on the task
+   * @param {boolean|undefined} [overrideTimedOut] - whether this complete is allowed to override an existing timedOut state or not
    * @param {boolean|undefined} [recursively] - whether or not to recursively succeed all of this task's sub-tasks as well
    */
-  succeed(result, recursively) {
-    if (this.incomplete) {
+  succeed(result, overrideTimedOut, recursively) {
+    if (this.incomplete && (overrideTimedOut || !this.timedOut)) {
       this._state = TaskState.SUCCEEDED;
       this._result = result;
       this._error = undefined;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.succeed(result, recursively));
+      this._subTasks.forEach(subTask => subTask.succeed(result, overrideTimedOut, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.succeed(result, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.succeed(result, overrideTimedOut, recursively));
     }
   }
 
   /**
-   * Completes this this task with a completed state with the given state name and the given optional result (if it is
-   * not already finalised) and also completes any and all of its subTasks recursively (if recursively is true).
+   * Completes this this task with a completed state with the given state name and the given optional result, but ONLY
+   * if the task is still incomplete and EITHER NOT timed out OR overrideTimedOut is true. If recursively is true, then
+   * also completes any and all of its subTasks recursively.
+   *
    * @param {string} stateName - the name of the complete state
    * @param {*} [result] - the optional result to store on the task
+   * @param {boolean|undefined} [overrideTimedOut] - whether this complete is allowed to override an existing timedOut state or not
    * @param {boolean|undefined} [recursively] - whether or not to recursively complete all of this task's sub-tasks as well
    */
-  completeAs(stateName, result, recursively) {
-    if (this.incomplete) {
+  completeAs(stateName, result, overrideTimedOut, recursively) {
+    if (this.incomplete && (overrideTimedOut || !this.timedOut)) {
       this._state = stateName === TaskState.COMPLETED_NAME ? TaskState.COMPLETED :
         stateName === TaskState.SUCCEEDED_NAME ? TaskState.SUCCEEDED : new states.CompletedState(stateName);
       this._result = result;
       this._error = undefined;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.completeAs(stateName, result, recursively));
+      this._subTasks.forEach(subTask => subTask.completeAs(stateName, result, overrideTimedOut, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.completeAs(stateName, result, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.completeAs(stateName, result, overrideTimedOut, recursively));
     }
   }
 
   /**
-   * Times out this task with a TimedOut state with the given error and also times out any and all of its subTasks
-   * recursively (if recursively is true).
-   *
-   * Note that timeouts are allowed to override a completed state, but NOT an existing timed out, rejected or failed state.
+   * Times out this task with a TimedOut state with the given error, but ONLY if the task is NOT already timed out,
+   * rejected or failed and EITHER NOT completed OR overrideCompleted is true. If recursively is true, then also times
+   * out any and all of its subTasks recursively.
    *
    * @param {Error|undefined} [error] - the optional error that triggered this timed out state
+   * @param {boolean|undefined} [overrideCompleted] - whether this timeout is allowed to override an existing completed state or not
    * @param {boolean|undefined} [recursively] - whether or not to recursively timeout all of this task's sub-tasks as well
    */
-  timeout(error, recursively) {
-    if (!this.timedOut && !this.rejected && !this.failed) {
+  timeout(error, overrideCompleted, recursively) {
+    if ((overrideCompleted || !this.completed) && !this.timedOut && !this.rejected && !this.failed) {
       this._state = new states.TimedOut(error);
       this._result = undefined;
       this._error = error;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.timeout(error, recursively));
+      this._subTasks.forEach(subTask => subTask.timeout(error, overrideCompleted, recursively));
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.timeout(error, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.timeout(error, overrideCompleted, recursively));
     }
   }
 
   /**
-   * Times out this task with a timed out state with the given name and optional error and also times out any and all of
-   * its subTasks recursively (if recursively is true).
-   *
-   * Note that timeouts are allowed to override a completed state, but NOT an existing timed out, rejected or failed state.
+   * Times out this task with a timed out state with the given name and optional error, but ONLY if the task is NOT
+   * already timed out, rejected or failed and EITHER NOT completed OR overrideCompleted is true. If recursively is true,
+   * then also times out any and all of its subTasks recursively.
    *
    * @param {string} stateName - the name of the timed out state
    * @param {Error|undefined} [error] - the optional error that triggered this timed out state
+   * @param {boolean|undefined} [overrideCompleted] - whether this timeout is allowed to override an existing completed state or not
    * @param {boolean|undefined} [recursively] - whether or not to recursively timeout all of this task's sub-tasks as well
    */
-  timeoutAs(stateName, error, recursively) {
-    if (!this.timedOut && !this.rejected && !this.failed) {
+  timeoutAs(stateName, error, overrideCompleted, recursively) {
+    if ((overrideCompleted || !this.completed) && !this.timedOut && !this.rejected && !this.failed) {
       this._state = stateName === TaskState.TIMED_OUT_NAME ? new states.TimedOut(error) :
         new states.TimedOutState(stateName, error);
       this._result = undefined;
       this._error = error;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.timeoutAs(stateName, error, recursively));
+      this._subTasks.forEach(subTask => subTask.timeoutAs(stateName, error, overrideCompleted, recursively));
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.timeoutAs(stateName, error, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.timeoutAs(stateName, error, overrideCompleted, recursively));
     }
   }
 
@@ -1362,8 +1371,8 @@ function completeTaskIfStillUnstarted(task, result, logger) {
       return;
     }
     try {
-      // Attempt to succeed the task
-      task.succeed(result);
+      // Attempt to complete the task
+      task.complete(result, false);
 
     } catch (err) {
       if (err instanceof TypeError && err.message.indexOf(`Cannot assign to read only property '_state'`) !== -1) {

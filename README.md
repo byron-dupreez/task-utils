@@ -1,4 +1,4 @@
-# task-utils v4.0.1
+# task-utils v4.0.2
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -161,6 +161,13 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 4.0.2
+- Changes to `tasks.js` module:
+  - Added an optional `overrideTimedOut` argument to the `complete`, `succeed` and `completeAs` methods to enable the 
+    caller to decide whether these methods are allowed to override an existing timed out state or not
+  - Added an optional `overrideCompleted` argument to the `timeout` and `timeoutAs` methods to enable the caller to 
+    decide whether these methods are allowed to override an existing completed state or not
 
 ### 4.0.1
 - Fixed defect in this `README.md`

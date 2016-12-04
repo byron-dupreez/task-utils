@@ -236,7 +236,7 @@ test('reconstructTasksFromRootTaskLike', t => {
   check(taskA, true, true);
 
   // succeed it
-  taskA.completeAs('Ok', undefined);
+  taskA.completeAs('Ok', undefined, true);
   check(taskA, true, true);
 
   // Create a complex task from a complex task definition
@@ -283,7 +283,7 @@ test('task succeed()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -304,7 +304,7 @@ test('task completeAs()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.completeAs('MySuccessState', undefined);
+  task.completeAs('MySuccessState', undefined, true);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -325,7 +325,7 @@ test('task timeout()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Time it out
-  task.timeout(new Error('Boom'));
+  task.timeout(new Error('Boom'), true);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -346,7 +346,7 @@ test('task timeoutAs()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Fail it
-  task.timeoutAs('MyTimeoutState', new Error('Boom'));
+  task.timeoutAs('MyTimeoutState', new Error('Boom'), true);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -468,15 +468,12 @@ test('task abandon()', t => {
   t.end();
 });
 
-test('task succeed() then timeout() then succeed()', t => {
+test('task complete() and timeout() with and without overrideCompleted and overrideTimedOut flags', t => {
   // Create a simple task from a simple task definition
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
-  // Complete it
-  task.succeed(undefined);
-
-  // Fail it
-  task.timeout(new Error('Boom'));
+  // Time it out with overrideCompleted false
+  task.timeout(new Error('Boom'), false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -489,8 +486,114 @@ test('task succeed() then timeout() then succeed()', t => {
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
-  // Re-complete it
-  task.succeed(undefined);
+  // Fail to complete it with overrideTimedOut false
+  task.complete(undefined, false);
+
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timed out`);
+
+  // Complete it with overrideTimedOut true
+  task.complete(undefined, true);
+
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
+
+  // Fail to time it out with overrideCompleted false
+  task.timeout(new Error('Boom'), false);
+
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
+
+  // Time it out with overrideCompleted true
+  task.timeout(new Error('Boom'), true);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timed out`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Reset the task, so that we can re-attempt complete() with overrideTimedOut false
+  task.reset();
+
+  // Re-complete it with overrideTimedOut false
+  task.complete(undefined, false);
+
+  t.notOk(task.unstarted, `${task.name} must not be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must not be incomplete`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must not be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task succeed() and timeoutAs() with and without overrideCompleted and overrideTimedOut flags', t => {
+  // Create a simple task from a simple task definition
+  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+  const stateName = 'MyTimedOutState';
+
+  // Time it out with overrideCompleted false
+  task.timeoutAs(stateName, new Error('Boom'), false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timed out`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Fail to complete it with overrideTimedOut false
+  task.succeed(undefined, false);
+
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timed out`);
+
+  // Complete it with overrideTimedOut true
+  task.succeed(undefined, true);
+
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
+
+  // Fail to time it out with overrideCompleted false
+  task.timeoutAs(stateName, new Error('Boom'), false);
+
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
+
+  // Time it out with overrideCompleted true
+  task.timeoutAs(stateName, new Error('Boom'), true);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timed out`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  // Reset the task, so that we can attempt succeed() with overrideTimedOut false
+  task.reset();
+
+  // Re-complete it with overrideTimedOut false
+  task.succeed(undefined, false);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -511,7 +614,7 @@ test('task succeed() then fail() then succeed()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   // Fail it
   task.fail(new Error('Boom'));
@@ -528,7 +631,7 @@ test('task succeed() then fail() then succeed()', t => {
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Re-complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -549,7 +652,7 @@ test('task succeed() then cannot reject()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   // Cannot reject it
   task.reject('Rotten', new Error('Yuck'), false);
@@ -573,10 +676,10 @@ test('task timeout() then succeed()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Time it out
-  task.timeout(new Error('Boom'));
+  task.timeout(new Error('Boom'), true);
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -597,7 +700,7 @@ test('task timeout() then reject()', t => {
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Time it out
-  task.timeout(new Error('Boom'));
+  task.timeout(new Error('Boom'), true);
 
   // Reject it
   task.reject('Rotten', new Error('Yuck'), false);
@@ -624,7 +727,7 @@ test('task fail() then succeed()', t => {
   task.fail(new Error('Boom'));
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -672,7 +775,7 @@ test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t =
   task.reject('Rotten', new Error('Yuck'), false);
 
   // Cannot complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -700,7 +803,7 @@ test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t =
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot time it out
-  task.timeout(new Error('Boom'));
+  task.timeout(new Error('Boom'), true);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -721,7 +824,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   // Fail it
   task.fail(new Error('Boom'));
@@ -741,7 +844,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot re-complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -791,7 +894,7 @@ test('task incrementAttempts', t => {
   t.equal(task.attempts, 3, `${task.name} attempts must be 3`);
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   task.incrementAttempts();
   t.equal(task.attempts, 3, `${task.name} attempts must still be 3`);
@@ -834,7 +937,7 @@ test('task updateLastExecutedAt', t => {
   t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
 
   // Complete it
-  task.succeed(undefined);
+  task.succeed(undefined, true);
 
   let dt0 = '2016-11-27T17:10:00.333Z';
   task.updateLastExecutedAt(dt0, true);
@@ -894,7 +997,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   });
 
   // Succeed the master task
-  masterTask.succeed(undefined);
+  masterTask.succeed(undefined, true);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.completed, `slave (${st.name}) must be completed (after 1st succeed)`);
   });
@@ -909,7 +1012,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   });
 
   // Re-complete the master task
-  masterTask.complete(undefined);
+  masterTask.complete(undefined, true);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.completed, `slave (${st.name}) must be completed again (after 2nd complete)`);
     t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 2nd complete)`);
@@ -936,7 +1039,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
 
   // Timeout the master task
   const err3 = new Error('Timeout 1st - err3');
-  masterTask.timeout(err3);
+  masterTask.timeout(err3, true);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.timedOut, `slave (${st.name}) must be timed out (1st timeout after 1st reset)`);
     t.equal(st.state.error, err3.toString(), `slave (${st.name}) state error (${st.state.error}) must be err3 (1st timeout after 1st reset)`);
@@ -944,16 +1047,24 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   });
 
   // Re-complete the master task again
-  masterTask.complete(undefined);
+  masterTask.complete(undefined, true);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.completed, `slave (${st.name}) must be completed again (after 3rd complete)`);
     t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 3rd complete)`);
     t.equal(st.error, undefined, `slave (${st.name}) error (${st.error}) must be undefined (after 3rd complete)`);
   });
 
-  // Re-timeout the master task
+  // Fail to re-timeout with overrideCompleted false
   const err4 = new Error('Timeout 2nd - err4');
-  masterTask.timeout(err4);
+  masterTask.timeout(err4, false);
+  masterTask.slaveTasks.forEach(st => {
+    t.ok(st.completed, `slave (${st.name}) must still be completed again (after timeout without override)`);
+    t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after timeout without override)`);
+    t.equal(st.error, undefined, `slave (${st.name}) error (${st.error}) must be undefined (after timeout without override)`);
+  });
+
+  // Re-timeout the master task
+  masterTask.timeout(err4, true);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.timedOut, `slave (${st.name}) must be timed out again (2nd timeout after 3rd complete)`);
     t.equal(st.state.error, err4.toString(), `slave (${st.name}) state error (${st.state.error}) must be err4 (2nd timeout after 3rd complete)`);
@@ -1075,7 +1186,7 @@ test('createMasterTask', t => {
 
   // Complete master slave 5
   const masterSlave5CompletedState = 'Master slave 5 completed state';
-  masterSlave5.completeAs(masterSlave5CompletedState, undefined);
+  masterSlave5.completeAs(masterSlave5CompletedState, undefined, true);
 
   // Now fail master task B, which should have NO impact on its slave tasks, since they are already failed/rejected/completed
   const masterTaskBError = new Error('Master task B error');
@@ -1132,7 +1243,7 @@ test('createMasterTask', t => {
   t.equal(slave4SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Slave 4 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
 
   // Complete the master sub-task B1, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
-  masterSubTaskB1.completeAs('masterSubTaskB1SuccessState', undefined);
+  masterSubTaskB1.completeAs('masterSubTaskB1SuccessState', undefined, true);
 
   t.ok(masterSubTaskB1.state.completed, `Master sub-task B1 (${stringify(masterSubTaskB1.state)}) must be completed`);
   t.ok(slave1SubTaskB1.state.completed, `Slave 1 sub-task B1 (${stringify(slave1SubTaskB1.state)}) must be completed`);
@@ -1162,7 +1273,7 @@ test('createMasterTask', t => {
 
 
   // Complete the master sub-task B1a, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
-  masterSubTaskB1a.succeed(undefined);
+  masterSubTaskB1a.succeed(undefined, true);
 
   t.ok(masterSubTaskB1a.state.completed, `Master sub-task B1a (${stringify(masterSubTaskB1a.state)}) must be completed`);
   t.ok(slave1SubTaskB1a.state.completed, `Slave 1 sub-task B1a (${stringify(slave1SubTaskB1a.state)}) must be completed`);
