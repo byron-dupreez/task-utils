@@ -8,6 +8,8 @@
 const test = require("tape");
 
 const states = require('../task-states');
+// TimeoutError constructor
+const TimeoutError = states.TimeoutError;
 // TaskState constructors
 const TaskState = states.TaskState;
 // TaskState direct subclasses
@@ -1883,5 +1885,14 @@ test('toTaskStateFromStateLike with name "Abandoned"", not completed, not timed 
   t.equal(state.error, err.toString(), 'error must match');
   t.equal(state.rejected, true, 'must be rejected');
   t.equal(state.reason, reason, 'reason must match');
+  t.end();
+});
+
+test(`TimeoutError constructor`, t => {
+  const msg = 'Tick, tock, ..., BEEP';
+  const timeoutError = new TimeoutError(msg);
+  t.ok(timeoutError, 'TimeoutError must be defined');
+  t.equal(timeoutError.message, msg, `TimeoutError message must be ${msg}`);
+  t.equal(timeoutError.name, 'TimeoutError', `TimeoutError name must be TimeoutError`);
   t.end();
 });

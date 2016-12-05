@@ -1,4 +1,4 @@
-# task-utils v4.0.2
+# task-utils v4.0.3
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -161,6 +161,9 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 4.0.3
+- Fixed 'ReferenceError: trim is not defined' defect in `TimeoutError` constructor in `task-states.js` module
 
 ### 4.0.2
 - Changes to `tasks.js` module:

@@ -35,7 +35,7 @@ class TimeoutError extends Error {
    * @param {string} message - a message for this error.
    */
   constructor(message) {
-    super(trim(message));
+    super(message);
     Object.defineProperty(this, 'message', {writable: false, enumerable: true, configurable: false});
     // Set the name to the class name
     Object.defineProperty(this, 'name', {value: this.constructor.name});
