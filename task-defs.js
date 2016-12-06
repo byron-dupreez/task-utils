@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * Classes and utilities for creating task definitions, which define new tasks or operations to be executed.
+ * A TaskDef class with static utilities for creating task definitions and sub-task definitions, which can be used to
+ * define new executable tasks and non-executable sub-tasks.
  * @module task-utils/task-defs
  * @author Byron du Preez
  */

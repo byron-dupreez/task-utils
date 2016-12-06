@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * Classes and utilities for creating new tasks or operations.
+ * A Task class with static utilities for creating executable tasks and non-executable sub-tasks that can be used to
+ * track the state of tasks or operations.
  * @module task-utils/tasks
  * @author Byron du Preez
  */

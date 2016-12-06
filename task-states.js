@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Classes and utilities for defining the state of a task or operation.
+ * A TaskState class and its subclasses with static utilities for defining the state of a task or operation.
  * @module task-utils/task-states
  * @author Byron du Preez
  */

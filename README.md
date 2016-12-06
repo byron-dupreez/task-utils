@@ -8,13 +8,15 @@ Tasks are root/top-level, executable tasks (with a configurable execute function
 
 Currently includes:
 - task-states.js 
-    - A TaskState class and subclasses that define the various states of a task or operation
+  - A TaskState class and its subclasses with static utilities for defining the state of a task or operation.
 - task-defs.js 
-    - A TaskDef class that represents a task or sub-task definition, which can be used to create tasks and sub-tasks
+  - A TaskDef class with static utilities for creating task definitions and sub-task definitions, which can be used to 
+    define new executable tasks and non-executable sub-tasks.
 - tasks.js 
-    - A Task class that represents a task or sub-task instance
+  - A Task class with static utilities for creating executable tasks and non-executable sub-tasks that can be used to 
+    track the state of tasks or operations.
 - task-utils.js 
-    - Utilities for getting & setting tasks and sub-tasks from/to a "tasks-by-name" map object
+    - Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object
 
 This module is exported as a [Node.js](https://nodejs.org/) module.
 
@@ -161,6 +163,14 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 4.0.5
+- Changes to `task-utils.js` module to simplify usage and reduce the number of explicit imports required:
+  - Re-exported `TaskState` class and all of its subclasses and `TimeoutError` class from `task-states.js` module
+  - Re-exported `TaskDef` class from `task-defs.js` module
+  - Re-exported `Task` class from `tasks.js` module
+- Updated comments and README.md to improve/fix the definitions of each of the modules
+- Changed `main` module from `tasks.js` to `task-utils.js` in `package.json`
 
 ### 4.0.4
 - Updated `core-functions` dependency to version 2.0.11

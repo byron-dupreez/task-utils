@@ -1,9 +1,16 @@
 'use strict';
 
+const states = require('./task-states');
+
+const taskDefs = require('./task-defs');
+
+const Tasks = require('./tasks');
+const Task = Tasks.Task;
+const isTaskLike = Task.isTaskLike;
+
 /**
- * Utilities for accessing, setting, resetting and updating the state, number of attempts, result and other properties
- * of tasks on an object, which are used to track task progress.
- * @module task-utils/tasks
+ * Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object.
+ * @module task-utils/task-utils
  * @author Byron du Preez
  */
 module.exports = {
@@ -12,12 +19,45 @@ module.exports = {
   getTasks: getTasks,
   getTasksAndSubTasks: getTasksAndSubTasks,
   setTask: setTask,
-  replaceTasksWithNewTasksUpdatedFromOld: replaceTasksWithNewTasksUpdatedFromOld
-};
+  replaceTasksWithNewTasksUpdatedFromOld: replaceTasksWithNewTasksUpdatedFromOld,
 
-const Tasks = require('./tasks');
-const Task = Tasks.Task;
-const isTaskLike = Task.isTaskLike;
+  // To simplify usage and reduce the number of explicit imports required
+  // 1. Re-export TaskState class and all of its subclasses and TimeoutError class from task-states.js module
+
+  // TimeoutError constructor
+  TimeoutError: states.TimeoutError,
+
+  // TaskState constructors
+  TaskState: states.TaskState,
+
+  // TaskState direct subclasses
+  Unstarted: states.Unstarted, // rather use UNSTARTED singleton
+  CompletedState: states.CompletedState,
+  TimedOutState: states.TimedOutState,
+  FailedState: states.FailedState,
+  RejectedState: states.RejectedState,
+
+  // CompletedState subclasses
+  Completed: states.Completed, // rather use COMPLETED singleton
+  Succeeded: states.Succeeded, // rather use SUCCEEDED singleton
+
+  // TimedOutState subclasses
+  TimedOut: states.TimedOut,
+
+  // FailedState subclasses
+  Failed: states.Failed,
+
+  // RejectedState subclasses
+  Rejected: states.Rejected,
+  Discarded: states.Discarded,
+  Abandoned: states.Abandoned,
+
+  // 2. Re-export TaskDef class from task-defs.js module
+  TaskDef: taskDefs.TaskDef,
+
+  // 3. Re-export Task class from tasks.js module
+  Task: Tasks.Task
+};
 
 /**
  * Gets the named task from the given tasksByName "map" object (or Map); otherwise returns undefined.
