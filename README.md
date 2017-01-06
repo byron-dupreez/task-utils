@@ -1,4 +1,4 @@
-# task-utils v4.0.6
+# task-utils v4.0.7
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -99,7 +99,7 @@ const TaskDef = taskDefs.TaskDef;
 const taskADef = TaskDef.defineTask('TaskA', execute);
 
 // ... with 3 sub-task definitions
-const subTaskA1Def = taskADef.defineSubTask('SubTaskA1');
+const subTaskA1Def = taskADef.defineSubTask('SubTaskA1', execute2);
 const subTaskDefs = taskADef.defineSubTasks(['SubTaskA2', 'SubTaskA3']);
 
 // ... and with 1 sub-sub-task on SubTaskA1
@@ -163,6 +163,14 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 4.0.7
+- Changes to `task-defs` and `tasks` modules:
+  - Removed restrictions that prevented creation of executable sub-task definitions and sub-tasks
+  - Added `start` method to `Task` class
+  - Changed `defaultTaskExecuteFactory` function to NOT recursively increment & update last executed at date-times of sub-tasks
+  - Moved all typedefs to `type-defs.js`
+- Updated `core-functions` dependency to version 2.0.14
 
 ### 4.0.6
 - Updated `core-functions` dependency to version 2.0.12

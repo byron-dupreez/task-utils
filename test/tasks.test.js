@@ -957,7 +957,7 @@ test('task updateLastExecutedAt', t => {
   task.updateLastExecutedAt(dt0, true);
   t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
 
-  // Make task more complex
+  // Make task more complex by adding some non-executable sub-tasks
   const subTaskB = task.getOrAddSubTask('SubTask B');
   const subSubTaskC = subTaskB.getOrAddSubTask('SubSubTask C');
   t.equal(subTaskB.lastExecutedAt, '', `${subTaskB.name} lastExecutedAt must be ''`);
@@ -974,6 +974,24 @@ test('task updateLastExecutedAt', t => {
   t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
   t.equal(subTaskB.lastExecutedAt, dt1, `${subTaskB.name} lastExecutedAt must be '${dt1}'`);
   t.equal(subSubTaskC.lastExecutedAt, dt1, `${subSubTaskC.name} lastExecutedAt must be '${dt1}'`);
+
+  // Make task more complex by adding some executable sub-tasks
+  const subTaskD = task.getOrAddSubTask('SubTask D', execute2);
+  const subSubTaskE = subTaskD.getOrAddSubTask('SubSubTask E', execute1);
+  t.equal(subTaskD.lastExecutedAt, '', `${subTaskD.name} lastExecutedAt must be ''`);
+  t.equal(subSubTaskE.lastExecutedAt, '', `${subSubTaskE.name} lastExecutedAt must be ''`);
+
+  let dt2 = '2016-11-27T17:10:00.888Z';
+  task.updateLastExecutedAt(dt2, false);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
+  t.equal(subTaskD.lastExecutedAt, '', `${subTaskD.name} lastExecutedAt must still be ''`);
+  t.equal(subSubTaskE.lastExecutedAt, '', `${subSubTaskE.name} lastExecutedAt must still be ''`);
+
+  dt2 = '2016-11-27T17:10:00.999Z';
+  task.updateLastExecutedAt(dt2, true);
+  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
+  t.equal(subTaskD.lastExecutedAt, dt2, `${subTaskD.name} lastExecutedAt must be '${dt2}'`);
+  t.equal(subSubTaskE.lastExecutedAt, dt2, `${subSubTaskE.name} lastExecutedAt must be '${dt2}'`);
 
   t.end();
 });

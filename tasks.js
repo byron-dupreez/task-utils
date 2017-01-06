@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * A Task class with static utilities for creating executable tasks and non-executable sub-tasks that can be used to
- * track the state of tasks or operations.
+ * A Task class with static utilities for creating executable tasks and both executable and non-executable sub-tasks
+ * that can be used to track the state of tasks or operations.
  * @module task-utils/tasks
  * @author Byron du Preez
  */
@@ -12,17 +12,6 @@ module.exports = {
     reconstructTaskDefsFromRootTaskLike: reconstructTaskDefsFromRootTaskLike
   }
 };
-
-/**
- * Definition of a task-like object.
- * @typedef {{name, state, attempts, subTasks}} TaskLike
- * @property {string} name - the name of this task
- * @property {boolean} executable - whether or not this task is executable
- * @property {TaskStateLike} state - tht state of the task
- * @property {number} attempts - the number of attempts at the task
- * @property {string} lastExecutedAt - the ISO date-time at which the task was last executed (if executed)
- * @property {TaskLike[]} subTasks - an array of zero or more non-executable, internal subTasks of this task
- */
 
 const states = require('./task-states');
 const TaskState = states.TaskState;
@@ -46,24 +35,14 @@ const isDistinct = Arrays.isDistinct;
 //======================================================================================================================
 
 /**
- * A task or operation, which can be either an executable task or a non-executable, internal sub-task based on the task
- * definition from which it is constructed.
+ * A task or operation, which can be either an executable task, an executable sub-task or a non-executable, internal
+ * sub-task based on the task definition from which it is constructed.
  *
- * A non-executable, internal sub-task is a task that will be executed and managed internally during the execution of
- * its parent task and is ONLY used to enable tracking of its state.
+ * An executable sub-task is a task that must be explicitly executed from within its parent task's execute function and
+ * must partially or entirely manage its own state within its own execute function.
  *
- * @typedef {Object} Task
- * @property {string} name - the name of the task
- * @property {TaskDef} definition - the definition of this task, from which it was created
- * @property {boolean} executable - whether or not this task is executable
- * @property {Function|undefined} [execute] - the optional function to be executed when this task is started
- * @property {Task|undefined} [parent] - an optional parent super-task, which can be a top-level task or sub-task
- * @property {Task[]} subTasks - an array of zero or more non-executable, internal subTasks, which MUST be managed
- * internally by their top-level parent task's execute function
- * @property {TaskState} state - tht state of the task
- * @property {number} attempts - the number of attempts at the task
- * @property {string} lastExecutedAt - the ISO date-time at which the task was last executed (if executed)
- * @property {*} [result] - the result of the task (if any)
+ * A non-executable, internal sub-task is a task that must be manually executed and must have its state managed entirely
+ * within its parent task's execute function and is ONLY used to enable tracking of its state.
  */
 class Task {
   /**
@@ -93,9 +72,9 @@ class Task {
       if (!(parent instanceof Task)) {
         throw new Error(`Cannot create a sub-task with an invalid super-task (${stringify(parent)})`);
       }
-      // Ensure (for now) that if a parent task is defined then the given taskDef is a non-executable, internal sub-task definition
-      if (taskDef.isExecutable()) {
-        throw new Error(`Cannot create a sub-task for super-task (${stringify(parent)}) with an executable task definition (${stringify(taskDef)})`);
+      // Ensure that execute (if defined) is actually executable (i.e. a valid function)
+      if (taskDef.execute !== undefined && typeof taskDef.execute !== 'function') {
+        throw new Error(`Cannot create an executable sub-task definition (${taskName}) with an invalid execute function`);
       }
       // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
       if (!areSubTaskNamesDistinct(parent, taskName)) {
@@ -271,16 +250,17 @@ class Task {
 
   /**
    * Returns the existing sub-task with the given name if it exists on this task; otherwise creates and adds a new
-   * sub-task with the given name to this task and returns it.
+   * sub-task with the given name and optional execute function to this task and returns it.
    * @param {string} subTaskName - the name of the sub-task to retrieve or add
+   * @param {Function|undefined} [execute] - the optional function to be executed when the sub-task is executed
    * @returns {Task} the named sub-task if it exists; otherwise a new sub-task
    */
-  getOrAddSubTask(subTaskName) {
+  getOrAddSubTask(subTaskName, execute) {
     const subTask = this._subTasksByName.get(subTaskName);
     if (subTask) {
       return subTask;
     }
-    const subTaskDef = this.definition.defineSubTask(subTaskName);
+    const subTaskDef = this.definition.defineSubTask(subTaskName, execute);
     return new Task(subTaskDef, this);
   }
 
@@ -460,6 +440,19 @@ class Task {
     if (this.isMasterTask()) {
       this._slaveTasks.forEach(slaveTask => slaveTask.incrementAttempts(recursively));
     }
+  }
+
+  /**
+   * A convenience method that increments the number of attempts at this task (but ONLY if the task is in an incomplete
+   * (non-finalised) state) and updates this task's last executed at date-time to the given executed at date-time.
+   * If recursively is true, then also applies the increment and update to each of this task' sub-tasks recursively.
+   * .
+   * @param {Date|string} executedAt - the ISO date-time at which this task was executed
+   * @param {boolean|undefined} [recursively] - whether to also apply the increment and update to sub-tasks recursively or not
+   */
+  start(executedAt, recursively) {
+    this.incrementAttempts(recursively);
+    this.updateLastExecutedAt(executedAt, recursively);
   }
 
   /**
@@ -1213,7 +1206,8 @@ function reconstructTaskDefsFromRootTaskLike(taskLike) {
         if (!subTaskLike.name) {
           throw new Error(`Cannot reconstruct pseudo sub-task definitions from a nameless sub-task-like object (${stringify(subTaskLike)})`);
         }
-        const subTaskDef = taskDef.defineSubTask(subTaskLike.name);
+        const subTaskExecute = subTaskLike.executable ? doNotExecute : undefined;
+        const subTaskDef = taskDef.defineSubTask(subTaskLike.name, subTaskExecute);
         defineSubTasks(subTaskLike, subTaskDef);
       }
     }
@@ -1298,10 +1292,8 @@ function ensureAllTasksDistinct(parent, proposedTask) {
 function defaultTaskExecuteFactory(task, execute) {
   function executeAndUpdateState() {
     if (!task.isFullyFinalised()) {
-      // First increment the number of attempts on this task (and all of its sub-tasks recursively), since its starting
-      // to execute
-      task.incrementAttempts(true);
-      task.updateLastExecutedAt(new Date(), true);
+      // First increment the number of attempts and update the last executed at date-time on this task, since its starting to execute
+      task.start(new Date(), false);
 
       // Then execute the actual execute function
       try {

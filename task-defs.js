@@ -2,7 +2,7 @@
 
 /**
  * A TaskDef class with static utilities for creating task definitions and sub-task definitions, which can be used to
- * define new executable tasks and non-executable sub-tasks.
+ * define new executable tasks and both executable and non-executable sub-tasks.
  * @module task-utils/task-defs
  * @author Byron du Preez
  */
@@ -33,43 +33,38 @@ module.exports = {
 
 /**
  * A definition of a task or operation that defines a type of task to be executed and can be used to create tasks.
- * A task definition can be used to create either executable tasks (if parent is undefined and execute is defined) or
- * non-executable, internal subTasks (if parent is defined and execute is undefined).
+ * A task definition can be used to create either executable tasks (if parent is undefined and execute is defined); or
+ * executable sub-tasks (if parent is defined and execute is defined) or non-executable, internal sub-tasks (if parent
+ * is defined and execute is undefined).
  *
  * Rules:
- * - A top-level TaskDef, in a hierarchy of tasks and subTasks, must be an executable task definition, i.e. a
- *   non-executable, internal subTask definition can never be a top-level TaskDef.
+ * - A top-level TaskDef, in a hierarchy of tasks and sub-tasks, must be an executable task definition.
  *
- * - A task definition (regardless of whether it is executable or non-executable) can only have non-executable, internal
- *   subTask definitions.
+ * - A task definition (regardless of whether it is executable or non-executable) can have either executable or
+ *   non-executable, internal sub-task definitions.
  *
- * - All tasks in a hierarchy of tasks and subTasks must be unique.
+ * - All tasks in a hierarchy of tasks and sub-tasks must be unique.
  *
- * - All of a task's direct subTask names must be unique.
+ * - All of a task's direct sub-task names must be unique.
  *
- * A non-executable, internal subTask is a task that must be executed and managed internally by its parent task's
- * execute function and is ONLY used to enable tracking of its state.
+ * An executable sub-task is a task that must be explicitly executed from within its parent task's execute function and
+ * must partially or entirely manage its own state within its own execute function.
  *
- * @typedef {Object} TaskDef
- * @property {string} name - the name that will be assigned to any task created using this definition
- * @property {Function|undefined} [execute] - the optional function to be executed when any task created using this
- * definition is started
- * @property {TaskDef|undefined} [parent] - an optional parent task (or subTask) definition
- * @property {TaskDef[]} subTaskDefs - an array of zero or more non-executable, internal subTask definitions, which
- * can be used to define non-executable, internal subTasks that MUST be managed internally by their top-level parent
- * task's execute function
+ * A non-executable, internal sub-task is a task that must be manually executed and must have its state managed entirely
+ * within its parent task's execute function and is ONLY used to enable tracking of its state.
  */
 class TaskDef {
   /**
    * Constructs an executable task definition, if the given parent is undefined and the given execute is a function;
-   * or constructs a non-executable, internal subTask definition, if parent is defined and execute is undefined;
-   * otherwise throws an error (i.e. parent and execute are mutually exclusive).
-   *
-   * If parent is specified, then this new task definition is assumed to be a non-executable, internal subTask
-   * definition of the given parent task definition and the given execute function must be undefined.
+   * or constructs an executable sub-task definition, if parent is defined and execute is a function; or constructs a
+   * non-executable, internal sub-task definition, if parent is defined and execute is undefined; otherwise throws an
+   * error.
    *
    * If parent is not specified, then this new task definition is assumed to be a top-level, executable task definition
    * and the given execute function must be defined and a valid function.
+   *
+   * If parent is specified, then this new task definition is assumed to be a sub-task definition of the given parent
+   * task definition and the given execute function must be either undefined or a valid function.
    *
    * @param {string} name - the mandatory name of the task
    * @param {Function|undefined} [execute] - the optional function to be executed when a task created using this
@@ -89,19 +84,18 @@ class TaskDef {
     // Validate the given parent and the given execute function
     // -----------------------------------------------------------------------------------------------------------------
     if (parent) {
-      // Creating a non-executable, internal subTask definition, so:
+      // Creating a non-executable, internal sub-task definition, so:
       // Ensure that the parent is a TaskDef itself
       if (!(parent instanceof TaskDef)) {
-        throw new Error(`Cannot create a subTask definition (${taskName}) with a parent that is not a task (or subTask) definition`);
+        throw new Error(`Cannot create a sub-task definition (${taskName}) with a parent that is not a task (or sub-task) definition`);
       }
-      // Ensure that this internal subTask definition does not have an execute function, since subTask definitions
-      // cannot be executable
-      if (execute) {
-        throw new Error(`Cannot create a subTask definition (${taskName}) with an execute function)`);
+      // Ensure that execute (if defined) is actually executable (i.e. a valid function)
+      if (execute !== undefined && typeof execute !== 'function') {
+        throw new Error(`Cannot create an executable sub-task definition (${taskName}) with an invalid execute function`);
       }
-      // Ensure the parent's subTask names will still be distinct if we include this new subTask's name
+      // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
       if (!areSubTaskNamesDistinct(parent, taskName)) {
-        throw new Error(`Cannot add a subTask definition (${taskName}) with a duplicate name to parent (${parent.name}) with existing subTask definitions ${Strings.stringify(parent.subTaskDefs.map(d => d.name))}`);
+        throw new Error(`Cannot add a sub-task definition (${taskName}) with a duplicate name to parent (${parent.name}) with existing sub-task definitions ${Strings.stringify(parent.subTaskDefs.map(d => d.name))}`);
       }
 
     } else {
@@ -133,7 +127,7 @@ class TaskDef {
     // will still be valid and will ONLY contain distinct task definitions
     // -----------------------------------------------------------------------------------------------------------------
     if (taskParent) {
-      // NB: Must check this after adding subTasks, but before setting parent!
+      // NB: Must check this after adding sub-tasks, but before setting parent!
       ensureAllTaskDefsDistinct(taskParent, this);
     }
 
@@ -171,43 +165,49 @@ class TaskDef {
   }
 
   /**
-   * Creates and adds a single non-executable, internal subTask definition with the given name to this task definition.
-   * @param {string} subTaskName - the name of the new non-executable, internal subTask definition
+   * Creates and adds an executable sub-task definition (if execute is defined) or a non-executable, internal sub-task
+   * definition (if execute is undefined) with the given name to this task definition.
+   * @param {string} subTaskName - the name of the new sub-task definition
+   * @param {Function|undefined} [execute] - the optional function to be executed when a sub-task created using this definition is executed
    * @throws {Error} an error if the given name is blank or not a string or not distinct
    */
-  defineSubTask(subTaskName) {
+  defineSubTask(subTaskName, execute) {
     if (!isString(subTaskName) || isBlank(subTaskName)) {
-      throw new Error(`Cannot create a subTask definition with a ${!isString(subTaskName) ? "non-string" : "blank"} name (${stringify(subTaskName)})`);
+      throw new Error(`Cannot create a sub-task definition with a ${!isString(subTaskName) ? "non-string" : "blank"} name (${stringify(subTaskName)})`);
     }
     const newName = Objects.valueOf(subTaskName).trim();
-    // Ensure this task definition's subTask names will still be distinct if we include the new subTask's name
-    if (!areSubTaskNamesDistinct(this, newName)) {
-      throw new Error(`Cannot add subTask definition (${newName}) with a duplicate name to task definition (${this.name}) with existing subTask definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
+    // Ensure that execute (if defined) is actually executable (i.e. a valid function)
+    if (execute !== undefined && typeof execute !== 'function') {
+      throw new Error(`Cannot create an executable sub-task definition (${newName}) with an invalid execute function`);
     }
-    // Create and add the new subTask definition to this task definition's list of subTask definitions
-    return new TaskDef(newName, undefined, this);
+    // Ensure this task definition's sub-task names will still be distinct if we include the new sub-task's name
+    if (!areSubTaskNamesDistinct(this, newName)) {
+      throw new Error(`Cannot add sub-task definition (${newName}) with a duplicate name to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
+    }
+    // Create and add the new sub-task definition to this task definition's list of sub-task definitions
+    return new TaskDef(newName, execute, this);
   }
 
   /**
-   * Creates and adds multiple new non-executable, internal subTask definitions with the given names to this task
+   * Creates and adds multiple new non-executable, internal sub-task definitions with the given names to this task
    * definition.
-   * @param {string[]} subTaskNames - the names of the new non-executable, internal subTask definitions
-   * @returns {TaskDef[]} an array of new subTask definitions (one for each of the given names)
+   * @param {string[]} subTaskNames - the names of the new non-executable, internal sub-task definitions
+   * @returns {TaskDef[]} an array of new sub-task definitions (one for each of the given names)
    */
   defineSubTasks(subTaskNames) {
     if (!isArrayOfType(subTaskNames, "string")) {
-      throw new Error(`Cannot create subTask definitions with non-string names ${stringify(subTaskNames)}`);
+      throw new Error(`Cannot create sub-task definitions with non-string names ${stringify(subTaskNames)}`);
     }
     if (subTaskNames.length > 0) {
       if (!subTaskNames.every(name => isNotBlank(name))) {
-        throw new Error(`Cannot create subTask definitions with blank names ${stringify(subTaskNames)}`);
+        throw new Error(`Cannot create sub-task definitions with blank names ${stringify(subTaskNames)}`);
       }
       const newNames = subTaskNames.map(n => Objects.valueOf(n).trim());
-      // Ensure this task definition's subTask names will still be distinct if we include the new subTask names
+      // Ensure this task definition's sub-task names will still be distinct if we include the new sub-task names
       if (!areSubTaskNamesDistinct(this, newNames)) {
-        throw new Error(`Cannot add subTask definitions ${stringify(newNames)} with duplicate names to task definition (${this.name}) with existing subTask definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
+        throw new Error(`Cannot add sub-task definitions ${stringify(newNames)} with duplicate names to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
       }
-      // Create and add the new subTask definitions to this task definition's list of subTask definitions
+      // Create and add the new sub-task definitions to this task definition's list of sub-task definitions
       return newNames.map(name => new TaskDef(name, undefined, this));
     }
     return [];
@@ -226,12 +226,12 @@ module.exports.TaskDef = TaskDef;
  * Creates a new top-level, executable task definition to be used for creating executable tasks. Both the given name
  * and execute function MUST be correctly defined; otherwise an appropriate error will be thrown.
  *
- * As soon as you have defined your top-level task, you can start adding subTask definitions to it (if necessary) using
- * {@linkcode TaskDef#defineSubTask} and/or {@linkcode TaskDef#defineSubTasks}, which return the newly created subTask
+ * As soon as you have defined your top-level task, you can start adding sub-task definitions to it (if necessary) using
+ * {@linkcode TaskDef#defineSubTask} and/or {@linkcode TaskDef#defineSubTasks}, which return the newly created sub-task
  * definition(s).
  *
- * If any of your new subTask definitions also need to have subTask definitions of their own, then simply use exactly
- * the same procedure to add "sub-subTask" definitions to your subTask definition.
+ * If any of your new sub-task definitions also need to have sub-task definitions of their own, then simply use exactly
+ * the same procedure to add "sub-subTask" definitions to your sub-task definition.
  *
  * @param {string} taskName - the name of the task
  * @param {Function} execute - the function to be executed when a task created using this definition is started
@@ -298,7 +298,7 @@ if (!TaskDef.getRootTaskDef) {
  * this function will always throw an error) and MUST only be subsequently linked to the given parent if this function
  * does NOT throw an error.
  *
- * @param {TaskDef|undefined} [parent] - an optional parent task (or subTask) definition (if any), which identifies the
+ * @param {TaskDef|undefined} [parent] - an optional parent task (or sub-task) definition (if any), which identifies the
  * first hierarchy to check and to which the proposed task definition is intended to be linked
  * @param {TaskDef|undefined} proposedTaskDef - a optional proposed task definition, which identifies the second
  * hierarchy to check
@@ -323,7 +323,7 @@ function ensureAllTaskDefsDistinct(parent, proposedTaskDef) {
     // Remember that we have seen this one
     history.push(taskDef);
 
-    // Now check all of its subTask definitions recursively too
+    // Now check all of its sub-task definitions recursively too
     const subTaskDefs = taskDef.subTaskDefs;
     for (let i = 0; i < subTaskDefs.length; ++i) {
       loop(subTaskDefs[i], history);
@@ -332,25 +332,23 @@ function ensureAllTaskDefsDistinct(parent, proposedTaskDef) {
 
   const history = [];
 
-  // Next loop from the parent's root down through all of its subTask definitions recursively, ensuring that there is no
+  // Next loop from the parent's root down through all of its sub-task definitions recursively, ensuring that there is no
   // duplication of any task definition in the parent's hierarchy
   loop(parentRoot, history);
 
-  // Finally loop from the proposed task definition's root down through all of its subTask definitions recursively,
+  // Finally loop from the proposed task definition's root down through all of its sub-task definitions recursively,
   // ensuring that there is no duplication of any task definition in either hierarchy
   loop(proposedTaskDefRoot, history);
 }
 
 /**
- * Returns true if the proposed subTask names together with the given parent task definition's subTask names are all
+ * Returns true if the proposed sub-task names together with the given parent task definition's sub-task names are all
  * still distinct; otherwise returns false.
  * @param parent
- * @param {string|string[]} proposedNames - the name or names of the proposed subTask definitions to be checked
+ * @param {string|string[]} proposedNames - the name or names of the proposed sub-task definitions to be checked
  */
 function areSubTaskNamesDistinct(parent, proposedNames) {
   const oldNames = parent ? parent.subTaskDefs.map(d => d.name) : [];
   const newNames = oldNames.concat(proposedNames);
   return isDistinct(newNames);
 }
-
-

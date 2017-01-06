@@ -49,20 +49,20 @@ function checkNewTaskDef(t, name, execute, parent, mustPass, mustBeExecutable) {
     if (mustPass) {
       t.pass(`${prefix} must pass`);
     } else {
-      t.fail(`${prefix} must fail - (${stringify(taskDef)})`)
+      t.fail(`${prefix} must fail - (${stringify(taskDef)})`);
     }
     okNotOk(t, taskDef, mustPass, `must be created`, `must not be created`, `TaskDef`);
 
     const taskName = Strings.trim(name);
-    equal(t, taskDef.name, taskName, `name`);
-    equal(t, taskDef.execute, execute, `execute`);
-    equal(t, taskDef.parent, parent, `parent`);
+    t.equal(taskDef.name, taskName, `name must be ${taskName}`);
+    t.equal(taskDef.execute, execute, `execute must be ${stringify(execute)}`);
+    t.equal(taskDef.parent, parent, `parent must be ${parent ? parent.name : parent}`);
 
     checkExecutable(t, taskDef, mustBeExecutable);
 
     if (taskDef.parent) {
       const self = taskDef.parent.subTaskDefs.find(d => d.name === taskName);
-      equal(t, taskDef, self, `Parent (${taskDef.parent.name}) contains new task (${taskName})`);
+      t.equal(taskDef, self, `Parent (${taskDef.parent.name}) contains new task (${taskName})`);
     }
 
     return taskDef;
@@ -111,10 +111,10 @@ function checkDefineTask(t, name, execute, mustPass, mustBeExecutable) {
     return undefined;
   }
 }
-function checkDefineSubTask(t, name, parent, mustPass, mustBeExecutable) {
-  const prefix = `defineSubTask(${name}, ${stringify(parent ? parent.name : parent)})`;
+function checkDefineSubTask(t, name, execute, parent, mustPass, mustBeExecutable) {
+  const prefix = `${stringify(parent ? parent.name : parent)}.defineSubTask(${name}, ${stringify(execute)})`;
   try {
-    const taskDef = parent.defineSubTask(name);
+    const taskDef = parent.defineSubTask(name, execute);
     if (mustPass) {
       t.pass(`${prefix} must pass`);
     } else {
@@ -123,9 +123,14 @@ function checkDefineSubTask(t, name, parent, mustPass, mustBeExecutable) {
     okNotOk(t, taskDef, mustPass, `must be created`, `must not be created`, `TaskDef`);
 
     const taskName = Strings.trim(name);
-    equal(t, taskDef.name, taskName, `name`);
-    equal(t, taskDef.execute, undefined, `execute`);
-    equal(t, taskDef.parent, parent, `parent`);
+    t.equal(taskDef.name, taskName, `name`);
+
+    if (mustBeExecutable)
+      t.ok(typeof taskDef.execute === 'function', `${taskDef.name} execute must be a function`);
+    else
+      t.equal(taskDef.execute, undefined, `${taskDef.name} execute must be undefined`);
+
+    t.equal(taskDef.parent, parent, `${taskDef.name} parent must be ${parent ? parent.name : parent}`);
 
     checkExecutable(t, taskDef, mustBeExecutable);
 
@@ -237,25 +242,25 @@ test('new TaskDef', t => {
   // Check trimming of name
   checkNewTaskDef(t, '   TaskB   ', execute2, undefined, true, true);
 
-  // SubTask with parent & execute
+  // SubTask with parent & without execute
   const subTaskDefB = checkNewTaskDef(t, 'SubTaskB', undefined, taskDefA, true, false);
 
   //console.log(`taskDefA=${stringify(taskDefA)}`);
   //console.log(`subTaskDefB=${stringify(subTaskDefB)}`);
-  equal(t, taskDefA.subTaskDefs.length, 1, `TaskDef (${taskDefA.name}) subTaskDefs length `);
+  t.equal(taskDefA.subTaskDefs.length, 1, `TaskDef (${taskDefA.name}) subTaskDefs length must be 1`);
 
   /*const subTaskDefC =*/ checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, true, false);
 
-  equal(t, taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length `);
+  t.equal(taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length must be 2`);
 
   // Prevent duplicate subTask def names
   checkNewTaskDef(t, 'SubTaskB', undefined, taskDefA, false, true);
   checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, false, false);
 
-  equal(t, taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length `);
+  t.equal(taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length must be 2`);
 
   // SubTask with execute
-  checkNewTaskDef(t, 'SubTaskD0', execute1, taskDefA, false, true);
+  const subTaskDefX = checkNewTaskDef(t, 'SubTaskX', execute1, taskDefA, true, true);
 
   // SubTask with a subTask parent
   const subTaskDefD = checkNewTaskDef(t, 'SubTaskD', undefined, subTaskDefB, true, false);
@@ -263,12 +268,15 @@ test('new TaskDef', t => {
   const subTaskDefE = checkNewTaskDef(t, 'SubTaskE', undefined, subTaskDefD, true, false);
   const subTaskDefF = checkNewTaskDef(t, 'SubTaskF', undefined, subTaskDefD, true, false);
 
-  equal(t, taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length `);
-  equal(t, subTaskDefB.subTaskDefs.length, 1, `TaskDef (${subTaskDefB.name}) subTaskDefs length `);
-  equal(t, subTaskDefD.subTaskDefs.length, 2, `TaskDef (${subTaskDefD.name}) subTaskDefs length `);
-  equal(t, subTaskDefE.subTaskDefs.length, 0, `TaskDef (${subTaskDefE.name}) subTaskDefs length `);
-  equal(t, subTaskDefF.subTaskDefs.length, 0, `TaskDef (${subTaskDefF.name}) subTaskDefs length `);
+  t.equal(taskDefA.subTaskDefs.length, 3, `TaskDef (${taskDefA.name}) subTaskDefs length must be 3`);
+  t.equal(subTaskDefB.subTaskDefs.length, 1, `TaskDef (${subTaskDefB.name}) subTaskDefs length must be 1`);
+  t.equal(subTaskDefD.subTaskDefs.length, 2, `TaskDef (${subTaskDefD.name}) subTaskDefs length must be 2`);
+  t.equal(subTaskDefE.subTaskDefs.length, 0, `TaskDef (${subTaskDefE.name}) subTaskDefs length must be 0`);
+  t.equal(subTaskDefF.subTaskDefs.length, 0, `TaskDef (${subTaskDefF.name}) subTaskDefs length must be 0`);
 
+  // SubTask with parent & execute
+  checkNewTaskDef(t, 'SubTaskX1', execute2, subTaskDefX, true, true);
+  t.equal(subTaskDefX.subTaskDefs.length, 1, `SubTaskX (${subTaskDefX.name}) subTaskDefs length must be 1`);
 
   t.end();
 });
@@ -295,42 +303,41 @@ test('defineTask', t => {
   t.end();
 });
 
-
-test('defineSubTask', t => {
+test('defineSubTask - define non-executable, internal sub-tasks', t => {
   const taskDef = TaskDef.defineTask('Task 1', execute1);
   equal(t, taskDef.subTaskDefs.length, 0, `TaskDef (${taskDef.name}) subTaskDefs length `);
 
   // SubTask with non-string or blank name
-  checkDefineSubTask(t, undefined, taskDef, false, false);
-  checkDefineSubTask(t, null, taskDef, false, false);
-  checkDefineSubTask(t, {name: 'Bob'}, taskDef, false, false);
-  checkDefineSubTask(t, 1, taskDef, false, false);
-  checkDefineSubTask(t, '', taskDef, false, false);
-  checkDefineSubTask(t, ' \n \t \r ', taskDef, false, false);
+  checkDefineSubTask(t, undefined, undefined, taskDef, false, false);
+  checkDefineSubTask(t, null, undefined, taskDef, false, false);
+  checkDefineSubTask(t, {name: 'Bob'}, undefined, taskDef, false, false);
+  checkDefineSubTask(t, 1, undefined, taskDef, false, false);
+  checkDefineSubTask(t, '', undefined, taskDef, false, false);
+  checkDefineSubTask(t, ' \n \t \r ', undefined, taskDef, false, false);
 
   // Check trimming of name
-  const subTask1A = checkDefineSubTask(t, '   SubTask 1A   ', taskDef, true, false);
+  const subTask1A = checkDefineSubTask(t, '   SubTask 1A   ', undefined, taskDef, true, false);
   equal(t, subTask1A.subTaskDefs.length, 0, `SubTaskDef (${subTask1A.name}) subTaskDefs length `);
   equal(t, taskDef.subTaskDefs.length, 1, `SubTaskDef (${taskDef.name}) subTaskDefs length `);
 
   // Check cannot be duplicate name
-  checkDefineSubTask(t, '   SubTask 1A   ', taskDef, false, false);
+  checkDefineSubTask(t, '   SubTask 1A   ', undefined, taskDef, false, false);
   equal(t, taskDef.subTaskDefs.length, 1, `SubTaskDef (${taskDef.name}) subTaskDefs length `);
 
   // SubTask with subTask parent
-  const subTask1B = checkDefineSubTask(t, 'SubTask 1B', taskDef, true, false);
+  const subTask1B = checkDefineSubTask(t, 'SubTask 1B', undefined, taskDef, true, false);
   equal(t, subTask1B.subTaskDefs.length, 0, `SubTaskDef (${subTask1B.name}) subTaskDefs length `);
   equal(t, taskDef.subTaskDefs.length, 2, `SubTaskDef (${taskDef.name}) subTaskDefs length `);
 
-  const subTask2A = checkDefineSubTask(t, 'SubTask 2A', subTask1B, true, false);
+  const subTask2A = checkDefineSubTask(t, 'SubTask 2A', undefined, subTask1B, true, false);
   equal(t, subTask2A.subTaskDefs.length, 0, `SubTaskDef (${subTask2A.name}) subTaskDefs length `);
   equal(t, subTask1B.subTaskDefs.length, 1, `SubTaskDef (${subTask1B.name}) subTaskDefs length `);
 
-  const subTask2B = checkDefineSubTask(t, 'SubTask 2B', subTask1B, true, false);
+  const subTask2B = checkDefineSubTask(t, 'SubTask 2B', undefined, subTask1B, true, false);
   equal(t, subTask2B.subTaskDefs.length, 0, `SubTaskDef (${subTask2B.name}) subTaskDefs length `);
   equal(t, subTask1B.subTaskDefs.length, 2, `SubTaskDef (${subTask1B.name}) subTaskDefs length `);
 
-  const subTask3B = checkDefineSubTask(t, 'SubTask 3B', subTask2B, true, false);
+  const subTask3B = checkDefineSubTask(t, 'SubTask 3B', undefined, subTask2B, true, false);
   equal(t, subTask3B.subTaskDefs.length, 0, `SubTaskDef (${subTask3B.name}) subTaskDefs length `);
   equal(t, subTask2A.subTaskDefs.length, 0, `SubTaskDef (${subTask2A.name}) subTaskDefs length `);
   equal(t, subTask2B.subTaskDefs.length, 1, `SubTaskDef (${subTask2B.name}) subTaskDefs length `);
@@ -340,7 +347,51 @@ test('defineSubTask', t => {
   t.end();
 });
 
-test('defineSubTasks', t => {
+test('defineSubTask - define executable sub-tasks', t => {
+  const taskDef = TaskDef.defineTask('Task 1', execute1);
+  equal(t, taskDef.subTaskDefs.length, 0, `TaskDef (${taskDef.name}) subTaskDefs length `);
+
+  // SubTask with non-string or blank name
+  checkDefineSubTask(t, undefined, execute2, taskDef, false, true);
+  checkDefineSubTask(t, null, execute2, taskDef, false, true);
+  checkDefineSubTask(t, {name: 'Bob'}, execute2, taskDef, false, true);
+  checkDefineSubTask(t, 1, execute2, taskDef, false, true);
+  checkDefineSubTask(t, '', execute2, taskDef, false, true);
+  checkDefineSubTask(t, ' \n \t \r ', execute2, taskDef, false, true);
+
+  // Check trimming of name
+  const subTask1A = checkDefineSubTask(t, '   SubTask 1A   ', execute2, taskDef, true, true);
+  equal(t, subTask1A.subTaskDefs.length, 0, `SubTaskDef (${subTask1A.name}) subTaskDefs length `);
+  equal(t, taskDef.subTaskDefs.length, 1, `SubTaskDef (${taskDef.name}) subTaskDefs length `);
+
+  // Check cannot be duplicate name
+  checkDefineSubTask(t, '   SubTask 1A   ', execute2, taskDef, false, true);
+  equal(t, taskDef.subTaskDefs.length, 1, `SubTaskDef (${taskDef.name}) subTaskDefs length `);
+
+  // SubTask with subTask parent
+  const subTask1B = checkDefineSubTask(t, 'SubTask 1B', execute2, taskDef, true, true);
+  equal(t, subTask1B.subTaskDefs.length, 0, `SubTaskDef (${subTask1B.name}) subTaskDefs length `);
+  equal(t, taskDef.subTaskDefs.length, 2, `SubTaskDef (${taskDef.name}) subTaskDefs length `);
+
+  const subTask2A = checkDefineSubTask(t, 'SubTask 2A', execute2, subTask1B, true, true);
+  equal(t, subTask2A.subTaskDefs.length, 0, `SubTaskDef (${subTask2A.name}) subTaskDefs length `);
+  equal(t, subTask1B.subTaskDefs.length, 1, `SubTaskDef (${subTask1B.name}) subTaskDefs length `);
+
+  const subTask2B = checkDefineSubTask(t, 'SubTask 2B', execute2, subTask1B, true, true);
+  equal(t, subTask2B.subTaskDefs.length, 0, `SubTaskDef (${subTask2B.name}) subTaskDefs length `);
+  equal(t, subTask1B.subTaskDefs.length, 2, `SubTaskDef (${subTask1B.name}) subTaskDefs length `);
+
+  const subTask3B = checkDefineSubTask(t, 'SubTask 3B', execute2, subTask2B, true, true);
+  equal(t, subTask3B.subTaskDefs.length, 0, `SubTaskDef (${subTask3B.name}) subTaskDefs length `);
+  equal(t, subTask2A.subTaskDefs.length, 0, `SubTaskDef (${subTask2A.name}) subTaskDefs length `);
+  equal(t, subTask2B.subTaskDefs.length, 1, `SubTaskDef (${subTask2B.name}) subTaskDefs length `);
+  equal(t, subTask1B.subTaskDefs.length, 2, `SubTaskDef (${subTask1B.name}) subTaskDefs length `);
+  equal(t, taskDef.subTaskDefs.length, 2, `SubTaskDef (${taskDef.name}) subTaskDefs length `);
+
+  t.end();
+});
+
+test('defineSubTasks - define multiple non-executable, internal sub-tasks', t => {
   const taskDef = TaskDef.defineTask('Task 1', execute1);
   equal(t, taskDef.subTaskDefs.length, 0, `TaskDef (${taskDef.name}) subTaskDefs length `);
 
