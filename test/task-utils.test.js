@@ -16,11 +16,9 @@ const getTasksAndSubTasks = taskUtils.getTasksAndSubTasks;
 const setTask = taskUtils.setTask;
 const replaceTasksWithNewTasksUpdatedFromOld = taskUtils.replaceTasksWithNewTasksUpdatedFromOld;
 
-const taskDefs = require('../task-defs');
-const TaskDef = taskDefs.TaskDef;
-
-const Tasks = require('../tasks');
-const Task = Tasks.Task;
+const TaskDef = require('../task-defs');
+const TaskFactory = require('../task-factory');
+const Task = require('../tasks');
 
 // const states = require('../task-states');
 
@@ -28,6 +26,9 @@ const Arrays = require('core-functions/arrays');
 
 const strings = require('core-functions/strings');
 const stringify = strings.stringify;
+
+const taskFactory1 = new TaskFactory(console, {returnSuccessOrFailure: false});
+// const taskFactory2 = new TaskFactory(console, {returnSuccessOrFailure: true});
 
 //======================================================================================================================
 // getTask
@@ -73,6 +74,18 @@ test('getTask with other tasks returns undefined', t => {
   t.end();
 });
 
+/**
+ * Creates a task using the given
+ * @param {TaskDef} taskDef
+ * @param {TaskFactory|undefined} [factory]
+ * @param {TaskOpts|undefined} [opts]
+ * @returns {Task}
+ */
+function createTask(taskDef, factory, opts) {
+  factory = factory ? factory : taskFactory1;
+  return factory.createTask(taskDef, opts);
+}
+
 test('getTask with a real Task returns it', t => {
   const msg = {
     id: '123',
@@ -90,10 +103,9 @@ test('getTask with a real Task returns it', t => {
 
   // Create a real task
   const taskName = 'Task 1';
-  const taskDef = TaskDef.defineTask(taskName, () => {
-  });
+  const taskDef = TaskDef.defineTask(taskName, () => {});
   taskDef.defineSubTasks(['SubTask 1a', 'SubTask 1b']);
-  const origTask = Task.createTask(taskDef);
+  const origTask = createTask(taskDef);
 
   // Set the named task on the processOneTasks object
   const processOneTasks = msg.myTasks.ones;
@@ -129,7 +141,7 @@ test('getTask with a Task-like returns it', t => {
   const taskDef = TaskDef.defineTask(taskName, () => {
   });
   taskDef.defineSubTasks(['SubTask 1a', 'SubTask 1b']);
-  const origTask = Task.createTask(taskDef);
+  const origTask = createTask(taskDef);
 
   // Convert original task into a task-like
   const origTaskLike = JSON.parse(JSON.stringify(origTask));
@@ -216,7 +228,7 @@ test('getTasks with real tasks returns them', t => {
   const taskName = 'Task 1a';
   const taskDef = TaskDef.defineTask(taskName, () => {
   });
-  const task0 = Task.createTask(taskDef);
+  const task0 = createTask(taskDef);
 
   // Set the named task on the processOneTasks object
   const processOneTasks = msg.myTasks.ones;
@@ -361,7 +373,7 @@ test('getSubTask with real sub-Tasks and sub-sub-Tasks returns them', t => {
   const subSubTaskDefs = subTaskDefs[1].defineSubTasks(['SubTask 2.1', 'SubTask 2.2']);
   subSubTaskDefs[1].defineSubTasks(['SubTask 2.2.1', 'SubTask 2.2.2']);
 
-  const origTask = Task.createTask(taskDef);
+  const origTask = createTask(taskDef);
 
   // Set the named task on the processOneTasks object
   const processOneTasks = msg.myTasks.ones;
@@ -430,7 +442,7 @@ test('getSubTask with sub-task-likes and sub-sub-task-likes returns them', t => 
   const subSubTaskDefs = subTaskDefs[1].defineSubTasks(['SubTask 2.1', 'SubTask 2.2']);
   subSubTaskDefs[1].defineSubTasks(['SubTask 2.2.1', 'SubTask 2.2.2']);
 
-  const origTask = Task.createTask(taskDef);
+  const origTask = createTask(taskDef);
 
   // Convert original task into a task-like
   const origTaskLike = JSON.parse(JSON.stringify(origTask));
@@ -503,7 +515,7 @@ test('getTasksAndSubTasks with tasks or task-likes returns them', t => {
   const subSubTaskDefs = subTaskDefs[1].defineSubTasks(['SubTask 2.1', 'SubTask 2.2']);
   subSubTaskDefs[1].defineSubTasks(['SubTask 2.2.1', 'SubTask 2.2.2']);
 
-  const origTask = Task.createTask(taskDef);
+  const origTask = createTask(taskDef);
 
   // Check with Task hierarchy
   tasksByName[taskName] = origTask;
@@ -544,7 +556,9 @@ function checkReplaceTasks(t, tasksByName, activeTaskDefs, desc, origTaskLikes, 
   t.deepEqual(beforeNamesSorted, origNamesSorted, `replaceTasks(${desc}) BEFORE all task names (${stringify(beforeNamesSorted)}) must be ${stringify(origNamesSorted)}`);
 
   // Replace old with new
-  const newTasksAndAbandonedTasks = taskUtils.replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs);
+  const factory = taskFactory1;
+  const opts = undefined;
+  const newTasksAndAbandonedTasks = taskUtils.replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs, factory, opts);
 
   const afterTaskNamesSorted = getTasks(tasksByName).map(t => t.name).sort();
 
@@ -693,10 +707,10 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 2: All old tasks are sti
   subTask4BSubTaskDefs[1].defineSubTasks(['SubTask 4B-2a', 'SubTask 4B-2b']);
 
   // Create tasks from definitions
-  const task1 = Task.createTask(taskDef1);
-  const task2 = Task.createTask(taskDef2);
-  const task3 = Task.createTask(taskDef3);
-  const task4 = Task.createTask(taskDef4);
+  const task1 = createTask(taskDef1);
+  const task2 = createTask(taskDef2);
+  const task3 = createTask(taskDef3);
+  const task4 = createTask(taskDef4);
 
   // Convert original tasks into task-likes
   const taskLike1 = JSON.parse(JSON.stringify(task1));
@@ -792,10 +806,10 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 3: Active task definitio
   subTask4BSubTaskDefs[1].defineSubTasks(['SubTask 4B-2a', 'SubTask 4B-2b']);
 
   // Create tasks from definitions
-  const task1 = Task.createTask(taskDef1);
-  const task2 = Task.createTask(taskDef2);
-  const task3 = Task.createTask(taskDef3);
-  const task4 = Task.createTask(taskDef4);
+  const task1 = createTask(taskDef1);
+  const task2 = createTask(taskDef2);
+  const task3 = createTask(taskDef3);
+  const task4 = createTask(taskDef4);
 
   // Convert original tasks into task-likes
   const taskLike1 = JSON.parse(JSON.stringify(task1));
@@ -902,7 +916,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 4: Old finalised tasks m
   subTask4BSubTaskDefs[1].defineSubTasks(['SubTask 4B-2a', 'SubTask 4B-2b']);
 
   // Create tasks from definitions
-  const task1 = Task.createTask(taskDef1);
+  const task1 = createTask(taskDef1);
 
   // Fail task 1 recursively
   task1.fail(new Error('Planned failure'), true);
@@ -912,14 +926,14 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 4: Old finalised tasks m
     t.ok(task.failed, `BEFORE ${task.name} must be failed`);
   });
 
-  const task2 = Task.createTask(taskDef2);
+  const task2 = createTask(taskDef2);
 
   // Finalise task 2 with rejection
   task2.incrementAttempts(true);
   task2.incrementAttempts(true);
   task2.reject('Rejected task 2A', undefined, true);
 
-  const task3 = Task.createTask(taskDef3);
+  const task3 = createTask(taskDef3);
 
   // Finalise task 3 with success
   task3.incrementAttempts(true);
@@ -927,7 +941,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 4: Old finalised tasks m
   task3.incrementAttempts(true);
   task3.succeed(undefined, true, true);
 
-  const task4 = Task.createTask(taskDef4);
+  const task4 = createTask(taskDef4);
 
   // Timeout task 4 recursively
   task4.timeout(new Error('Planned timeout'), true, true);
@@ -1058,7 +1072,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
   subTask4BSubTaskDefs[1].defineSubTasks(['SubTask 4B-2a', 'SubTask 4B-2b']);
 
   // Create tasks from definitions
-  const task1 = Task.createTask(taskDef1);
+  const task1 = createTask(taskDef1);
 
   // Fail task 1 recursively and then mark itself as completed
   task1.fail(new Error('Planned fail 1'), true);
@@ -1070,7 +1084,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
   });
   t.ok(task1.completed, `BEFORE ${task1.name} must be completed`);
 
-  const task2 = Task.createTask(taskDef2);
+  const task2 = createTask(taskDef2);
 
   // Fail task 2 recursively and then mark itself as rejected
   task2.fail(new Error('Planned fail 2'), true);
@@ -1083,7 +1097,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
   });
   t.ok(task2.rejected, `BEFORE ${task2.name} must be rejected`);
 
-  const task3 = Task.createTask(taskDef3);
+  const task3 = createTask(taskDef3);
 
   // Timeout task 3 recursively and then mark itself as rejected
   task3.timeout(new Error('Planned timeout 3'), true, true);
@@ -1097,7 +1111,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
   });
   t.ok(task3.rejected, `BEFORE ${task3.name} must be rejected`);
 
-  const task4 = Task.createTask(taskDef4);
+  const task4 = createTask(taskDef4);
 
   // Timeout task 4 recursively and then mark itself as completed
   task4.timeout(new Error('Planned timeout 4'), true, true);

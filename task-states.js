@@ -1,5 +1,7 @@
 'use strict';
 
+const errors = require('./errors');
+
 /**
  * A TaskState class and its subclasses with static utilities for defining the state of a task or operation.
  * @module task-utils/task-states
@@ -7,59 +9,45 @@
  */
 
 /**
- * Definition of a task state-like object.
- * @typedef {Object} TaskStateLike
- * @property {string} name - the name of the state
- * @property {boolean} completed - whether or not to consider a task with this state as completed or not
- * @property {boolean} timedOut - whether or not to consider a task with this state as timed out or not
- * @property {Error|string|undefined} [error] - an optional error
- * @property {boolean} rejected - whether or not to consider a task with this state as rejected/abandoned/discarded or not
- * @property {string|undefined} [reason] - an optional reason given for rejecting this task
+ * The names of the task states that have fixed names.
+ * @namespace {TaskStateNames} names
  */
+const names = {
+  // Standard names
+  Unstarted: 'Unstarted',
+  Started: 'Started',
+  Completed: 'Completed',
+  Succeeded: 'Succeeded',
+  TimedOut: 'TimedOut',
+  Failed: 'Failed',
+  Rejected: 'Rejected',
+  Discarded: 'Discarded',
+  Abandoned: 'Abandoned',
 
-const UNSTARTED_NAME = 'Unstarted';
-const COMPLETED_NAME = 'Completed';
-const SUCCEEDED_NAME = 'Succeeded';
-const TIMED_OUT_NAME = 'TimedOut';
-const FAILED_NAME = 'Failed';
-const REJECTED_NAME = 'Rejected';
-const DISCARDED_NAME = 'Discarded';
-const ABANDONED_NAME = 'Abandoned';
+  // Arbitrary names for use with FailedState and/or RejectedState
+  Skipped: 'Skipped',
+  LogicFlawed: 'LogicFlawed',
+  FATAL: 'FATAL',
+};
 
 /**
- * An Error subclass that indicates that a task or operation timed out.
- */
-class TimeoutError extends Error {
-  /**
-   * Constructs a new TimeoutError.
-   * @param {string} message - a message for this error.
-   */
-  constructor(message) {
-    super(message);
-    Object.defineProperty(this, 'message', {writable: false, enumerable: true, configurable: false});
-    // Set the name to the class name
-    Object.defineProperty(this, 'name', {value: this.constructor.name});
-  }
-}
-
-/**
- * The base class for a state of a task or operation.
- * @typedef {Object} TaskState
+ * TaskState - The base class for a state of a task or operation.
+ * @extends {Object}
  * @property {string} name - the name of the state
- * @property {boolean} completed - whether or not to consider a task with this state as completed or not
- * @property {boolean} timedOut - whether or not this task timed out or failed due to a timeout
- * @property {string|undefined} [error] - an optional error
- * @property {boolean} rejected - whether or not to consider a task with this state as rejected/abandoned/discarded or not
- * @property {string|undefined} [reason] - an optional reason given for rejecting this task
+ * @property {boolean} completed - whether to consider a task with this state as completed or not
+ * @property {boolean} timedOut - whether to consider a task with this state as timed out (or failed due to a timeout) or not
+ * @property {string|undefined} [error] - an optional error with which a task was failed, timed out or rejected
+ * @property {boolean} rejected - whether to consider a task with this state as rejected/abandoned/discarded or not
+ * @property {string|undefined} [reason] - an optional reason given for rejecting a task
  */
 class TaskState {
   /**
    * Constructs a TaskState.
    * @param {string} name - the name of the state
-   * @param {boolean} completed - whether or not to consider a task with this state as completed or not
-   * @param {boolean} timedOut - whether or not to consider a task this state as timed out or not
+   * @param {boolean|Boolean} completed - whether to consider a task with this state as completed or not
+   * @param {boolean|Boolean} timedOut - whether to consider a task with this state as timed out (or failed due to a timeout) or not
    * @param {Error|string|undefined} [error] - an optional error
-   * @param {boolean} rejected - whether or not to consider a task with this state as rejected/abandoned/discarded or not
+   * @param {boolean|Boolean} rejected - whether to consider a task with this state as rejected/abandoned/discarded or not
    * @param {string|undefined} [reason] - an optional reason given for rejecting this task
    */
   constructor(name, completed, timedOut, error, rejected, reason) {
@@ -149,12 +137,21 @@ class TaskState {
   // ===================================================================================================================
 
   /**
-   * Returns true if this state is an unstarted state (i.e. NOT completed, NOT timed out, NOT rejected and has no error);
-   * false otherwise
+   * Returns true if this state is an unstarted state (i.e. NOT completed, NOT timed out, NOT rejected, has no error and
+   * its name is not names.Started); false otherwise
    * @returns {boolean} true if unstarted; false otherwise
    */
   get unstarted() {
-    return !this._completed && !this._timedOut && !this._error && !this._rejected;
+    return !this._completed && !this._timedOut && !this._error && !this._rejected && this._name !== names.Started;
+  }
+
+  /**
+   * Returns true if this state is a started state (i.e. NOT completed, NOT timed out, NOT rejected, has no error and
+   * its name is names.Started); false otherwise
+   * @returns {boolean} true if started; false otherwise
+   */
+  get started() {
+    return !this._completed && !this._timedOut && !this._error && !this._rejected && this._name === names.Started;
   }
 
   /**
@@ -206,268 +203,274 @@ class TaskState {
     return this instanceof Discarded;
   }
 
-}
-
-/**
- * A TaskState subclass for an initial unstarted state of a task or operation whose fate has not been decided yet.
- */
-class Unstarted extends TaskState {
-  constructor() {
-    super(UNSTARTED_NAME, false, false, undefined, false, undefined);
+  toString() {
+    return this.constructor.name !== this.name ? `${this.constructor.name}: ${this.name}` : this.constructor.name;
   }
 }
 
 /**
- * A TaskState subclass and superclass for all completed states of a task or operation.
- * CompletedState states are all marked as completed (and NOT timed out and NOT rejected) with no errors and no
- * rejection reasons.
- *
- * @param {string} name - the name of the state
+ * A TaskState subclass for an initial unstarted state of a task or operation whose fate has not been decided yet.
+ * @extends TaskState
+ */
+class Unstarted extends TaskState {
+  /** Constructs an Unstarted task state */
+  constructor() {
+    super(names.Unstarted, false, false, undefined, false, undefined);
+  }
+}
+
+/**
+ * A TaskState subclass for a "transient" started state of a task or operation whose execution has been started, but not
+ * yet completed.
+ * @extends TaskState
+ */
+class Started extends TaskState {
+  /** Constructs a Started task state */
+  constructor() {
+    super(names.Started, false, false, undefined, false, undefined);
+  }
+}
+
+/**
+ * A TaskState subclass and superclass for all completed states of a task or operation. CompletedState states are all
+ * marked as completed (and NOT timed out and NOT rejected) with no errors and no rejection reasons.
+ * @extends TaskState
  */
 class CompletedState extends TaskState {
+  /**
+   * Constructs a CompletedState task state
+   * @param {string} name - the name of the state
+   */
   constructor(name) {
     super(name, true, false, undefined, false, undefined);
   }
 }
 
 /**
- * A TaskState subclass and superclass for all timed out states of a task or operation.
- * TimedOutState states are all marked as timedOut (and NOT completed, and NOT rejected) with optional errors and no
- * rejection reasons. They indicate that a task timed out, that the timeout was not an unretryable error and that the
- * task should be reattempted again later.
- *
- * @param {string} name - the name of this state
- * @param {Error|string|undefined} [error] - an optional error that occurred that triggered this TimedOutState state
+ * A TaskState subclass and superclass for all timed out states of a task or operation. TimedOutState states are all
+ * marked as timedOut (and NOT completed, and NOT rejected) with optional errors and no rejection reasons. They indicate
+ * that a task timed out, that the timeout was not an unretryable error and that the task should be reattempted again later.
+ * @extends TaskState
  */
 class TimedOutState extends TaskState {
+  /**
+   * Constructs a TimedOutState task state
+   * @param {string} name - the name of this state
+   * @param {Error|string|undefined} [error] - an optional error that occurred that triggered this TimedOutState state
+   */
   constructor(name, error) {
     super(name, false, true, error, false, undefined);
   }
 }
 
 /**
- * A TaskState subclass and superclass for all failed states of a task or operation.
- *
- * FailedState states are all marked as NOT completed, NOT timed out and NOT rejected with the error encountered.
- * They indicate that a task failed, that the failure was not an unretryable error and that the task should be
- * reattempted again later.
- *
- * @param {string} name - the name of this state
- * @param {Error|string} error - the error encountered
+ * A TaskState subclass and superclass for all failed states of a task or operation. FailedState states are all marked
+ * as NOT completed, NOT timed out and NOT rejected with the error encountered. They indicate that a task failed, that
+ * the failure was not an unretryable error and that the task should be reattempted again later.
+ * @extends TaskState
  */
 class FailedState extends TaskState {
+  /**
+   * Constructs a FailedState task state
+   * @param {string} name - the name of this state
+   * @param {Error|string} error - the error encountered
+   */
   constructor(name, error) {
     super(name, false, false, error, false, undefined);
   }
 }
 
 /**
- * A TaskState subclass and superclass for all rejected states of a task or operation.
- *
- * RejectedState states are all marked as rejected (and NOT completed and NOT timed out) with a reason and an optional
- * error. They indicate that a task was rejected during execution for some reason (or some unretryable failure) and
- * cannot be reattempted.
- *
- * @param {string} name - the name of this state
- * @param {string} reason - the reason for rejecting a task
- * @param {Error|string|undefined} [error] - an optional error
+ * A TaskState subclass and superclass for all rejected states of a task or operation. RejectedState states are all
+ * marked as rejected (and NOT completed and NOT timed out) with a reason and an optional error. They indicate that a
+ * task was rejected during execution for some reason (or some unretryable failure) and cannot be reattempted.
+ * @extends TaskState
  */
 class RejectedState extends TaskState {
+  /**
+   * Constructs a RejectedState task state
+   * @param {string} name - the name of this state
+   * @param {string} reason - the reason for rejecting a task
+   * @param {Error|string|undefined} [error] - an optional error
+   */
   constructor(name, reason, error) {
     super(name, false, false, error, true, reason);
   }
 }
 
 /**
- * A CompletedState subclass with a state and name of 'Completed'.
- * Completed states are all marked as completed (and NOT timed out and NOT rejected) with no errors and no rejection
- * reasons.
+ * A CompletedState subclass with a state and name of 'Completed'. Completed states are all marked as completed (and NOT
+ * timed out and NOT rejected) with no errors and no rejection reasons.
+ * @extends CompletedState
  */
 class Completed extends CompletedState {
+  /** Constructs a Completed task state */
   constructor() {
-    super(COMPLETED_NAME);
+    super(names.Completed);
   }
 }
 
 /**
- * A CompletedState subclass with a state and name of 'Succeeded'.
- * Succeeded states are all marked as completed (and NOT timed out and NOT rejected) with no errors and no rejection
- * reasons.
+ * A CompletedState subclass with a state and name of 'Succeeded'. Succeeded states are all marked as completed (and NOT
+ * timed out and NOT rejected) with no errors and no rejection reasons.
+ * @extends CompletedState
  */
 class Succeeded extends CompletedState {
+  /** Constructs a Succeeded task state */
   constructor() {
-    super(SUCCEEDED_NAME);
+    super(names.Succeeded);
   }
 }
 
 /**
- * A TimedOutState subclass with a state and name of 'TimedOut'.
- *
- * TimedOut states are all marked as timedOut (and NOT completed and NOT rejected) with an optional error that occurred.
- * As with its TimedOutState super-state, this state indicates that a task timed out, that the timeout is not an unretryable
- * error and that the task should be reattempted again later.
- *
- * @param {Error|string|undefined} [error] - an optional error that occurred that triggered this TimedOut state
+ * A TimedOutState subclass with a state and name of 'TimedOut'. TimedOut states are all marked as timedOut (and NOT
+ * completed and NOT rejected) with an optional error that occurred. As with its TimedOutState super-state, this state
+ * indicates that a task timed out, that the timeout is not an unretryable error and that the task should be reattempted
+ * again later.
+ * @extends TimedOutState
  */
 class TimedOut extends TimedOutState {
+  /**
+   * Constructs a TimedOut task state
+   * @param {Error|string|undefined} [error] - an optional error that occurred that triggered this TimedOut state
+   */
   constructor(error) {
-    super(TIMED_OUT_NAME, error);
+    super(names.TimedOut, error);
   }
 }
 
 /**
- * A FailedState subclass with a state and name of 'Failed'.
- *
- * Failed states are all marked as NOT completed, NOT timed out and NOT rejected with the error that occurred. As with
- * its FailedState super-state, this state indicates that a task failed, but that the failure was not an unretryable error
- * and that the task should be reattempted again later.
- *
- * @param {Error|string} error - the error that occurred that triggered this Failed state
+ * A FailedState subclass with a state and name of 'Failed'. Failed states are all marked as NOT completed, NOT timed
+ * out and NOT rejected with the error that occurred. As with its FailedState super-state, this state indicates that a
+ * task failed, but that the failure was not an unretryable error and that the task should be reattempted again later.
+ * @extends FailedState
  */
 class Failed extends FailedState {
+  /**
+   * Constructs a Failed task state
+   * @param {Error|string} error - the error that occurred that triggered this Failed state
+   */
   constructor(error) {
-    super(FAILED_NAME, error);
+    super(names.Failed, error);
   }
 }
 
 /**
- * A RejectedState subclass with a state of 'Rejected'.
- *
- * Rejected states are all marked as rejected (and NOT completed and NOT timed out) with a reason and an optional error.
- * As with its RejectedState super-state, this state indicates that a task was rejected during execution for some reason (or
- * some unretryable failure) and cannot be reattempted.
+ * A RejectedState subclass with a state of 'Rejected'. Rejected states are all marked as rejected (and NOT completed
+ * and NOT timed out) with a reason and an optional error. As with its RejectedState super-state, this state indicates
+ * that a task was rejected during execution for some reason (or some unretryable failure) and cannot be reattempted.
  *
  * For example: a task may not be able to start or run to completion due to invalid input data and thus would never be
  * able to achieve a successful completed state, so the only recourse left is to flag it as rejected with a rejection
  * reason and optional error.
  *
- * @param {string} reason - the reason for rejecting a task
- * @param {Error|string|undefined} [error] - an optional error encountered that triggered this Rejected state
+ * @extends RejectedState
  */
 class Rejected extends RejectedState {
+  /**
+   * Constructs a Rejected task state
+   * @param {string} reason - the reason for rejecting a task
+   * @param {Error|string|undefined} [error] - an optional error encountered that triggered this Rejected state
+   */
   constructor(reason, error) {
-    super(REJECTED_NAME, reason, error);
+    super(names.Rejected, reason, error);
   }
 }
 
 /**
- * A RejectedState subclass with a state and name of 'Discarded'.
- *
- * Discarded states are all marked as rejected (and NOT completed and NOT timed out) with a reason and an optional error.
- * This state indicates that a task had to be discarded for some reason and cannot be reattempted.
+ * A RejectedState subclass with a state & name of 'Discarded'. Discarded states are all marked as rejected (and NOT
+ * completed and NOT timed out) with a reason and an optional error. This state indicates that a task had to be
+ * discarded for some reason and cannot be reattempted.
  *
  * For example: A task that is unable to complete successfully within the maximum allowed number of attempts, is
  * discarded by flagging it as rejected with an appropriate reason and optional error.
  *
- * @param {string} reason - the reason for rejecting this task
- * @param {Error|string|undefined} [error] - an optional error encountered that triggered this Discarded state
+ * @extends RejectedState
  */
 class Discarded extends RejectedState {
+  /**
+   * Constructs a Discarded task state
+   * @param {string} reason - the reason for rejecting this task
+   * @param {Error|string|undefined} [error] - an optional error encountered that triggered this Discarded state
+   */
   constructor(reason, error) {
-    super(DISCARDED_NAME, reason, error);
+    super(names.Discarded, reason, error);
   }
 }
 
 /**
- * A RejectedState subclass with a state of 'Abandoned'.
- *
- * Discarded states are all marked as rejected (and NOT completed and NOT timed out) with a reason and an optional error.
- * This state indicates that a task was abandoned for some reason.
+ * A RejectedState subclass with a state & name of 'Abandoned'. Abandoned states are all marked as rejected (and NOT
+ * completed and NOT timed out) with a reason and an optional error. This state indicates that a task was abandoned for
+ * some reason.
  *
  * For example: A task may no longer need to be run after developer changes to the list of task definitions for a
  * particular process cause previous tasks to no longer appear in the new list of tasks to be completed. These orphaned
  * tasks can NEVER be completed in such a scenario and hence have to flagged as rejected with an appropriate rejection
  * reason and optional error.
  *
- * @param {string} reason - the reason for rejecting this task
- * @param {Error|string|undefined} [error] - an optional error encountered that triggered this Abandoned state
+ * @extends RejectedState
  */
 class Abandoned extends RejectedState {
+  /**
+   * Constructs an Abandoned task state
+   * @param {string} reason - the reason for rejecting this task
+   * @param {Error|string|undefined} [error] - an optional error encountered that triggered this Abandoned state
+   */
   constructor(reason, error) {
-    super(ABANDONED_NAME, reason, error);
+    super(names.Abandoned, reason, error);
   }
 }
 
 /**
- * A singleton for an initial unstarted state (with a name of 'Unstarted') of a task or operation whose fate has not
- * been decided yet.
+ * The singleton task state instances.
+ * @namespace
+ * @property {Unstarted} Unstarted - the singleton Unstarted instance
+ * @property {Started} Started - the singleton Started instance
+ * @property {Completed} Completed - the singleton Completed instance
+ * @property {Succeeded} Succeeded - the singleton Succeeded instance
  */
-const UNSTARTED = new Unstarted();
-// Install the constant as a static on TaskState
-if (!TaskState.UNSTARTED) Object.defineProperty(TaskState, 'UNSTARTED', {value: UNSTARTED});
+const instances = {
+  Unstarted: new Unstarted(),
+  Started: new Started(),
+  Completed: new Completed(),
+  Succeeded: new Succeeded()
+};
+Object.freeze(instances);
+
+// Install the names & instances constants as static properties on TaskState
+Object.defineProperty(TaskState, 'names', {value: names});
+Object.defineProperty(TaskState, 'instances', {value: instances});
 
 /**
- * A singleton for a completed state (with a name of 'Completed') of a task or operation.
- */
-const COMPLETED = new Completed();
-// Install the constant as a static on TaskState
-if (!TaskState.COMPLETED) Object.defineProperty(TaskState, 'COMPLETED', {value: COMPLETED});
-
-/**
- * A singleton for a succeeded state (with a name of 'Succeeded') of a task or operation.
- */
-const SUCCEEDED = new Succeeded();
-// Install the constant as a static on TaskState
-if (!TaskState.SUCCEEDED) Object.defineProperty(TaskState, 'SUCCEEDED', {value: SUCCEEDED});
-
-// Also install the name constants as statics on TaskState
-if (!TaskState.UNSTARTED_NAME) Object.defineProperty(TaskState, 'UNSTARTED_NAME', {value: UNSTARTED_NAME});
-if (!TaskState.COMPLETED_NAME) Object.defineProperty(TaskState, 'COMPLETED_NAME', {value: COMPLETED_NAME});
-if (!TaskState.SUCCEEDED_NAME) Object.defineProperty(TaskState, 'SUCCEEDED_NAME', {value: SUCCEEDED_NAME});
-if (!TaskState.TIMED_OUT_NAME) Object.defineProperty(TaskState, 'TIMED_OUT_NAME', {value: TIMED_OUT_NAME});
-if (!TaskState.FAILED_NAME) Object.defineProperty(TaskState, 'FAILED_NAME', {value: FAILED_NAME});
-if (!TaskState.REJECTED_NAME) Object.defineProperty(TaskState, 'REJECTED_NAME', {value: REJECTED_NAME});
-if (!TaskState.DISCARDED_NAME) Object.defineProperty(TaskState, 'DISCARDED_NAME', {value: DISCARDED_NAME});
-if (!TaskState.ABANDONED_NAME) Object.defineProperty(TaskState, 'ABANDONED_NAME', {value: ABANDONED_NAME});
-
-/**
- * Constructs an appropriate TaskState instance based on the given name, completed and optional error.
+ * Constructs an appropriate TaskState instance based on the given name, completed, timedOut, optional error, rejected &
+ * optional reason.
  *
  * @param {string} name - the name of this state
  * @param {boolean} completed - whether or not to consider a task with this state as completed or not
  * @param {boolean} timedOut - whether or not to consider a task with this state as timed out or not
- * @param {Error|string|undefined} error - an optional error
+ * @param {Error|string|undefined} [error] - an optional error
  * @param {boolean} rejected - whether or not to consider a task with this state as rejected/abandoned/discarded or not
- * @param {string|undefined} reason - an optional reason given for rejecting this task
- * @return {TaskState|Unstarted|CompletedState|TimedOutState|FailedState|RejectedState|Completed|Succeeded|TimedOut|Failed|Rejected|Discarded|Abandoned}
- * the appropriate TaskState instance created
+ * @param {string|undefined} [reason] - an optional reason given for rejecting this task
+ * @return {AnyTaskState} the appropriate TaskState instance created
  */
 function toTaskState(name, completed, timedOut, error, rejected, reason) {
   if (!completed && !timedOut && !error && !rejected && !reason) {
-    return UNSTARTED;
-  }
-  if (name === COMPLETED_NAME && completed && !timedOut && !error && !rejected && !reason) {
-    return COMPLETED;
-  }
-  if (name === SUCCEEDED_NAME && completed && !timedOut && !error && !rejected && !reason) {
-    return SUCCEEDED;
-  }
-  if (name === TIMED_OUT_NAME && !completed && timedOut && !rejected && !reason) { // error is optional
-    return new TimedOut(error);
-  }
-  if (name === FAILED_NAME && !completed && !timedOut && error && !rejected && !reason) {
-    return new Failed(error);
-  }
-  if (name === REJECTED_NAME && !completed && !timedOut && rejected) { // reason could be empty and error is optional
-    return new Rejected(reason, error);
-  }
-  if (name === DISCARDED_NAME && !completed && !timedOut && rejected) { // reason could be empty and error is optional
-    return new Discarded(reason, error);
-  }
-  if (name === ABANDONED_NAME && !completed && !timedOut && rejected) { // reason could be empty and error is optional
-    return new Abandoned(reason, error);
+    return name === names.Started ? instances.Started : instances.Unstarted;
   }
   if (completed && !timedOut && !error && !rejected && !reason) {
-    return new CompletedState(name);
+    return name === names.Completed ? instances.Completed :
+      name === names.Succeeded ? instances.Succeeded : new CompletedState(name);
   }
   if (!completed && timedOut && !rejected && !reason) { // error is optional
-    return new TimedOutState(name, error);
+    return name === names.TimedOut ? new TimedOut(error) : new TimedOutState(name, error);
   }
   if (!completed && !timedOut && error && !rejected && !reason) {
-    return new FailedState(name, error);
+    return name === names.Failed ? new Failed(error) : new FailedState(name, error);
   }
   if (!completed && !timedOut && rejected) { // reason could be empty and error is optional
-    return new RejectedState(name, reason, error);
+    return name === names.Rejected ? new Rejected(reason, error) :
+      name === names.Discarded ? new Discarded(reason, error) :
+        name === names.Abandoned ? new Abandoned(reason, error) : new RejectedState(name, reason, error);
   }
   return new TaskState(name, completed, timedOut, error, rejected, reason);
 }
@@ -477,7 +480,7 @@ if (!TaskState.toTaskState) TaskState.toTaskState = toTaskState;
 /**
  * Converts the given state-like object back into an appropriate TaskState.
  * @param {TaskStateLike|undefined} stateLike - an optional state-like object to convert
- * @returns {TaskState|undefined} an appropriate TaskState for the given state-like object (if defined); otherwise
+ * @returns {AnyTaskState|undefined} an appropriate TaskState for the given state-like object (if defined); otherwise
  * undefined
  */
 function toTaskStateFromStateLike(stateLike) {
@@ -489,22 +492,26 @@ function toTaskStateFromStateLike(stateLike) {
 if (!TaskState.toTaskStateFromStateLike) TaskState.toTaskStateFromStateLike = toTaskStateFromStateLike;
 
 module.exports = {
-  // TimeoutError constructor
-  TimeoutError: TimeoutError,
+  // Task state names for task states with fixed names
+  names: names,
 
-  // TaskState constructors
+  // Singleton task state instances
+  instances: instances,
+
+  // TaskState superclass constructor
   TaskState: TaskState,
 
   // TaskState direct subclasses
-  Unstarted: Unstarted, // rather use UNSTARTED singleton
+  Unstarted: Unstarted, // rather use instances.Unstarted singleton
+  Started: Started, // rather use instances.Started singleton
   CompletedState: CompletedState,
   TimedOutState: TimedOutState,
   FailedState: FailedState,
   RejectedState: RejectedState,
 
   // CompletedState subclasses
-  Completed: Completed, // rather use COMPLETED singleton
-  Succeeded: Succeeded, // rather use SUCCEEDED singleton
+  Completed: Completed, // rather use instances.Completed singleton
+  Succeeded: Succeeded, // rather use instances.Succeeded singleton
 
   // TimedOutState subclasses
   TimedOut: TimedOut,

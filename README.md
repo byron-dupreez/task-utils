@@ -1,4 +1,4 @@
-# task-utils v4.0.7
+# task-utils v5.0.0
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -33,22 +33,22 @@ In Node.js:
 * To use the task state classes and subclasses
 ```js
 const states = require('task-utils/task-states');
-
 // TaskState constructor
 const TaskState = states.TaskState;
 // TimeoutError constructor
 const TimeoutError = states.TimeoutError;
 
 // TaskState direct subclasses
-const Unstarted = states.Unstarted; // rather use TaskState.UNSTARTED singleton
+const Unstarted = states.Unstarted; // rather use TaskState.instances.Unstarted singleton
+const Started = states.Started; // rather use TaskState.instances.Started singleton
 const CompletedState = states.CompletedState;
 const TimedOutState = states.TimedOutState;
 const FailedState = states.FailedState;
 const RejectedState = states.RejectedState;
 
 // CompletedState subclasses
-const Completed = states.Completed; // rather use TaskState.COMPLETED singleton
-const Succeeded = states.Succeeded; // rather use TaskState.SUCCEEDED singleton
+const Completed = states.Completed; // rather use TaskState.instances.Completed singleton
+const Succeeded = states.Succeeded; // rather use TaskState.instances.Succeeded singleton
 
 // TimedOutState subclasses
 const TimedOut = states.TimedOut;
@@ -62,11 +62,14 @@ const Discarded = states.Discarded;
 const Abandoned = states.Abandoned;
 
 // Example unstarted state
-const unstarted = TaskState.UNSTARTED; // or more wasteful: new Unstarted();
+const unstarted = TaskState.instances.Unstarted; // or more wasteful: new Unstarted();
+
+// Example started state
+const started = TaskState.instances.Started; // or more wasteful: new Started();
 
 // Example completed states
-const completed = TaskState.COMPLETED; // or more wasteful: new Completed();
-const succeeded = TaskState.SUCCEEDED; // or more wasteful: new Succeeded();
+const completed = TaskState.instances.Completed; // or more wasteful: new Completed();
+const succeeded = TaskState.instances.Succeeded; // or more wasteful: new Succeeded();
 
 const customCompletedState = new CompletedState('MyCompletedState');
 
@@ -92,30 +95,35 @@ const customRejectedState = new RejectedState('MyRejectionState', 'My reason for
 
 * To use the task definition class (TaskDef)
 ```js
-const taskDefs = require('task-utils/tasks-defs');
-const TaskDef = taskDefs.TaskDef;
+const TaskDef = require('task-utils/tasks-defs');
 
 // To create a new top-level task definition
 const taskADef = TaskDef.defineTask('TaskA', execute);
 
 // ... with 3 sub-task definitions
-const subTaskA1Def = taskADef.defineSubTask('SubTaskA1', execute2);
-const subTaskDefs = taskADef.defineSubTasks(['SubTaskA2', 'SubTaskA3']);
+const subTaskA1Def = taskADef.defineSubTask('SubTaskA1', execute2); // executable sub-task
+const subTaskDefs = taskADef.defineSubTasks(['SubTaskA2', 'SubTaskA3']); // non-executable, internal sub-tasks
 
 // ... and with 1 sub-sub-task on SubTaskA1
 const subSubTaskA1aDef = subTaskA1Def.defineSubTask('SubSubTaskA1a');
 ```
 
-* To use the task class (Task)
+* To use the task class (Task) & task factory (TaskFactory)
 ```js
-const Tasks = require('task-utils/tasks');
-const Task = Tasks.Task;
+// First import the TaskFactory & Task classes
+const TaskFactory = require('task-utils/task-factory');
+const Task = require('task-utils/tasks');
+
+const logger = console; // or, better yet, use a logger created using `logging-utils` module
+const factoryOpts = {}; // or {returnSuccessOrFailure: true} to change default `execute` behaviour to only return Success or Failure outcomes
+const taskFactory = new TaskFactory(logger, factoryOpts);
 
 // To create a new task (and any & all of its sub-tasks)
 // e.g. using task definition taskADef as defined above, this would create a new task (named TaskA) 
 // with 3 new sub-tasks (named SubTaskA1, SubTaskA2 & SubTaskA3) under the new task  
 // and 1 new sub-sub-task (named SubSubTaskA1a) under sub-task SubTaskA1
-const taskA = Task.createTask(taskADef);
+const taskOpts = {}; // use this to set the task's optional `returnSuccessOrFailure` property, which if set to true or false, will override the factory's `returnSuccessOrFailure` property for this task
+const taskA = taskFactory.createTask(taskADef, taskOpts);
 ```
 
 * To use the task utilities
@@ -162,7 +170,106 @@ $ tape test/*.js
 
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
+## Migrating from version 4.x to 5.0.0
+- Replace all requires of `task-defs` module with:
+  ```js
+  const TaskDef = require('task-utils/task-defs');
+  ```
+- Replace all requires of `tasks` module with:
+  ```js
+  const Task = require('task-utils/tasks');
+  ```
+- Depending on your usage, you probably need to `require` & use the new `task-factory` module:
+  ```js
+  const TaskFactory = require('task-utils/task-factory');
+  // ... 
+  const logger = console; // or, better yet, use a logger created using `logging-utils` module
+  const factoryOpts = {}; // or {returnSuccessOrFailure: true} to change default `execute` behaviour to only return Success or Failure outcomes
+  const taskFactory = new TaskFactory(logger, factoryOpts);
+  ```
+- Replace any `Task.createTask` calls with `taskFactory.createTask` calls  
+- Replace any `Task.createMasterTask` calls with `taskFactory.createMasterTask` calls  
+- Fix any `new Task` calls by additionally passing a `factory` argument (and optional `opts` argument) or, better yet,
+  change them to `taskFactory.createTask` calls 
+
 ## Changes
+
+### 5.0.0
+- Added new `errors` module:
+  - Added new `FrozenError` subclass of `Error`
+  - Added new `FinalisedError` subclass of `Error`
+  - Added `TimeoutError` from `task-states` module
+- Added new `task-factory` module:
+  - Added a new `TaskFactory` class to eliminate use of statics and make it easier to override task factory functionality
+    - Added `createTask` method (taken from `tasks` module), which now also accepts an optional `opts` argument
+    - Added `createMasterTask` method (taken from `tasks` module), which now also accepts an optional `opts` argument
+  - Major changes and fixes to the original `executeAndUpdateTask` inner function from `Task`, which was moved from the 
+    deleted `Task.defaultTaskExecuteFactory` function to the new `generateExecute` method of the `TaskFactory` class
+  - Extracted & refactored some of the original `executeAndUpdateTask` inner function logic into a new `updateTask` 
+    method of the `TaskFactory` class
+  - Changed behaviour of new `executeAndUpdateState` inner function to throw a `FrozenError` if the task is already 
+    frozen or throw a `FinalisedError` if the task is already fully finalised (instead of returning undefined)
+- Changes to `task-states` module:
+  - Moved `TimeoutError` class to new `errors` module
+  - Exported new `names` object property that contains the standard TaskState names & also exposed it via `TaskState.names`
+  - Exported new `instances` object property that contains the singleton TaskState instances & also exposed it via `TaskState.instances`
+  - Replaced all old name constants (e.g. UNSTARTED_NAME) with appropriate `names` properties (e.g. names.Unstarted) 
+  - Replaced all old singleton instance constants (e.g. UNSTARTED) with appropriate `instances` properties (e.g. instances.Unstarted) 
+  - Added new `Started` state & updated `toTaskState` to also handle started states
+  - Added new `started` method to `TaskState` class
+  - Modified definition of `unstarted` method on `TaskState` class to enable differentiation between `Unstarted` & 
+   `Started` states
+  - Added appropriate `toString` methods to the various `TaskState` subclasses
+- Changes to `task-defs` module:
+  - NB: The `task-defs` module now exports ONLY the `TaskDef` class (instead of an object with a `TaskDef` property)
+  - Removed export of `FOR_TESTING_ONLY.ensureAllTaskDefsDistinct` & `FOR_TESTING_ONLY.areSubTaskNamesDistinct` functions
+  - Changed `defineTask` function to be only a static method on `TaskDef` class
+  - Changed `getRootTaskDef` function to be only a static method on `TaskDef` class
+  - Changed `ensureAllTaskDefsDistinct` function to be only a static method on `TaskDef` class
+  - Changed `areSubTaskNamesDistinct` function to be only a static method on `TaskDef` class
+- Changes to `tasks` module:
+  - NB: The `tasks` module now exports ONLY the `Task` class (instead of an object with a `Task` property)
+  - Removed export of `FOR_TESTING_ONLY.ensureAllTasksDistinct` & `FOR_TESTING_ONLY.reconstructTaskDefsFromRootTaskLike` functions
+  - Changed `ensureAllTasksDistinct` function to be only a static method on `Task` class
+  - Changed `areSubTaskNamesDistinct` function to be only a static method on `Task` class
+  - Changed `isTaskLike` function to be only a static method on `Task` class
+  - Changed `getTasksAndSubTasks` function to be only a static method on `Task` class
+  - Changed `getRootTask` function to be only a static method on `Task` class
+  - Changed & renamed `forEach` function to be only a static `forEachTaskLike` method on `Task` class (renamed to better
+    reflect its functionality and to avoid confusion with existing `forEach` method on `Task` class)
+  - Removed all task factory-related functions & migrated them to the new `TaskFactory` class
+    - Removed `createTask` function & static method and added it as a method to `TaskFactory` class
+    - Removed `createMasterTask` function & static method and added it as a method to `TaskFactory` class
+    - Removed `reconstructTasksFromRootTaskLike` function & static method and added it as a method to `TaskFactory` class
+    - Removed `reconstructTaskDefsFromRootTaskLike` function & static method and added it as a method to `TaskFactory` class
+    - Removed `createNewTasksUpdatedFromPriorVersions` function & static method and added it as a method to `TaskFactory` class
+  - Removed all task execute factory-related functions & migrated them to the new `TaskFactory` class
+    - Moved & renamed `defaultTaskExecuteFactory` function to `generateExecute` method of `TaskFactory` class
+    - Moved & renamed `completeTaskIfStillUnstarted` function to `completeTaskIfNecessary` method of `TaskFactory` class
+    - Moved & renamed `failTaskIfNotRejectedNorFailed` function to `failTaskIfNecessary` method of `TaskFactory` class
+    - Removed `Task.taskExecuteFactory` & `Task.defaultTaskExecuteFactory` static properties
+  - Changes to `Task` class:
+    - Added new mandatory `factory` parameter and new optional `opts` parameter to the `Task` constructor, which means 
+      that tasks must now be constructed with a `TaskFactory` instance or, preferably, by calling `createTask` on your 
+      `TaskFactory` instance
+    - Changed `updateFromPriorVersion` method to also accept an optional `opts` parameter
+    - Added new immutable `factory`, `returnSuccessOrFailure` and `_opts` properties 
+    - Added new writable `_outcome` and `_donePromise` properties and new `outcome` & `donePromise` getters
+    - Added new `started` method
+    - Changed `start` method to also change state to new `Started` state and to ONLY react if in an unstarted state
+    - Added new `decrementAttempts` method
+    - Added new `totalAttempts` property
+    - Added a new `executed` method, which is used by the overhauled `executeAndUpdateTask` inner function and new 
+      `updateTask` method of `TaskFactory` class to set the task's `_outcome` and `_donePromise` properties after
+      execution of the task's `execute` method
+    - Added new `createSubTask` method
+    - Renamed `getOrAddSubTask` method to `getOrCreateSubTask`
+- Changes to `task-utils` module:
+  - Added re-export of new `Started` `TaskState` subclass
+  - Added re-export of new `TaskFactory` class
+  - Removed duplicate `forEach` function & replaced usage with `Task.forEachTaskLike` method
+  - Added new mandatory `taskFactory` parameter and optional `opts` parameter to `replaceTasksWithNewTasksUpdatedFromOld` function
+- Updated `core-functions` dependency to version 3.0.0
 
 ### 4.0.7
 - Changes to `task-defs` and `tasks` modules:

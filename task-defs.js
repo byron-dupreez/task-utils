@@ -11,21 +11,11 @@ const Strings = require('core-functions/strings');
 const isString = Strings.isString;
 const isBlank = Strings.isBlank;
 const isNotBlank = Strings.isNotBlank;
-//const trim = Strings.trim;
 const stringify = Strings.stringify;
-
-const Objects = require('core-functions/objects');
 
 const Arrays = require('core-functions/arrays');
 const isDistinct = Arrays.isDistinct;
 const isArrayOfType = Arrays.isArrayOfType;
-
-module.exports = {
-  FOR_TESTING_ONLY: {
-    ensureAllTaskDefsDistinct: ensureAllTaskDefsDistinct,
-    areSubTaskNamesDistinct: areSubTaskNamesDistinct
-  },
-};
 
 //======================================================================================================================
 // TaskDef "class"
@@ -79,7 +69,7 @@ class TaskDef {
     if (!isString(name) || isBlank(name)) {
       throw new Error(`Cannot create a task definition with a ${!isString(name) ? "non-string" : "blank"} name (${stringify(name)})`);
     }
-    const taskName = Strings.trim(Objects.valueOf(name));
+    const taskName = name.trim();
 
     // Validate the given parent and the given execute function
     // -----------------------------------------------------------------------------------------------------------------
@@ -94,7 +84,7 @@ class TaskDef {
         throw new Error(`Cannot create an executable sub-task definition (${taskName}) with an invalid execute function`);
       }
       // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
-      if (!areSubTaskNamesDistinct(parent, taskName)) {
+      if (!TaskDef.areSubTaskNamesDistinct(parent, taskName)) {
         throw new Error(`Cannot add a sub-task definition (${taskName}) with a duplicate name to parent (${parent.name}) with existing sub-task definitions ${Strings.stringify(parent.subTaskDefs.map(d => d.name))}`);
       }
 
@@ -128,7 +118,7 @@ class TaskDef {
     // -----------------------------------------------------------------------------------------------------------------
     if (taskParent) {
       // NB: Must check this after adding sub-tasks, but before setting parent!
-      ensureAllTaskDefsDistinct(taskParent, this);
+      TaskDef.ensureAllTaskDefsDistinct(taskParent, this);
     }
 
     // Link this new task definition to its parent (if any)
@@ -165,6 +155,26 @@ class TaskDef {
   }
 
   /**
+   * Creates a new top-level, executable task definition to be used for creating executable tasks. Both the given name
+   * and execute function MUST be correctly defined; otherwise an appropriate error will be thrown.
+   *
+   * As soon as you have defined your top-level task, you can start adding sub-task definitions to it (if necessary) using
+   * {@linkcode TaskDef#defineSubTask} and/or {@linkcode TaskDef#defineSubTasks}, which return the newly created sub-task
+   * definition(s).
+   *
+   * If any of your new sub-task definitions also need to have sub-task definitions of their own, then simply use exactly
+   * the same procedure to add "sub-subTask" definitions to your sub-task definition.
+   *
+   * @param {string} taskName - the name of the task
+   * @param {Function} execute - the function to be executed when a task created using this definition is started
+   * @throws {Error} if taskName or execute are invalid
+   * @returns {TaskDef} a new executable task definition.
+   */
+  static defineTask(taskName, execute) {
+    return new TaskDef(taskName, execute, undefined);
+  }
+
+  /**
    * Creates and adds an executable sub-task definition (if execute is defined) or a non-executable, internal sub-task
    * definition (if execute is undefined) with the given name to this task definition.
    * @param {string} subTaskName - the name of the new sub-task definition
@@ -175,13 +185,13 @@ class TaskDef {
     if (!isString(subTaskName) || isBlank(subTaskName)) {
       throw new Error(`Cannot create a sub-task definition with a ${!isString(subTaskName) ? "non-string" : "blank"} name (${stringify(subTaskName)})`);
     }
-    const newName = Objects.valueOf(subTaskName).trim();
+    const newName = subTaskName.trim();
     // Ensure that execute (if defined) is actually executable (i.e. a valid function)
     if (execute !== undefined && typeof execute !== 'function') {
       throw new Error(`Cannot create an executable sub-task definition (${newName}) with an invalid execute function`);
     }
     // Ensure this task definition's sub-task names will still be distinct if we include the new sub-task's name
-    if (!areSubTaskNamesDistinct(this, newName)) {
+    if (!TaskDef.areSubTaskNamesDistinct(this, newName)) {
       throw new Error(`Cannot add sub-task definition (${newName}) with a duplicate name to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
     }
     // Create and add the new sub-task definition to this task definition's list of sub-task definitions
@@ -202,9 +212,9 @@ class TaskDef {
       if (!subTaskNames.every(name => isNotBlank(name))) {
         throw new Error(`Cannot create sub-task definitions with blank names ${stringify(subTaskNames)}`);
       }
-      const newNames = subTaskNames.map(n => Objects.valueOf(n).trim());
+      const newNames = subTaskNames.map(n => n.trim());
       // Ensure this task definition's sub-task names will still be distinct if we include the new sub-task names
-      if (!areSubTaskNamesDistinct(this, newNames)) {
+      if (!TaskDef.areSubTaskNamesDistinct(this, newNames)) {
         throw new Error(`Cannot add sub-task definitions ${stringify(newNames)} with duplicate names to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
       }
       // Create and add the new sub-task definitions to this task definition's list of sub-task definitions
@@ -213,142 +223,104 @@ class TaskDef {
     return [];
   }
 
-}
+  /**
+   * Cautiously attempts to get the root task definition for the given task definition by traversing up its task
+   * definition hierarchy using the parent links, until it finds the root (i.e. a parent task definition with no parent).
+   * During this traversal, if any task definition is recursively found to be a parent of itself, an error will be thrown.
+   *
+   * @param {TaskDef} taskDef - any task definition in the task definition hierarchy from which to start
+   * @throws {Error} if any task definition is recursively a parent of itself
+   * @returns {TaskDef} the root task definition
+   */
+  static getRootTaskDef(taskDef) {
+    if (!taskDef || !(taskDef instanceof Object)) {
+      return undefined;
+    }
 
-// Export the TaskDef "class" / constructor function as well
-module.exports.TaskDef = TaskDef;
+    function loop(def, history) {
+      const parent = def.parent;
+      if (!parent) {
+        return def;
+      }
+      if (history.indexOf(def) !== -1) {
+        // We have an infinite loop, since a previously visited task is recursively a parent of itself!
+        throw new Error(`Task hierarchy is not a valid Directed Acyclic Graph, since task definition (${def.name}) is recursively a parent of itself!`)
+      }
+      history.push(def);
+      return loop(parent, history);
+    }
 
-//======================================================================================================================
-// Static Task methods
-//======================================================================================================================
-
-/**
- * Creates a new top-level, executable task definition to be used for creating executable tasks. Both the given name
- * and execute function MUST be correctly defined; otherwise an appropriate error will be thrown.
- *
- * As soon as you have defined your top-level task, you can start adding sub-task definitions to it (if necessary) using
- * {@linkcode TaskDef#defineSubTask} and/or {@linkcode TaskDef#defineSubTasks}, which return the newly created sub-task
- * definition(s).
- *
- * If any of your new sub-task definitions also need to have sub-task definitions of their own, then simply use exactly
- * the same procedure to add "sub-subTask" definitions to your sub-task definition.
- *
- * @param {string} taskName - the name of the task
- * @param {Function} execute - the function to be executed when a task created using this definition is started
- * @throws {Error} if taskName or execute are invalid
- * @returns {TaskDef} a new executable task definition.
- */
-function defineTask(taskName, execute) {
-  return new TaskDef(taskName, execute, undefined);
-}
-
-// Add defineTask function as a static method on TaskDef (for convenience)
-if (!TaskDef.defineTask) {
-  TaskDef.defineTask = defineTask;
-}
-
-/**
- * Cautiously attempts to get the root task definition for the given task definition by traversing up its task
- * definition hierarchy using the parent links, until it finds the root (i.e. a parent task definition with no parent).
- * During this traversal, if any task definition is recursively found to be a parent of itself, an error will be thrown.
- *
- * @param {TaskDef} taskDef - any task definition in the task definition hierarchy from which to start
- * @throws {Error} if any task definition is recursively a parent of itself
- * @returns {TaskDef} the root task definition
- */
-function getRootTaskDef(taskDef) {
-  if (!taskDef || !(taskDef instanceof Object)) {
-    return undefined;
+    return loop(taskDef, []);
   }
 
-  function loop(def, history) {
-    const parent = def.parent;
-    if (!parent) {
-      return def;
+  /**
+   * Ensures that the task definition hierarchies of both the given proposed task definition and of the given parent task
+   * definition (if any) are both valid and could be safely combined into a single valid hierarchy; and, if not, throws an
+   * error.
+   *
+   * A valid hierarchy must only contain distinct task definitions (i.e. every task definition can only appear once in its
+   * hierarchy). This requirement ensures that a hierarchy is a Directed Acyclic Graph and avoids infinite loops.
+   *
+   * NB: The proposed task definition MUST NOT be linked to the given parent BEFORE calling this function (otherwise
+   * this function will always throw an error) and MUST only be subsequently linked to the given parent if this function
+   * does NOT throw an error.
+   *
+   * @param {TaskDef|undefined} [parent] - an optional parent task (or sub-task) definition (if any), which identifies the
+   * first hierarchy to check and to which the proposed task definition is intended to be linked
+   * @param {TaskDef|undefined} proposedTaskDef - a optional proposed task definition, which identifies the second
+   * hierarchy to check
+   * @throws {Error} if any task definition appears more than once in either hierarchy or in the proposed combination of
+   * both hierarchies
+   */
+  static ensureAllTaskDefsDistinct(parent, proposedTaskDef) {
+    // First find the root of the parent's task hierarchy
+    const parentRoot = parent ? TaskDef.getRootTaskDef(parent) : undefined;
+    // Next find the root of the proposed task definition's task hierarchy
+    const proposedTaskDefRoot = proposedTaskDef ? TaskDef.getRootTaskDef(proposedTaskDef) : undefined;
+
+    function loop(taskDef, history) {
+      if (!taskDef) {
+        return;
+      }
+      // Ensure that this definition does not appear more than once in the hierarchy
+      if (history.indexOf(taskDef) !== -1) {
+        // We have a problem with this task hierarchy, since a previously visited task definition appears more than once in the hierarchy!
+        throw new Error(`Task hierarchy is not a valid Directed Acyclic Graph, since task definition (${taskDef.name}) appears more than once in the hierarchy!`)
+      }
+      // Remember that we have seen this one
+      history.push(taskDef);
+
+      // Now check all of its sub-task definitions recursively too
+      const subTaskDefs = taskDef.subTaskDefs;
+      for (let i = 0; i < subTaskDefs.length; ++i) {
+        loop(subTaskDefs[i], history);
+      }
     }
-    if (history.indexOf(def) !== -1) {
-      // We have an infinite loop, since a previously visited task is recursively a parent of itself!
-      throw new Error(`Task hierarchy is not a valid Directed Acyclic Graph, since task definition (${def.name}) is recursively a parent of itself!`)
-    }
-    history.push(def);
-    return loop(parent, history);
+
+    const history = [];
+
+    // Next loop from the parent's root down through all of its sub-task definitions recursively, ensuring that there is no
+    // duplication of any task definition in the parent's hierarchy
+    loop(parentRoot, history);
+
+    // Finally loop from the proposed task definition's root down through all of its sub-task definitions recursively,
+    // ensuring that there is no duplication of any task definition in either hierarchy
+    loop(proposedTaskDefRoot, history);
   }
 
-  return loop(taskDef, []);
-}
-
-// Add getRootTaskDef function as a static method on TaskDef (for convenience)
-if (!TaskDef.getRootTaskDef) {
-  TaskDef.getRootTaskDef = getRootTaskDef;
-}
-
-//======================================================================================================================
-// Exported internal functions - not meant to be part of the public API, but exposed for testing purposes
-//======================================================================================================================
-
-/**
- * Ensures that the task definition hierarchies of both the given proposed task definition and of the given parent task
- * definition (if any) are both valid and could be safely combined into a single valid hierarchy; and, if not, throws an
- * error.
- *
- * A valid hierarchy must only contain distinct task definitions (i.e. every task definition can only appear once in its
- * hierarchy). This requirement ensures that a hierarchy is a Directed Acyclic Graph and avoids infinite loops.
- *
- * NB: The proposed task definition MUST NOT be linked to the given parent BEFORE calling this function (otherwise
- * this function will always throw an error) and MUST only be subsequently linked to the given parent if this function
- * does NOT throw an error.
- *
- * @param {TaskDef|undefined} [parent] - an optional parent task (or sub-task) definition (if any), which identifies the
- * first hierarchy to check and to which the proposed task definition is intended to be linked
- * @param {TaskDef|undefined} proposedTaskDef - a optional proposed task definition, which identifies the second
- * hierarchy to check
- * @throws {Error} if any task definition appears more than once in either hierarchy or in the proposed combination of
- * both hierarchies
- */
-function ensureAllTaskDefsDistinct(parent, proposedTaskDef) {
-  // First find the root of the parent's task hierarchy
-  const parentRoot = parent ? getRootTaskDef(parent) : undefined;
-  // Next find the root of the proposed task definition's task hierarchy
-  const proposedTaskDefRoot = proposedTaskDef ? getRootTaskDef(proposedTaskDef) : undefined;
-
-  function loop(taskDef, history) {
-    if (!taskDef) {
-      return;
-    }
-    // Ensure that this definition does not appear more than once in the hierarchy
-    if (history.indexOf(taskDef) !== -1) {
-      // We have a problem with this task hierarchy, since a previously visited task definition appears more than once in the hierarchy!
-      throw new Error(`Task hierarchy is not a valid Directed Acyclic Graph, since task definition (${taskDef.name}) appears more than once in the hierarchy!`)
-    }
-    // Remember that we have seen this one
-    history.push(taskDef);
-
-    // Now check all of its sub-task definitions recursively too
-    const subTaskDefs = taskDef.subTaskDefs;
-    for (let i = 0; i < subTaskDefs.length; ++i) {
-      loop(subTaskDefs[i], history);
-    }
+  /**
+   * Returns true if the proposed sub-task names together with the given parent task definition's sub-task names are all
+   * still distinct; otherwise returns false.
+   * @param parent
+   * @param {string|string[]} proposedNames - the name or names of the proposed sub-task definitions to be checked
+   */
+  static areSubTaskNamesDistinct(parent, proposedNames) {
+    const oldNames = parent ? parent.subTaskDefs.map(d => d.name) : [];
+    const newNames = oldNames.concat(proposedNames);
+    return isDistinct(newNames);
   }
 
-  const history = [];
-
-  // Next loop from the parent's root down through all of its sub-task definitions recursively, ensuring that there is no
-  // duplication of any task definition in the parent's hierarchy
-  loop(parentRoot, history);
-
-  // Finally loop from the proposed task definition's root down through all of its sub-task definitions recursively,
-  // ensuring that there is no duplication of any task definition in either hierarchy
-  loop(proposedTaskDefRoot, history);
 }
 
-/**
- * Returns true if the proposed sub-task names together with the given parent task definition's sub-task names are all
- * still distinct; otherwise returns false.
- * @param parent
- * @param {string|string[]} proposedNames - the name or names of the proposed sub-task definitions to be checked
- */
-function areSubTaskNamesDistinct(parent, proposedNames) {
-  const oldNames = parent ? parent.subTaskDefs.map(d => d.name) : [];
-  const newNames = oldNames.concat(proposedNames);
-  return isDistinct(newNames);
-}
+// Export the TaskDef "class" / constructor function
+module.exports = TaskDef;

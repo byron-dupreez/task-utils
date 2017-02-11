@@ -1,12 +1,10 @@
 'use strict';
 
-const states = require('./task-states');
-
-const taskDefs = require('./task-defs');
-
-const Tasks = require('./tasks');
-const Task = Tasks.Task;
+const TaskDef = require('./task-defs');
+const TaskFactory = require('./task-factory');
+const Task = require('./tasks');
 const isTaskLike = Task.isTaskLike;
+const states = require('./task-states');
 
 /**
  * Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object.
@@ -31,15 +29,16 @@ module.exports = {
   TaskState: states.TaskState,
 
   // TaskState direct subclasses
-  Unstarted: states.Unstarted, // rather use UNSTARTED singleton
+  Unstarted: states.Unstarted, // rather use instances.Unstarted singleton
+  Started: states.Started, // rather use instances.Started singleton
   CompletedState: states.CompletedState,
   TimedOutState: states.TimedOutState,
   FailedState: states.FailedState,
   RejectedState: states.RejectedState,
 
   // CompletedState subclasses
-  Completed: states.Completed, // rather use COMPLETED singleton
-  Succeeded: states.Succeeded, // rather use SUCCEEDED singleton
+  Completed: states.Completed, // rather use instances.Completed singleton
+  Succeeded: states.Succeeded, // rather use instances.Succeeded singleton
 
   // TimedOutState subclasses
   TimedOut: states.TimedOut,
@@ -53,10 +52,13 @@ module.exports = {
   Abandoned: states.Abandoned,
 
   // 2. Re-export TaskDef class from task-defs.js module
-  TaskDef: taskDefs.TaskDef,
+  TaskDef: TaskDef,
 
-  // 3. Re-export Task class from tasks.js module
-  Task: Tasks.Task
+  // 3. Re-export TaskFactory class from task-factory.js module
+  TaskFactory: TaskFactory,
+
+  // 4. Re-export Task class from tasks.js module
+  Task: Task
 };
 
 /**
@@ -143,14 +145,9 @@ function getTasksAndSubTasks(tasksByName) {
   const allTasksAndSubTasks = [];
 
   // Collect all tasks and all of their subtasks recursively
-  tasks.forEach(task => forEach(task, t => allTasksAndSubTasks.push(t)));
+  tasks.forEach(task => Task.forEachTaskLike(task, t => allTasksAndSubTasks.push(t)));
 
   return allTasksAndSubTasks;
-}
-
-function forEach(task, callback) {
-  callback(task);
-  task.subTasks.forEach(t => forEach(t, callback));
 }
 
 /**
@@ -173,16 +170,18 @@ function setTask(tasksByName, taskName, task) {
  * tasks. Finally, returns both the newly created and updated, active tasks and any no longer active, abandoned tasks
  * that were all added to the given tasksByName.
  *
- * @param {Object|Map} tasksByName - the tasksByName "map" object (or Map) on which to replace its tasks
+ * @param {Object|Map} tasksByName - the tasksByName "map" object (or Map) on which to replace its old tasks or task-likes
  * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
+ * @param {TaskFactory} taskFactory - the task factory to use to create the replacement tasks
+ * @param {TaskOpts|undefined} [opts] - optional options to use to alter the behaviour of all newly created Tasks
  * @returns {Array.<Task[]>} both the updated, newly created tasks and any abandoned tasks
  */
-function replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs) {
+function replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs, taskFactory, opts) {
   // Fetch any and all of the existing previous version tasks from the given tasksByName map
   const priorTasks = getTasks(tasksByName);
 
   // Create new tasks from the given active task definitions and update them with the info from the previous tasks
-  const newTasksAndAbandonedTasks = Task.createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorTasks);
+  const newTasksAndAbandonedTasks = taskFactory.createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorTasks, opts);
   const newTasks = newTasksAndAbandonedTasks[0];
   const abandonedTasks = newTasksAndAbandonedTasks[1];
   const allTasks = newTasks.concat(abandonedTasks);
@@ -192,15 +191,3 @@ function replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs) {
 
   return newTasksAndAbandonedTasks;
 }
-
-// function setTask(target, taskName, task) {
-//   let oldTask = undefined;
-//   if (target instanceof Map) {
-//     oldTask = target.get(taskName);
-//     target.set(taskName, task);
-//   } else if (target && typeof target === 'object') {
-//     oldTask = target[taskName];
-//     target[taskName] = task;
-//   }
-//   return oldTask;
-// }
