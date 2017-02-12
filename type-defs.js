@@ -122,3 +122,22 @@
  * @property {string} LogicFlawed - an arbitrary name for a LogicFlawed task state (potentially used as a rejected or failed state)
  * @property {string} FATAL - an arbitrary name for a FATAL task state (potentially used as a rejected or failed state)
  */
+
+/**
+ * @typedef {Object} TaskFactoryAware - an object configured with a task factory
+ * @property {TaskFactory} taskFactory - the task factory to use to create Tasks
+ */
+
+/**
+ * @typedef {function(logger: BasicLogger|console, opts: TaskFactoryOptions): TaskFactory} CreateTaskFactory - a function to use to create a new TaskFactory instance
+ */
+
+/**
+ * @typedef {Object} TaskFactorySettings - settings to use to construct a task factory
+ * @property {CreateTaskFactory|undefined} [createTaskFactory] - an optional function to use to create a new task factory (defaults to using `TaskFactory` constructor if undefined)
+ */
+
+/**
+ * @typedef {Object} TaskFactoryOptions - options to use to construct a task factory
+ * @property {boolean|undefined} [returnSuccessOrFailure] - whether to generate task `execute` methods that only return `Success` or `Failure` outcomes (if truthy); or return or throw normally (if anything else)
+ */

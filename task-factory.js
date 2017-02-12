@@ -40,9 +40,7 @@ class TaskFactory {
   /**
    * Constructs a new task factory.
    * @param {BasicLogger|console|undefined} [logger] - an optional logger or logger-like object to use for logging (defaults to console if undefined)
-   * @param {Object|undefined} [opts] - optional options to use to configure the behaviour of this factory
-   * @param {boolean|undefined} [opts.returnSuccessOrFailure] - whether to generate task `execute` functions that only
-   * return `Success` or `Failure` outcomes (if truthy); or return or throw normally (if anything else)
+   * @param {TaskFactoryOptions|undefined} [opts] - optional options to use to configure the behaviour of this factory
    */
   constructor(logger, opts) {
     Object.defineProperty(this, 'logger', {value: logger ? logger : console, enumerable: false});

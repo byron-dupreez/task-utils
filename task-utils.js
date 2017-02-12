@@ -4,26 +4,46 @@ const TaskDef = require('./task-defs');
 const TaskFactory = require('./task-factory');
 const Task = require('./tasks');
 const isTaskLike = Task.isTaskLike;
+const errors = require('./errors');
 const states = require('./task-states');
+const Objects = require('core-functions/objects');
+const Strings = require('core-functions/strings');
+const stringify = Strings.stringify;
+const Booleans = require('core-functions/booleans');
+const isTrueOrFalse = Booleans.isTrueOrFalse;
+const tries = require('core-functions/tries');
+const Try = tries.Try;
+const Failure = tries.Failure;
 
 /**
- * Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object.
+ * Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object and for constructing
+ * and configuring a task factory on a context.
  * @module task-utils/task-utils
  * @author Byron du Preez
  */
 module.exports = {
+  // Functions to get tasks from and set tasks into tasks by name maps
   getTask: getTask,
   getSubTask: getSubTask,
   getTasks: getTasks,
   getTasksAndSubTasks: getTasksAndSubTasks,
   setTask: setTask,
+  // Function to replace task-likes in a tasks by name map with new tasks updated from the old task-likes
   replaceTasksWithNewTasksUpdatedFromOld: replaceTasksWithNewTasksUpdatedFromOld,
+  // Task factory configuration
+  isTaskFactoryConfigured: isTaskFactoryConfigured,
+  configureTaskFactory: configureTaskFactory,
+  constructTaskFactory: constructTaskFactory,
+  getDefaultTaskFactoryOpts: getDefaultTaskFactoryOpts,
 
   // To simplify usage and reduce the number of explicit imports required
-  // 1. Re-export TaskState class and all of its subclasses and TimeoutError class from task-states.js module
 
-  // TimeoutError constructor
-  TimeoutError: states.TimeoutError,
+  // 1. Re-export errors for convenience
+  TimeoutError: errors.TimeoutError,
+  FrozenError: errors.FrozenError,
+  FinalisedError: errors.FinalisedError,
+
+  // 2. Re-export TaskState class and all of its subclasses and TimeoutError class from task-states.js module
 
   // TaskState constructors
   TaskState: states.TaskState,
@@ -51,13 +71,13 @@ module.exports = {
   Discarded: states.Discarded,
   Abandoned: states.Abandoned,
 
-  // 2. Re-export TaskDef class from task-defs.js module
+  // 3. Re-export TaskDef class from task-defs.js module
   TaskDef: TaskDef,
 
-  // 3. Re-export TaskFactory class from task-factory.js module
+  // 4. Re-export TaskFactory class from task-factory.js module
   TaskFactory: TaskFactory,
 
-  // 4. Re-export Task class from tasks.js module
+  // 5. Re-export Task class from tasks.js module
   Task: Task
 };
 
@@ -190,4 +210,94 @@ function replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs, tas
   allTasks.forEach(task => setTask(tasksByName, task.name, task));
 
   return newTasksAndAbandonedTasks;
+}
+
+/**
+ * Returns true if a valid TaskFactory instance is already configured on the given context object; false otherwise.
+ * @param {TaskFactoryAware|Object} context - the context to check
+ * @returns {boolean} true if the context is configured with a valid TaskFactory; false otherwise
+ */
+function isTaskFactoryConfigured(context) {
+  return context.taskFactory instanceof TaskFactory;
+}
+
+/**
+ * Constructs a new task factory using the given optional settings and with the given logger and optional factory opts
+ * and then configures the given context object with the new task factory, but ONLY if the given context does NOT
+ * already have a valid task factory.
+ * @param {TaskFactoryAware|Object} context - the context onto which to configure a task factory
+ * @param {TaskFactorySettings|undefined} [settings] - optional settings to use to construct the task factory
+ * @param {BasicLogger|console|undefined} [logger] - the logger with which to construct the task factory (defaults to console if undefined)
+ * @param {TaskFactoryOptions|undefined} [factoryOpts] - optional factory opts with which to construct the task factory
+ * @returns {TaskFactoryAware} the given context configured with a task factory
+ */
+function configureTaskFactory(context, settings, logger, factoryOpts) {
+  // Check if a task factory is already configured on the context
+  if (isTaskFactoryConfigured(context)) {
+    return context;
+  }
+  // Resolve the task factory opts to be used
+  const opts = factoryOpts && typeof factoryOpts === 'object' ? Objects.copy(factoryOpts, {deep: true}) : {};
+  Objects.merge(getDefaultTaskFactoryOpts(), opts);
+
+  // Resolve the `createTaskFactory` function to use (if configured)
+  const createTaskFactory = settings && typeof settings === 'object' && settings.createTaskFactory ?
+    settings.createTaskFactory : undefined;
+
+  context.taskFactory = constructTaskFactory(createTaskFactory, logger, opts);
+
+  return context;
+}
+
+/** Loads the local default options & merges them with the static default options */
+function getDefaultTaskFactoryOpts() {
+  const defaultOptions = Objects.copy(require('./default-factory-opts.json'), {deep: true});
+  // Remove any non-boolean defaultOptions.returnSuccessOrFailure
+  if (!isTrueOrFalse(defaultOptions.returnSuccessOrFailure)) {
+    delete defaultOptions.returnSuccessOrFailure;
+  }
+  return Objects.merge({returnSuccessOrFailure: false}, defaultOptions);
+}
+
+/**
+ * Constructs a new task factory with the given logger and factory opts using either the given `createTaskFactory`
+ * function (if defined) or the default TaskFactory constructor (if not).
+ * @param {CreateTaskFactory|undefined} [createTaskFactory] - an optional function to use to create a new task factory
+ * @param {BasicLogger|console|undefined} [logger] - the logger with which to construct the task factory (defaults to console if undefined)
+ * @param {TaskFactoryOptions|undefined} [opts] - optional opts with which to construct the task factory
+ * @returns {TaskFactory} a new TaskFactory instance
+ * @throws {Error} if the given createTaskFactory function is defined, but is not a function or does not create a valid
+ * TaskFactory or if it throws an error
+ */
+function constructTaskFactory(createTaskFactory, logger, opts) {
+  if (!logger) logger = console;
+  if (createTaskFactory) {
+    // Ensure that `createTaskFactory` is a function
+    if (typeof createTaskFactory !== "function") {
+      const errMsg = `Failed to construct a task factory, since createTaskFactory (${stringify(createTaskFactory)}) is NOT a function `;
+      logger.error(errMsg);
+      throw new Error(errMsg);
+    }
+    // Attempt to create a task factory using the given `createTaskFactory` function
+    const outcome = Try.try(() => createTaskFactory(logger, opts)).map(
+      taskFactory => {
+        // Ensure that the `createTaskFactory` function actually returned a valid TaskFactory instance
+        if (!(taskFactory instanceof TaskFactory)) {
+          const errMsg = `Failed to construct a task factory, since ${stringify(createTaskFactory)} did NOT create an instance of TaskFactory - unexpected result: ${stringify(taskFactory)}`;
+          logger.error(errMsg);
+          return new Failure(new Error(errMsg)); // throw new Error(errMsg);
+        }
+        logger.log('INFO', `Constructed a ${taskFactory.constructor.name} task factory using ${stringify(createTaskFactory)}`);
+        return taskFactory;
+      },
+      err => {
+        const errMsg = `Failed to construct a task factory, since ${stringify(createTaskFactory)} failed`;
+        logger.error(errMsg, err.stack);
+        return new Failure(err); // throw err;
+      }
+    );
+    return outcome.get();
+  }
+  logger.log('INFO', `Constructed a TaskFactory task factory using the default TaskFactory constructor`);
+  return new TaskFactory(logger, opts);
 }

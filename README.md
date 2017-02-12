@@ -1,4 +1,4 @@
-# task-utils v5.0.0
+# task-utils v5.0.1
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -30,13 +30,19 @@ $ npm i --save task-utils
 
 In Node.js:
 
+* To use the task-related errors
+```js
+const errors = require('task-utils/errors');
+// Task-related errors
+const TimeoutError = errors.TimeoutError;
+const FrozenError = errors.FrozenError;
+const FinalisedError = errors.FinalisedError;
+```
 * To use the task state classes and subclasses
 ```js
 const states = require('task-utils/task-states');
 // TaskState constructor
 const TaskState = states.TaskState;
-// TimeoutError constructor
-const TimeoutError = states.TimeoutError;
 
 // TaskState direct subclasses
 const Unstarted = states.Unstarted; // rather use TaskState.instances.Unstarted singleton
@@ -95,7 +101,7 @@ const customRejectedState = new RejectedState('MyRejectionState', 'My reason for
 
 * To use the task definition class (TaskDef)
 ```js
-const TaskDef = require('task-utils/tasks-defs');
+const TaskDef = require('task-utils/task-defs');
 
 // To create a new top-level task definition
 const taskADef = TaskDef.defineTask('TaskA', execute);
@@ -116,7 +122,7 @@ const Task = require('task-utils/tasks');
 
 const logger = console; // or, better yet, use a logger created using `logging-utils` module
 const factoryOpts = {}; // or {returnSuccessOrFailure: true} to change default `execute` behaviour to only return Success or Failure outcomes
-const taskFactory = new TaskFactory(logger, factoryOpts);
+const taskFactory = new TaskFactory(logger, factoryOpts); // or better yet, use `taskUtils.configureTaskFactory` (see below)
 
 // To create a new task (and any & all of its sub-tasks)
 // e.g. using task definition taskADef as defined above, this would create a new task (named TaskA) 
@@ -126,9 +132,23 @@ const taskOpts = {}; // use this to set the task's optional `returnSuccessOrFail
 const taskA = taskFactory.createTask(taskADef, taskOpts);
 ```
 
-* To use the task utilities
+* To use the task utilities to configure a task factory on any context object
 ```js
-const taskUtils = require('task-utils/task-utils');
+const taskUtils = require('task-utils');
+
+const context = {}; // or your own context object (preferably configured as a logger too using logging-utils)
+const settings = undefined; // use this to define your own custom `createTaskFactory` function to be used
+const factoryOpts = undefined; // use this to override the factory's default false `returnSuccessOrFailure` property
+
+// Configure a task factory on the context object
+taskUtils.configureTaskFactory(context, settings, logger, factoryOpts);
+
+assert(context.taskFactory instanceof taskUtils.TaskFactory);
+```
+
+* To use the task utilities to get & set tasks on a tasks by name "map" object
+```js
+const taskUtils = require('task-utils');
 
 const tasksByName = {}; // or any object to which you are attaching tasks
 
@@ -170,7 +190,7 @@ $ tape test/*.js
 
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
-## Migrating from version 4.x to 5.0.0
+## Migrating from version 4.x to 5.0.1
 - Replace all requires of `task-defs` module with:
   ```js
   const TaskDef = require('task-utils/task-defs');
@@ -179,7 +199,7 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   ```js
   const Task = require('task-utils/tasks');
   ```
-- Depending on your usage, you probably need to `require` & use the new `task-factory` module:
+- Depending on your usage, you probably need to EITHER `require` & use the new `task-factory` module:
   ```js
   const TaskFactory = require('task-utils/task-factory');
   // ... 
@@ -187,12 +207,31 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   const factoryOpts = {}; // or {returnSuccessOrFailure: true} to change default `execute` behaviour to only return Success or Failure outcomes
   const taskFactory = new TaskFactory(logger, factoryOpts);
   ```
+  ... OR, better yet, configure a task factory on a context object:
+  ```js
+  const taskUtils = require('task-utils');
+
+  const context = {}; // or your own context object (preferably configured as a logger too using logging-utils)
+  const settings = undefined; // use this to define your own custom `createTaskFactory` function to be used
+  const factoryOpts = undefined; // use this to set the factory's default `returnSuccessOrFailure` property
+
+  // Configure a task factory on the context object
+  taskUtils.configureTaskFactory(context, settings, logger, factoryOpts);
+
+  assert(context.taskFactory instanceof taskUtils.TaskFactory);
+  ```
 - Replace any `Task.createTask` calls with `taskFactory.createTask` calls  
 - Replace any `Task.createMasterTask` calls with `taskFactory.createMasterTask` calls  
 - Fix any `new Task` calls by additionally passing a `factory` argument (and optional `opts` argument) or, better yet,
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 5.0.1
+- Changes to `task-utils` module:
+  - Added new `configureTaskFactory`, `isTaskFactoryConfigured`, `constructTaskFactory` & `getDefaultTaskFactoryOpts`
+    functions
+  - Re-exported `FrozenError` & `FinalisedError` for convenience
 
 ### 5.0.0
 - Added new `errors` module:

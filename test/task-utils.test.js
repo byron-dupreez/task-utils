@@ -15,6 +15,10 @@ const getTasks = taskUtils.getTasks;
 const getTasksAndSubTasks = taskUtils.getTasksAndSubTasks;
 const setTask = taskUtils.setTask;
 const replaceTasksWithNewTasksUpdatedFromOld = taskUtils.replaceTasksWithNewTasksUpdatedFromOld;
+const isTaskFactoryConfigured = taskUtils.isTaskFactoryConfigured;
+const configureTaskFactory = taskUtils.configureTaskFactory;
+const constructTaskFactory = taskUtils.constructTaskFactory;
+const getDefaultTaskFactoryOpts = taskUtils.getDefaultTaskFactoryOpts;
 
 const TaskDef = require('../task-defs');
 const TaskFactory = require('../task-factory');
@@ -23,12 +27,36 @@ const Task = require('../tasks');
 // const states = require('../task-states');
 
 const Arrays = require('core-functions/arrays');
+const Booleans = require('core-functions/booleans');
+const isTrueOrFalse = Booleans.isTrueOrFalse;
 
 const strings = require('core-functions/strings');
 const stringify = strings.stringify;
 
 const taskFactory1 = new TaskFactory(console, {returnSuccessOrFailure: false});
 // const taskFactory2 = new TaskFactory(console, {returnSuccessOrFailure: true});
+
+class SimpleTaskFactory extends TaskFactory {
+  generateExecute(task, execute) {
+    return execute.bind(task);
+  }
+}
+
+function createTaskFactory(logger, opts) {
+  return new TaskFactory(logger, opts)
+}
+function createNonTaskFactory(logger, opts) {
+  return {logger: logger, opts: opts}
+}
+function createTaskFactoryThrows(logger, opts) {
+  throw new Error(`Planned error (${stringify(logger)}, ${stringify(opts)})`);
+}
+function createSimpleTaskFactory(logger, opts) {
+  return new SimpleTaskFactory(logger, opts)
+}
+
+const usableCreateTaskFactoryFunctions = [undefined, null, createTaskFactory, createSimpleTaskFactory];
+const unusableCreateTaskFactoryFunctions = ['Bob', createNonTaskFactory, createTaskFactoryThrows];
 
 //======================================================================================================================
 // getTask
@@ -103,7 +131,8 @@ test('getTask with a real Task returns it', t => {
 
   // Create a real task
   const taskName = 'Task 1';
-  const taskDef = TaskDef.defineTask(taskName, () => {});
+  const taskDef = TaskDef.defineTask(taskName, () => {
+  });
   taskDef.defineSubTasks(['SubTask 1a', 'SubTask 1b']);
   const origTask = createTask(taskDef);
 
@@ -1202,6 +1231,154 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 5: Old finalised tasks w
     t.ok(st.unstarted, `${st.name} must be unstarted`);
     t.equal(st.attempts, 4, `AFTER ${st.name} attempts must be 4`);
   });
+
+  t.end();
+});
+
+// =====================================================================================================================
+// getDefaultTaskFactoryOpts
+// =====================================================================================================================
+
+test('getDefaultTaskFactoryOpts', t => {
+  const loadedOpts = require('../default-factory-opts.json');
+  const defaultOpts = getDefaultTaskFactoryOpts();
+  t.ok(defaultOpts, `defaultOpts must be defined`);
+  t.ok(typeof defaultOpts === "object", `defaultOpts must be an object`);
+  t.notEqual(defaultOpts, loadedOpts, `defaultOpts must NOT be loadedOpts`);
+  if (isTrueOrFalse(loadedOpts.returnSuccessOrFailure)) {
+    t.equal(defaultOpts.returnSuccessOrFailure, loadedOpts.returnSuccessOrFailure, `defaultOpts.returnSuccessOrFailure must be ${loadedOpts.returnSuccessOrFailure}`);
+  } else {
+    t.equal(defaultOpts.returnSuccessOrFailure, false, `defaultOpts.returnSuccessOrFailure must be false`);
+  }
+  t.end();
+});
+
+// =====================================================================================================================
+// isTaskFactoryConfigured
+// =====================================================================================================================
+
+test('isTaskFactoryConfigured', t => {
+  const context = {};
+  t.equal(isTaskFactoryConfigured(context), false, `context.taskFactory must not be configured yet`);
+  context.taskFactory = new Error('Ha!');
+  t.equal(isTaskFactoryConfigured(context), false, `context.taskFactory with a non-TaskFactory (${context.taskFactory}) must be considered to be not configured yet`);
+  context.taskFactory = new TaskFactory();
+  t.equal(isTaskFactoryConfigured(context), true, `context.taskFactory with a TaskFactory must be considered to be configured`);
+  t.end();
+});
+
+// =====================================================================================================================
+// constructTaskFactory
+// =====================================================================================================================
+
+test('constructTaskFactory', t => {
+  function check(createTaskFactory, logger, opts, expectedReturnSuccessOrFailure) {
+    const actual = constructTaskFactory(createTaskFactory, logger, opts);
+    const prefix = `constructTaskFactory(${stringify(createTaskFactory)}, ${stringify(logger)}, ${stringify(opts)})`;
+    t.ok(actual instanceof TaskFactory, `${prefix} must be an instance of TaskFactory`);
+    if (createTaskFactory === createSimpleTaskFactory) {
+      t.ok(actual instanceof SimpleTaskFactory, `${prefix} must be an instance of SimpleTaskFactory`);
+    }
+    const expectedLogger = logger ? logger : console;
+    t.equal(actual.logger, expectedLogger, `${prefix}.logger must be ${stringify(expectedLogger)}`);
+    t.equal(actual.returnSuccessOrFailure, expectedReturnSuccessOrFailure, `${prefix}.returnSuccessOrFailure must be ${expectedReturnSuccessOrFailure}`);
+  }
+
+  function checkThrows(createTaskFactory, logger, opts) {
+    const prefix = `constructTaskFactory(${stringify(createTaskFactory)}, ${stringify(logger)}, ${stringify(opts)})`;
+    t.throws(() => constructTaskFactory(createTaskFactory, logger, opts), Error, `${prefix} must throw an error`);
+  }
+
+  for (let i = 0; i < usableCreateTaskFactoryFunctions.length; ++i) {
+    const createTaskFactory = usableCreateTaskFactoryFunctions[i];
+    check(createTaskFactory, undefined, undefined, false);
+    check(createTaskFactory, console, undefined, false);
+    check(createTaskFactory, new console.Console(process.stdout, process.stderr), undefined, false);
+
+    check(createTaskFactory, undefined, {returnSuccessOrFailure: false}, false);
+    check(createTaskFactory, console, {returnSuccessOrFailure: false}, false);
+    check(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: false}, false);
+
+    check(createTaskFactory, undefined, {returnSuccessOrFailure: true}, true);
+    check(createTaskFactory, console, {returnSuccessOrFailure: true}, true);
+    check(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: true}, true);
+  }
+
+  for (let i = 0; i < unusableCreateTaskFactoryFunctions.length; ++i) {
+    const createTaskFactory = unusableCreateTaskFactoryFunctions[i];
+    checkThrows(createTaskFactory, undefined, undefined);
+    checkThrows(createTaskFactory, console, undefined);
+    checkThrows(createTaskFactory, new console.Console(process.stdout, process.stderr), undefined);
+
+    checkThrows(createTaskFactory, undefined, {returnSuccessOrFailure: false});
+    checkThrows(createTaskFactory, console, {returnSuccessOrFailure: false});
+    checkThrows(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: false});
+
+    checkThrows(createTaskFactory, undefined, {returnSuccessOrFailure: true});
+    checkThrows(createTaskFactory, console, {returnSuccessOrFailure: true});
+    checkThrows(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: true});
+  }
+
+  t.end();
+});
+
+// =====================================================================================================================
+// configureTaskFactory
+// =====================================================================================================================
+
+test('configureTaskFactory', t => {
+  function check(createTaskFactory, logger, opts, expectedReturnSuccessOrFailure) {
+    const context = {};
+    const settings = createTaskFactory === undefined ? undefined : createTaskFactory === null ? null : { createTaskFactory: createTaskFactory };
+    const actualContext = configureTaskFactory(context, settings, logger, opts);
+    const prefix = `configureTaskFactory(context, ${stringify(settings)}, ${stringify(logger)}, ${stringify(opts)})`;
+    t.equal(actualContext, context, `${prefix} must return the given context`);
+    const actualTaskFactory = actualContext.taskFactory;
+    //t.ok(actualTaskFactory, `${prefix}.taskFactory must be defined`);
+    t.ok(actualTaskFactory instanceof TaskFactory, `${prefix}.taskFactory must be an instance of TaskFactory`);
+    if (createTaskFactory === createSimpleTaskFactory) {
+      t.ok(actualTaskFactory instanceof SimpleTaskFactory, `${prefix}.taskFactory must be an instance of SimpleTaskFactory`);
+    }
+    const expectedLogger = logger ? logger : console;
+    t.equal(actualTaskFactory.logger, expectedLogger, `${prefix}.taskFactory.logger must be ${stringify(expectedLogger)}`);
+    t.equal(actualTaskFactory.returnSuccessOrFailure, expectedReturnSuccessOrFailure, `${prefix}.taskFactory.returnSuccessOrFailure must be ${expectedReturnSuccessOrFailure}`);
+  }
+  function checkThrows(createTaskFactory, logger, opts) {
+    const context = {};
+    const settings = createTaskFactory !== undefined ? { createTaskFactory: createTaskFactory } : undefined;
+    const prefix = `configureTaskFactory(context, ${stringify(settings)}, ${stringify(logger)}, ${stringify(opts)})`;
+    t.throws(() => configureTaskFactory(context, settings, logger, opts), Error, `${prefix} must throw an error`);
+  }
+
+  for (let i = 0; i < usableCreateTaskFactoryFunctions.length; ++i) {
+    const createTaskFactory = usableCreateTaskFactoryFunctions[i];
+    check(createTaskFactory, undefined, undefined, false);
+    check(createTaskFactory, console, undefined, false);
+    check(createTaskFactory, new console.Console(process.stdout, process.stderr), undefined, false);
+
+    check(createTaskFactory, undefined, {returnSuccessOrFailure: false}, false);
+    check(createTaskFactory, console, {returnSuccessOrFailure: false}, false);
+    check(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: false}, false);
+
+    check(createTaskFactory, undefined, {returnSuccessOrFailure: true}, true);
+    check(createTaskFactory, console, {returnSuccessOrFailure: true}, true);
+    check(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: true}, true);
+  }
+
+  for (let i = 0; i < unusableCreateTaskFactoryFunctions.length; ++i) {
+    const createTaskFactory = unusableCreateTaskFactoryFunctions[i];
+    checkThrows(createTaskFactory, undefined, undefined);
+    checkThrows(createTaskFactory, console, undefined);
+    checkThrows(createTaskFactory, new console.Console(process.stdout, process.stderr), undefined);
+
+    checkThrows(createTaskFactory, undefined, {returnSuccessOrFailure: false});
+    checkThrows(createTaskFactory, console, {returnSuccessOrFailure: false});
+    checkThrows(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: false});
+
+    checkThrows(createTaskFactory, undefined, {returnSuccessOrFailure: true});
+    checkThrows(createTaskFactory, console, {returnSuccessOrFailure: true});
+    checkThrows(createTaskFactory, new console.Console(process.stdout, process.stderr), {returnSuccessOrFailure: true});
+  }
 
   t.end();
 });
