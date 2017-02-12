@@ -1,22 +1,32 @@
-# task-utils v5.0.1
+# task-utils v5.0.2
 
-Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
+Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
+creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
-These modules provide a way to attach tasks to objects that can be executed and used to track the state and number of attempts at each task.
+These modules provide a way to attach tasks to objects that can be executed and used to track the state and number of 
+attempts at each task.
 
-Tasks are root/top-level, executable tasks (with a configurable execute function), whereas sub-tasks are internal, non-executable tasks whose states must be managed completely by the execute function of their root task.
+Tasks are root/top-level, executable tasks (with a configurable execute function), whereas sub-tasks can be either 
+executable tasks (with their own configurable execute functions) or internal, non-executable tasks whose states must be 
+managed completely by the execute function of their parent task.
 
 Currently includes:
+- errors.js 
+  - Task-related Error subclasses
 - task-states.js 
   - A TaskState class and its subclasses with static utilities for defining the state of a task or operation.
 - task-defs.js 
   - A TaskDef class with static utilities for creating task definitions and sub-task definitions, which can be used to 
-    define new executable tasks and non-executable sub-tasks.
+    define new executable tasks and both executable and non-executable sub-tasks.
+- task-factory.js
+  - A Task factory class for creating executable tasks and both executable and non-executable sub-tasks that can be used
+    to track the state of tasks or operations.
 - tasks.js 
-  - A Task class with static utilities for creating executable tasks and non-executable sub-tasks that can be used to 
-    track the state of tasks or operations.
+  - A Task class that represents an executable task or an executable or non-executable sub-task that can be used to 
+    track the state of a task or operation.
 - task-utils.js 
-    - Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object
+  - Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object and for constructing
+    and configuring a task factory on a context.
 
 This module is exported as a [Node.js](https://nodejs.org/) module.
 
@@ -190,7 +200,7 @@ $ tape test/*.js
 
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
-## Migrating from version 4.x to 5.0.1
+## Migrating from version 4.x to 5.x
 - Replace all requires of `task-defs` module with:
   ```js
   const TaskDef = require('task-utils/task-defs');
@@ -226,6 +236,9 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 5.0.2
+- Updates to `README.md`
 
 ### 5.0.1
 - Changes to `task-utils` module:
