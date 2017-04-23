@@ -60,9 +60,10 @@ class TaskDef {
    * @param {Function|undefined} [execute] - the optional function to be executed when a task created using this
    * definition is started
    * @param {TaskDef|undefined} [parent] - an optional parent task definition
+   * @param {TaskDefSettings|undefined} [settings] - optional settings to use to configure this task definition
    * @throws {Error} an error if the requested task definition is invalid
    */
-  constructor(name, execute, parent) {
+  constructor(name, execute, parent, settings) {
     // Validate the given name
     // -----------------------------------------------------------------------------------------------------------------
     // Ensure name is a string and not blank
@@ -113,6 +114,10 @@ class TaskDef {
     Object.defineProperty(this, 'execute', {value: taskExecute, enumerable: false});
     Object.defineProperty(this, 'subTaskDefs', {value: [], enumerable: true});
 
+    // Set the optional describeItem function (if any provided)
+    const describeItem = settings && typeof settings.describeItem === 'function' ? settings.describeItem : undefined;
+    Object.defineProperty(this, 'describeItem', {value: describeItem, writable: true, enumerable: false});
+
     // Ensure that the proposed combined hierarchy to be formed from this new task definition and its parent
     // will still be valid and will ONLY contain distinct task definitions
     // -----------------------------------------------------------------------------------------------------------------
@@ -155,6 +160,19 @@ class TaskDef {
   }
 
   /**
+   * Sets this task definition's `describeItem` function to the given function (if it's a function) or sets it to
+   * undefined (if it's NOT a function), but ONLY if either the definition's `describeItem is NOT already set or if the
+   * given`overrideExisting` flag is true.
+   * @param {DescribeItem|undefined} [describeItem] - sets the `describeItem` function to the given function
+   * @param {boolean|undefined} [overrideExisting] - whether to override an existing `describeItem` function or not (default not)
+   */
+  setDescribeItem(describeItem, overrideExisting) {
+    if (!this.describeItem || overrideExisting) {
+      this.describeItem = typeof describeItem === 'function' ? describeItem : undefined;
+    }
+  }
+
+  /**
    * Creates a new top-level, executable task definition to be used for creating executable tasks. Both the given name
    * and execute function MUST be correctly defined; otherwise an appropriate error will be thrown.
    *
@@ -167,11 +185,12 @@ class TaskDef {
    *
    * @param {string} taskName - the name of the task
    * @param {Function} execute - the function to be executed when a task created using this definition is started
+   * @param {TaskDefSettings|undefined} [settings] - optional settings to use to configure this task definition
    * @throws {Error} if taskName or execute are invalid
    * @returns {TaskDef} a new executable task definition.
    */
-  static defineTask(taskName, execute) {
-    return new TaskDef(taskName, execute, undefined);
+  static defineTask(taskName, execute, settings) {
+    return new TaskDef(taskName, execute, undefined, settings);
   }
 
   /**
@@ -179,9 +198,10 @@ class TaskDef {
    * definition (if execute is undefined) with the given name to this task definition.
    * @param {string} subTaskName - the name of the new sub-task definition
    * @param {Function|undefined} [execute] - the optional function to be executed when a sub-task created using this definition is executed
+   * @param {TaskDefSettings|undefined} [settings] - optional settings to use to configure this task definition
    * @throws {Error} an error if the given name is blank or not a string or not distinct
    */
-  defineSubTask(subTaskName, execute) {
+  defineSubTask(subTaskName, execute, settings) {
     if (!isString(subTaskName) || isBlank(subTaskName)) {
       throw new Error(`Cannot create a sub-task definition with a ${!isString(subTaskName) ? "non-string" : "blank"} name (${stringify(subTaskName)})`);
     }
@@ -195,16 +215,17 @@ class TaskDef {
       throw new Error(`Cannot add sub-task definition (${newName}) with a duplicate name to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
     }
     // Create and add the new sub-task definition to this task definition's list of sub-task definitions
-    return new TaskDef(newName, execute, this);
+    return new TaskDef(newName, execute, this, settings);
   }
 
   /**
    * Creates and adds multiple new non-executable, internal sub-task definitions with the given names to this task
    * definition.
    * @param {string[]} subTaskNames - the names of the new non-executable, internal sub-task definitions
+   * @param {TaskDefSettings|undefined} [settings] - optional settings to use to configure these task definitions
    * @returns {TaskDef[]} an array of new sub-task definitions (one for each of the given names)
    */
-  defineSubTasks(subTaskNames) {
+  defineSubTasks(subTaskNames, settings) {
     if (!isArrayOfType(subTaskNames, "string")) {
       throw new Error(`Cannot create sub-task definitions with non-string names ${stringify(subTaskNames)}`);
     }
@@ -218,7 +239,7 @@ class TaskDef {
         throw new Error(`Cannot add sub-task definitions ${stringify(newNames)} with duplicate names to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
       }
       // Create and add the new sub-task definitions to this task definition's list of sub-task definitions
-      return newNames.map(name => new TaskDef(name, undefined, this));
+      return newNames.map(name => new TaskDef(name, undefined, this, settings));
     }
     return [];
   }

@@ -16,13 +16,17 @@ const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
 const isNotBlank = Strings.isNotBlank;
 
-const Booleans = require('core-functions/booleans');
-const isBoolean = Booleans.isBoolean;
+// const Booleans = require('core-functions/booleans');
+// const isBoolean = Booleans.isBoolean;
 
 const Arrays = require('core-functions/arrays');
 const isDistinct = Arrays.isDistinct;
 
-const errors = require('./errors');
+const core = require('./core');
+const ReturnMode = core.ReturnMode;
+
+const deepEqual = require('deep-equal');
+const strict = {strict: true};
 
 //======================================================================================================================
 // Task "class"
@@ -75,7 +79,7 @@ class Task {
       }
       // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
       if (!Task.areSubTaskNamesDistinct(parent, taskName)) {
-        throw new Error(`Cannot add a sub-task (${taskName}) with a duplicate name to super-task (${parent.name}) with existing sub-tasks ${Strings.stringify(parent.subTasks.map(t => t.name))}`);
+        throw new Error(`Cannot add a sub-task (${taskName}) with a duplicate name to super-task (${parent.name}) with existing sub-tasks ${Strings.stringify(parent.subTasks ? parent.subTasks.map(t => t.name) : undefined)}`);
       }
     } else {
       // Creating an executable, top-level task, so:
@@ -112,13 +116,18 @@ class Task {
     Object.defineProperty(this, 'executable', {value: executable, enumerable: true});
     Object.defineProperty(this, 'factory', {value: factory, enumerable: false});
 
-    // Set the returnSuccessOrFailure property to opts.returnSuccessOrFailure if it is explicitly true or false; otherwise to taskDef.returnSuccessOrFailure
-    const returnSuccessOrFailure = opts && isBoolean(opts.returnSuccessOrFailure) ? !!opts.returnSuccessOrFailure : taskDef.returnSuccessOrFailure;
-    Object.defineProperty(this, 'returnSuccessOrFailure', {value: returnSuccessOrFailure, enumerable: false});
+    // Set the returnMode property to opts.returnMode if it is defined; otherwise to undefined
+    let returnMode = opts && opts.returnMode ? opts.returnMode : undefined;
+    if (returnMode && !ReturnMode.isValid(returnMode)) {
+      factory.logger.warn(`Ignoring invalid opts.returnMode (${returnMode}) - defaulting Task (${taskName}) returnMode to undefined`);
+      returnMode = undefined;
+    }
+    Object.defineProperty(this, 'returnMode', {value: returnMode, enumerable: false});
 
-    // Create a new task execute function from the task and its execute function using the configured factory function (NB: must be set after setting returnSuccessOrFailure)
+    // Create a new task execute function from the task and its execute function using the configured factory function
+    // NB: `execute` MUST be set after setting `returnMode`!
     const newExecute = executable ? factory.generateExecute(self, taskDef.execute) : undefined;
-    Object.defineProperty(this, 'execute', { value: newExecute, enumerable: false});
+    Object.defineProperty(this, 'execute', {value: newExecute, enumerable: false});
 
     // Keep a reference to the opts used, but ONLY to pass on to any new sub-tasks added later via `getOrCreateSubTask` if needed
     Object.defineProperty(this, '_opts', {value: opts, enumerable: false});
@@ -163,7 +172,9 @@ class Task {
     this._state = TaskState.instances.Unstarted;
     this._attempts = 0;
     this._totalAttempts = 0;
-    this._lastExecutedAt = '';
+    this._began = undefined;
+    this._took = undefined;
+    this._ended = undefined;
 
     // The task's optional result must NOT be enumerable, since the result may end up being an object that references
     // this task, which would create a circular dependency
@@ -207,6 +218,14 @@ class Task {
   }
 
   /**
+   * The type/kind of the state of this task.
+   * @type StateType
+   */
+  get stateType() {
+    return this._state ? this._state.kind : undefined;
+  }
+
+  /**
    * The number of attempts at this task, which must be incremented every time the task is executed and which can be
    * decremented if any failure indicates a transient error such as throttled or timed-out.
    * @type number
@@ -225,11 +244,65 @@ class Task {
   }
 
   /**
-   * The ISO date-time at which this task was last executed (or undefined if never executed).
-   * @type string
+   * Notifies this task that its last execution began at the given date-time (or now if undefined).
+   * @param {Date|string|undefined} [startTime] - the optional date-time at which this task's last execution began
+   * (defaults to now if undefined)
    */
-  get lastExecutedAt() {
-    return this._lastExecutedAt;
+  beganAt(startTime) {
+    if (!this._frozen && this.incomplete) {
+      const began = startTime instanceof Date ? startTime : startTime && typeof startTime === 'string' ?
+          new Date(Date.parse(startTime)) : new Date();
+
+      this._began = began.toISOString();
+
+      // Reset ended time if necessary
+      if (this._ended && this._ended < this._began) this._ended = undefined;
+
+      // Calculate or reset took ms if necessary
+      this._took = calculateTook(this._began, this._ended);
+    }
+  }
+
+  /**
+   * Notifies this task that its last execution ended at the given date-time (or now if undefined).
+   * @param {Date|string|undefined} [endTime] - the optional date-time at which this task's last execution ended
+   * (defaults to now if undefined)
+   */
+  endedAt(endTime) {
+    if (!this._frozen) {
+      const endDateTime = endTime instanceof Date ? endTime :
+        endTime && typeof endTime === 'string' ? new Date(Date.parse(endTime)) : new Date();
+
+      this._ended = endDateTime.toISOString();
+
+      // Calculate or reset took ms if necessary
+      this._took = calculateTook(this._began, this._ended);
+    }
+  }
+
+  /**
+   * The ISO date-time at which this task's last execution began (or undefined if not executed yet).
+   * @type (string|undefined)
+   */
+  get began() {
+    return this._began;
+  }
+
+  /**
+   * The number of milliseconds that this task's last execution took (or undefined if not executed yet).
+   * @type (number|undefined)
+   */
+  get took() {
+    return this._took;
+  }
+
+  /**
+   * The ISO date-time at which this task's last execution ended (or undefined if not executed yet).
+   * @type (string|undefined)
+   */
+  get ended() {
+    // If no ended time, then calculate one from began time & took ms (if available)
+    return this._ended ? this._ended : calculateEnded(this._began, this._took);
   }
 
   /**
@@ -270,20 +343,34 @@ class Task {
     return this._donePromise;
   }
 
+  //noinspection JSUnusedGlobalSymbols
   /**
    * Customized toJSON method, which is used by {@linkcode JSON.stringify} to output the internal _state, _attempts,
-   * _totalAttempts and _lastExecuteAt properties without their underscores.
+   * _totalAttempts, _began, _took, _ended and _subTasks properties without their underscores.
    */
   toJSON() {
-    return {
+    const json = {
       name: this.name,
       executable: this.executable,
       state: this._state,
       attempts: this._attempts,
-      totalAttempts: this._totalAttempts,
-      lastExecutedAt: this._lastExecutedAt,
-      subTasks: this._subTasks
+      totalAttempts: this._totalAttempts
     };
+    if (this._began) {
+      json.began = this._began;
+    }
+    const tookIsValid = typeof this._took === 'number';
+    if (this._ended && (!this._began || !tookIsValid)) { // ONLY add ended if don't have began or a valid took ms
+      json.ended = this._ended;
+    }
+    if (tookIsValid) {
+      json.took = this._took;
+    }
+
+    // json.subTasks = this._subTasks;
+    if (this._subTasks && this._subTasks.length > 0) json.subTasks = this._subTasks;
+
+    return json;
   }
 
   /**
@@ -320,20 +407,22 @@ class Task {
     return this._subTasksByName.get(subTaskName);
   }
 
+  //noinspection JSUnusedGlobalSymbols
   /**
    * Returns the existing sub-task with the given name if it exists on this task; otherwise creates and adds a new
    * sub-task with the given name and optional execute function to this task and returns it.
    * @param {string} subTaskName - the name of the sub-task to retrieve or add
    * @param {Function|undefined} [execute] - the optional function to be executed when the sub-task is executed
+   * @param {TaskDefSettings|undefined} [taskDefSettings] - optional settings to use to configure the task definition for the new sub-task
    * @param {TaskOpts|undefined} [opts] - optional options to use to alter the behaviour of the newly created sub-task (if applicable)
    * @returns {Task} the named sub-task if it exists; otherwise a new sub-task
    */
-  getOrCreateSubTask(subTaskName, execute, opts) {
+  getOrCreateSubTask(subTaskName, execute, taskDefSettings, opts) {
     const subTask = this._subTasksByName.get(subTaskName);
     if (subTask) {
       return subTask;
     }
-    return this.createSubTask(subTaskName, execute, opts);
+    return this.createSubTask(subTaskName, execute, taskDefSettings, opts);
   }
 
   /**
@@ -341,12 +430,13 @@ class Task {
    * a new sub-task (for this task) using this new definition, this task's factory and the given opts.
    * @param {string} subTaskName - the name of the sub-task to retrieve or add
    * @param {Function|undefined} [execute] - the optional function to be executed when the sub-task is executed
+   * @param {TaskDefSettings|undefined} [taskDefSettings] - optional settings to use to configure the task definition for the new sub-task
    * @param {TaskOpts|undefined} [opts] - optional options to use to alter the behaviour of the newly created sub-task
    * @returns {Task} the newly created sub-task for this task
    * @throws {Error} an error if the given name is invalid or non-unique or the given `execute` function is invalid
    */
-  createSubTask(subTaskName, execute, opts) {
-    const subTaskDef = this.definition.defineSubTask(subTaskName, execute);
+  createSubTask(subTaskName, execute, taskDefSettings, opts) {
+    const subTaskDef = this.definition.defineSubTask(subTaskName, execute, taskDefSettings);
     return new Task(subTaskDef, this, this.factory, opts);
   }
 
@@ -496,53 +586,58 @@ class Task {
     }
   }
 
-  /**
-   * Updates this task's last executed at date-time to the given executed at date-time. If recursively is true, then
-   * also applies the update to each of this task' sub-tasks recursively.
-   * @param {Date|string} executedAt - the ISO date-time at which this task was executed
-   * @param {boolean|undefined} [recursively] - whether to also apply the update to sub-tasks recursively or not
-   */
-  updateLastExecutedAt(executedAt, recursively) {
-    const lastExecutedAt = executedAt instanceof Date ? executedAt.toISOString() : executedAt;
-    if (this.incomplete) {
-      this._lastExecutedAt = lastExecutedAt;
-    }
-
-    // If recursively, then also apply the update to each of this task's sub-tasks
-    if (recursively) {
-      this._subTasks.forEach(subTask => subTask.updateLastExecutedAt(lastExecutedAt, recursively));
-    }
-
-    // If this is a master task then ripple the update to each of its slave tasks
-    if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.updateLastExecutedAt(lastExecutedAt, recursively));
-    }
-  }
+  // /**
+  //  * Updates this task's last executed at date-time to the given executed at date-time. If recursively is true, then
+  //  * also applies the update to each of this task' sub-tasks recursively.
+  //  * @param {Date|string|undefined} [startTime] - the ISO date-time at which this task was executed (defaults to now if undefined)
+  //  * @param {boolean|undefined} [recursively] - whether to also apply the update to sub-tasks recursively or not
+  //  */
+  // updateBegan(startTime, recursively) {
+  //   const began = startTime instanceof Date ? startTime : startTime && typeof startTime === 'string' ?
+  //       new Date(Date.parse(startTime)) : new Date();
+  //
+  //   if (this.incomplete) {
+  //     this.beganAt(began);
+  //   }
+  //
+  //   // If recursively, then also apply the update to each of this task's sub-tasks
+  //   if (recursively) {
+  //     this._subTasks.forEach(subTask => subTask.updateBegan(began, recursively));
+  //   }
+  //
+  //   // If this is a master task then ripple the update to each of its slave tasks
+  //   if (this.isMasterTask()) {
+  //     this._slaveTasks.forEach(slaveTask => slaveTask.updateBegan(began, recursively));
+  //   }
+  // }
 
   /**
    * Starts this task (but ONLY if it's still unstarted) by changing its state to started, incrementing the number of
    * attempts at this task and updates its last executed at date-time to the given executed at date-time. If recursively
    * is true, then also starts each of this task' sub-tasks recursively.
-   * @param {Date|string} executedAt - the ISO date-time at which this task was executed
+   * @param {Date|string|undefined} [startTime] - the ISO date-time at which this task was executed (defaults to current ISO date-time if undefined)
    * @param {boolean|undefined} [recursively] - whether to also apply the state change, increment and update to this
    * task's sub-tasks recursively or not
    */
-  start(executedAt, recursively) {
-    const lastExecutedAt = executedAt instanceof Date ? executedAt.toISOString() : executedAt;
+  start(startTime, recursively) {
+    const began = startTime instanceof Date ? startTime :
+      startTime && typeof startTime === 'string' ? new Date(Date.parse(startTime)) : new Date();
+
     if (this.unstarted) {
       this._state = TaskState.instances.Started;
       this._attempts = this._attempts + 1;
       this._totalAttempts = this._totalAttempts + 1;
-      this._lastExecutedAt = lastExecutedAt;
+      this.beganAt(began);
     }
+
     // If recursively, then also apply the start to each of this task's sub-tasks
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.start(lastExecutedAt, recursively));
+      this._subTasks.forEach(subTask => subTask.start(began, recursively));
     }
 
     // If this is a master task then ripple the start to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.start(lastExecutedAt, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.start(began, recursively));
     }
   }
 
@@ -604,21 +699,23 @@ class Task {
    * its subTasks recursively.
    *
    * @param {*} [result] - the optional result to store on the task
-   * @param {boolean|undefined} [overrideTimedOut] - whether this complete is allowed to override an existing timedOut state or not
+   * @param {CompleteOpts|boolean|undefined} [opts] - the optional options to use to modify the behaviour of this `complete` method (if its a boolean, then treat it as a legacy overrideTimedOut parameter)
    * @param {boolean|undefined} [recursively] - whether or not to recursively complete all of this task's sub-tasks as well
    */
-  complete(result, overrideTimedOut, recursively) {
+  complete(result, opts, recursively) {
+    const overrideTimedOut = typeof opts === 'boolean' ? opts : opts && opts.overrideTimedOut;
+
     if (this.incomplete && (overrideTimedOut || !this.timedOut)) {
       this._state = TaskState.instances.Completed;
       this._result = result;
       this._error = undefined;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.complete(result, overrideTimedOut, recursively));
+      this._subTasks.forEach(subTask => subTask.complete(result, opts, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.complete(result, overrideTimedOut, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.complete(result, opts, recursively));
     }
   }
 
@@ -628,21 +725,23 @@ class Task {
    * subTasks recursively.
    *
    * @param {*} [result] - the optional result to store on the task
-   * @param {boolean|undefined} [overrideTimedOut] - whether this complete is allowed to override an existing timedOut state or not
+   * @param {CompleteOpts|boolean|undefined} [opts] - the optional options to use to modify the behaviour of this `succeed` method (if its a boolean, then treat it as a legacy overrideTimedOut parameter)
    * @param {boolean|undefined} [recursively] - whether or not to recursively succeed all of this task's sub-tasks as well
    */
-  succeed(result, overrideTimedOut, recursively) {
+  succeed(result, opts, recursively) {
+    const overrideTimedOut = typeof opts === 'boolean' ? opts : opts && opts.overrideTimedOut;
+
     if (this.incomplete && (overrideTimedOut || !this.timedOut)) {
       this._state = TaskState.instances.Succeeded;
       this._result = result;
       this._error = undefined;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.succeed(result, overrideTimedOut, recursively));
+      this._subTasks.forEach(subTask => subTask.succeed(result, opts, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.succeed(result, overrideTimedOut, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.succeed(result, opts, recursively));
     }
   }
 
@@ -653,10 +752,12 @@ class Task {
    *
    * @param {string} stateName - the name of the complete state
    * @param {*} [result] - the optional result to store on the task
-   * @param {boolean|undefined} [overrideTimedOut] - whether this complete is allowed to override an existing timedOut state or not
+   * @param {CompleteOpts|boolean|undefined} [opts] - the optional options to use to modify the behaviour of this `completeAs` method (if its a boolean, then treat it as a legacy overrideTimedOut parameter)
    * @param {boolean|undefined} [recursively] - whether or not to recursively complete all of this task's sub-tasks as well
    */
-  completeAs(stateName, result, overrideTimedOut, recursively) {
+  completeAs(stateName, result, opts, recursively) {
+    const overrideTimedOut = typeof opts === 'boolean' ? opts : opts && opts.overrideTimedOut;
+
     if (this.incomplete && (overrideTimedOut || !this.timedOut)) {
       this._state = stateName === TaskState.names.Completed ? TaskState.instances.Completed :
         stateName === TaskState.names.Succeeded ? TaskState.instances.Succeeded : new states.CompletedState(stateName);
@@ -664,61 +765,82 @@ class Task {
       this._error = undefined;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.completeAs(stateName, result, overrideTimedOut, recursively));
+      this._subTasks.forEach(subTask => subTask.completeAs(stateName, result, opts, recursively));
     }
     // If this is a master task then ripple the state change and result to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.completeAs(stateName, result, overrideTimedOut, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.completeAs(stateName, result, opts, recursively));
     }
   }
 
   /**
    * Times out this task with a TimedOut state with the given error, but ONLY if the task is NOT already timed out,
-   * rejected or failed and EITHER NOT completed OR overrideCompleted is true. If recursively is true, then also times
-   * out any and all of its subTasks recursively.
+   * rejected or failed and EITHER NOT completed OR overrideCompleted is true and EITHER NOT unstarted OR
+   * overrideUnstarted is true. So by default, a timeout will ONLY take effect if the task is in a started state. If
+   * recursively is true, then also times out any and all of its subTasks recursively.
    *
    * @param {Error|undefined} [error] - the optional error that triggered this timed out state
-   * @param {boolean|undefined} [overrideCompleted] - whether this timeout is allowed to override an existing completed state or not
+   * @param {TimeoutOpts|boolean|undefined} [opts] - the optional options to use to modify the behaviour of this `timeout` method (if its a boolean, then treat it as a legacy overrideCompleted parameter)
    * @param {boolean|undefined} [recursively] - whether or not to recursively timeout all of this task's sub-tasks as well
    */
-  timeout(error, overrideCompleted, recursively) {
-    if ((overrideCompleted || !this.completed) && !this.timedOut && !this.rejected && !this.failed) {
+  timeout(error, opts, recursively) {
+    const overrideCompleted = typeof opts === 'boolean' ? opts : opts && opts.overrideCompleted;
+    const overrideUnstarted = opts && opts.overrideUnstarted;
+    const reverseAttempt = opts && opts.reverseAttempt;
+
+    if ((overrideCompleted || !this.completed) && (overrideUnstarted || !this.unstarted) && !this.timedOut && !this.rejected && !this.failed) {
+      if (!this.unstarted && reverseAttempt) {
+        // Reverse the increment of the number of attempts that happened when this task was started, since we don't
+        // consider a timeout to be a real attempt
+        this._attempts = this._attempts - 1;
+      }
       this._state = new states.TimedOut(error);
       this._result = undefined;
       this._error = error;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.timeout(error, overrideCompleted, recursively));
+      this._subTasks.forEach(subTask => subTask.timeout(error, opts, recursively));
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.timeout(error, overrideCompleted, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.timeout(error, opts, recursively));
     }
   }
 
   /**
    * Times out this task with a timed out state with the given name and optional error, but ONLY if the task is NOT
-   * already timed out, rejected or failed and EITHER NOT completed OR overrideCompleted is true. If recursively is true,
-   * then also times out any and all of its subTasks recursively.
+   * already timed out, rejected or failed and EITHER NOT completed OR overrideCompleted is true and EITHER NOT
+   * unstarted OR overrideUnstarted is true. So by default, a timeout will ONLY take effect if the task is in a started
+   * state. If recursively is true, then also times out any and all of its subTasks recursively.
    *
    * @param {string} stateName - the name of the timed out state
    * @param {Error|undefined} [error] - the optional error that triggered this timed out state
-   * @param {boolean|undefined} [overrideCompleted] - whether this timeout is allowed to override an existing completed state or not
+   * @param {TimeoutOpts|boolean} [opts] - the optional options to use to modify the behaviour of this `timeoutAs` method (if its a boolean, then treat it as a legacy overrideCompleted parameter)
    * @param {boolean|undefined} [recursively] - whether or not to recursively timeout all of this task's sub-tasks as well
    */
-  timeoutAs(stateName, error, overrideCompleted, recursively) {
-    if ((overrideCompleted || !this.completed) && !this.timedOut && !this.rejected && !this.failed) {
+  timeoutAs(stateName, error, opts, recursively) {
+    // Resolve options
+    const overrideCompleted = typeof opts === 'boolean' ? opts : opts && opts.overrideCompleted;
+    const overrideUnstarted = opts && opts.overrideUnstarted;
+    const reverseAttempt = opts && opts.reverseAttempt;
+
+    if ((overrideCompleted || !this.completed) && (overrideUnstarted || !this.unstarted) && !this.timedOut && !this.rejected && !this.failed) {
+      if (!this.unstarted && reverseAttempt) {
+        // Reverse the increment of the number of attempts that happened when this task was started, since we don't
+        // consider a timeout to be a real attempt
+        this._attempts = this._attempts - 1;
+      }
       this._state = stateName === TaskState.names.TimedOut ? new states.TimedOut(error) :
         new states.TimedOutState(stateName, error);
       this._result = undefined;
       this._error = error;
     }
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.timeoutAs(stateName, error, overrideCompleted, recursively));
+      this._subTasks.forEach(subTask => subTask.timeoutAs(stateName, error, opts, recursively));
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
-      this._slaveTasks.forEach(slaveTask => slaveTask.timeoutAs(stateName, error, overrideCompleted, recursively));
+      this._slaveTasks.forEach(slaveTask => slaveTask.timeoutAs(stateName, error, opts, recursively));
     }
   }
 
@@ -925,9 +1047,19 @@ class Task {
       this._totalAttempts += oldTask._totalAttempts;
     }
 
-    // Copy the old task's last executed at date-time (if defined) to this task
-    if (oldTask._lastExecutedAt) {
-      this._lastExecutedAt = oldTask._lastExecutedAt;
+    // Copy the old task's began at time (if defined) to this task
+    if (oldTask._began) {
+      this._began = oldTask._began;
+    }
+    // Copy the old task's time taken in ms (if its a number) to this task
+    if (typeof oldTask._took === 'number') {
+      this._took = oldTask._took;
+    }
+    // Copy the old task's ended at time (if defined) to this task or re-calculate it from the old task's begin & took
+    if (oldTask._ended) {
+      this._ended = oldTask._ended;
+    } else if (oldTask._began && typeof oldTask._took === 'number') {
+      this._ended = calculateEnded(oldTask._began, oldTask._took);
     }
 
     // Recursively update the corresponding subTask for each of the old task's subTasks
@@ -975,19 +1107,47 @@ class Task {
     // Set this master task's slave tasks to the given ones
     this._slaveTasks = slaves;
 
-    // Set this master task's number of attempts to the minimum of all of its slave task's numbers of attempts
-    // Set this master task's last executed at date-time to the maximum of all of its slave task's last executed at date-times
+    // Set this master task's number of attempts to the minimum of all of its slave tasks' numbers of attempts
+    // Set this master task's total attempts to the minimum of all of its slave tasks' total attempts
+    // Set this master task's last executed at date-time to the maximum of all of its slave tasks' last executed at date-times
+    // Set this master task's state (if its not defined or still unstarted) to the common, single state shared by ALL
+    // of its slave tasks (if ALL of its slaves have deeply equal states)
+    let slaveState = undefined;
+    let prevSlaveState = undefined;
+
+    let minBegan = undefined;
+    let maxEnded = undefined;
+
     for (let i = 0; i < slaves.length; ++i) {
-      const slaveTaskAttempts = slaves[i]._attempts;
-      this._attempts = i == 0 ? slaveTaskAttempts : Math.min(this._attempts, slaveTaskAttempts);
+      const slave = slaves[i];
 
-      const slaveTaskTotalAttempts = slaves[i]._totalAttempts;
-      this._totalAttempts = i == 0 ? slaveTaskTotalAttempts : Math.min(this._totalAttempts, slaveTaskTotalAttempts);
+      const slaveTaskAttempts = slave._attempts;
+      this._attempts = i === 0 ? slaveTaskAttempts : Math.min(this._attempts, slaveTaskAttempts);
 
-      const slaveTaskLastExecutedAt = slaves[i]._lastExecutedAt;
-      this._lastExecutedAt = i == 0 ? slaveTaskLastExecutedAt :
-        slaveTaskLastExecutedAt > this._lastExecutedAt ? slaveTaskLastExecutedAt : this._lastExecutedAt;
+      const slaveTaskTotalAttempts = slave._totalAttempts;
+      this._totalAttempts = i === 0 ? slaveTaskTotalAttempts : Math.min(this._totalAttempts, slaveTaskTotalAttempts);
+
+      const slaveTaskBegan = slave._began;
+      if (slaveTaskBegan && (!minBegan || slaveTaskBegan < minBegan)) {
+        minBegan = slaveTaskBegan;
+      }
+
+      const slaveTaskEnded = slave._ended ? slave._ended : calculateEnded(slave._began, slave._took);
+      if (slaveTaskEnded && (!maxEnded || slaveTaskEnded > maxEnded)) {
+        maxEnded = slaveTaskEnded;
+      }
+
+      slaveState = i === 0 ? slave._state : deepEqual(slave._state, prevSlaveState, strict) ? prevSlaveState : undefined;
+      prevSlaveState = slaveState;
     }
+
+    if (slaveState && (!this._state || this._state.unstarted)) {
+      this._state = slaveState;
+    }
+
+    this._began = minBegan;
+    this._ended = maxEnded;
+    this._took = calculateTook(minBegan, maxEnded);
 
     // Recursively do the same for each of this master task's sub-tasks
     for (let j = 0; j < this._subTasks.length; ++j) {
@@ -1038,7 +1198,7 @@ class Task {
    */
   static isTaskLike(task, taskName) {
     return task instanceof Task || (task && typeof task === 'object' && isNotBlank(task.name) && (task.executable === true
-      || task.executable === false) && Array.isArray(task.subTasks) && (!taskName || task.name === taskName));
+      || task.executable === false) && (!task.subTasks || Array.isArray(task.subTasks)) && (!taskName || task.name === taskName));
   }
 
   /**
@@ -1062,7 +1222,9 @@ class Task {
    */
   static forEachTaskLike(taskLike, callback) {
     callback(taskLike);
-    taskLike.subTasks.forEach(t => Task.forEachTaskLike(t, callback));
+    if (taskLike.subTasks) {
+      taskLike.subTasks.forEach(t => Task.forEachTaskLike(t, callback));
+    }
   }
 
   /**
@@ -1162,6 +1324,41 @@ class Task {
   }
 
 }
+
+/**
+ * Calculates the ended time from the given began time and took ms (if available).
+ * @param {string|undefined} [began] - the ISO date-time at which this task's last execution began (or undefined if not executed yet)
+ * @param {number|undefined} [took] - he number of milliseconds that this task's last execution took (or undefined if not executed yet)
+ * @returns {string|undefined} the ended time; or undefined
+ */
+function calculateEnded(began, took) {
+  if (!began || typeof took !== 'number') return undefined;
+  try {
+    return began && typeof took === 'number' ? new Date(Date.parse(began) + took).toISOString() : undefined;
+  } catch (err) {
+    console.error(`Failed to calculate ended time from began (${began}) & took (${took}) ms`, err.stack);
+    return undefined;
+  }
+}
+// Install as a static method for convenience
+if (!Task.calculateEnded) Task.calculateEnded = calculateEnded;
+
+/**
+ * Calculates the time taken in milliseconds from the given began time and ended time (if available).
+ * @param {string|undefined} [began] - the ISO date-time at which this task's last execution began (or undefined if not executed yet)
+ * @param {string|undefined} [ended] - the ISO date-time at which this task's last execution ended (or undefined if not executed yet)
+ * @returns {number|undefined} the time taken in milliseconds; or undefined
+ */
+function calculateTook(began, ended) {
+  try {
+    return began && ended ? Date.parse(ended) - Date.parse(began) : undefined;
+  } catch (err) {
+    console.error(`Failed to calculate time taken from began (${began}) & ended (${ended})`, err.stack);
+    return undefined;
+  }
+}
+// Install as a static method for convenience
+if (!Task.calculateTook) Task.calculateTook = calculateTook;
 
 // Export the Task "class" / constructor function
 module.exports = Task;

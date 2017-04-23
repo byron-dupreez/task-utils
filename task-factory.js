@@ -11,15 +11,17 @@
 const strings = require('core-functions/strings');
 const stringify = strings.stringify;
 
-const errors = require('./errors');
-const FrozenError = errors.FrozenError;
-const FinalisedError = errors.FinalisedError;
+const core = require('./core');
+const ReturnMode = core.ReturnMode;
+const FrozenError = core.FrozenError;
+const FinalisedError = core.FinalisedError;
 
 const tries = require('core-functions/tries');
 const Try = tries.Try;
-// const Success = tries.Success;
 const Failure = tries.Failure;
+
 const Promises = require('core-functions/promises');
+// const CancelledError = Promises.CancelledError;
 
 const Task = require('./tasks');
 const TaskDef = require('./task-defs');
@@ -39,13 +41,25 @@ class TaskFactory {
 
   /**
    * Constructs a new task factory.
-   * @param {BasicLogger|console|undefined} [logger] - an optional logger or logger-like object to use for logging (defaults to console if undefined)
-   * @param {TaskFactoryOptions|undefined} [opts] - optional options to use to configure the behaviour of this factory
+   * @param {TaskFactorySettings|undefined} [settings] - optional settings to use to configure the behaviour of this factory
+   * @param {TaskFactoryOptions|undefined} [options] - optional options to use to configure the behaviour of this factory
    */
-  constructor(logger, opts) {
-    Object.defineProperty(this, 'logger', {value: logger ? logger : console, enumerable: false});
-    const returnSuccessOrFailure = opts && opts.returnSuccessOrFailure ? !!opts.returnSuccessOrFailure : false;
-    Object.defineProperty(this, 'returnSuccessOrFailure', {value: returnSuccessOrFailure, enumerable: true});
+  constructor(settings, options) {
+    // Configure the logger to use
+    const logger = settings && settings.logger ? settings.logger : console;
+    Object.defineProperty(this, 'logger', {value: logger, enumerable: false});
+
+    // Default to NORMAL mode if returnMode is undefined
+    let returnMode = options && options.returnMode ? options.returnMode : ReturnMode.NORMAL;
+    if (!ReturnMode.isValid(returnMode)) {
+      logger.warn(`Ignoring invalid opts.returnMode (${returnMode}) - defaulting TaskFactory's returnMode to NORMAL`);
+      returnMode = ReturnMode.NORMAL;
+    }
+    Object.defineProperty(this, 'returnMode', {value: returnMode, enumerable: true});
+
+    // Set the optional default describeItem function (if any provided)
+    const describeItem = settings && typeof settings.describeItem === 'function' ? settings.describeItem : undefined;
+    if (describeItem) Object.defineProperty(this, 'describeItem', {value: describeItem, enumerable: false});
   }
 
   /**
@@ -113,12 +127,7 @@ class TaskFactory {
     if (!Task.isTaskLike(taskLike)) {
       throw new Error(`Cannot reconstruct all pseudo task and subTasks from a non-task-like object (${stringify(taskLike)})`);
     }
-    // // Ensure at least have a name on the task-like object
-    // if (!taskLike.name) {
-    //   throw new Error(`Cannot reconstruct all pseudo task and subTasks from a nameless task-like object (${stringify(taskLike)})`);
-    // }
 
-    //const name = taskLike.name;
     const executable = !!taskLike.executable;
 
     if (!executable) {
@@ -133,30 +142,32 @@ class TaskFactory {
     const task = this.createTask(taskDef, opts);
 
     /**
-     * Recursively copies the taskLike's state, number of attempts, total number of attempts and last executed at date-
-     * time to its corresponding task.
+     * Recursively copies the taskLike's state, number of attempts, total number of attempts and began time & took ms to
+     * its corresponding task.
      * @param {TaskLike} taskLike - the task-like object from which to copy
      * @param {Task} task - the task to which to copy
      */
-    function copyStateAttemptsAndLastExecutedAt(taskLike, task) {
+    function copyStateAttemptsAndExecutionTimes(taskLike, task) {
       task._state = taskLike.state instanceof TaskState ? taskLike.state :
         TaskState.toTaskStateFromStateLike(taskLike.state);
       task._attempts = taskLike.attempts;
       task._totalAttempts = taskLike.totalAttempts;
-      task._lastExecutedAt = taskLike.lastExecutedAt;
+      task._began = taskLike.began;
+      task._took = taskLike.took;
+      task._ended = taskLike.ended ? taskLike.ended : Task.calculateEnded(task._began, task._took);
 
       // Recursively repeat this process for each of the taskLike's subTasks
       if (taskLike.subTasks && taskLike.subTasks.length > 0) {
         for (let i = 0; i < taskLike.subTasks.length; ++i) {
           const subTaskLike = taskLike.subTasks[i];
           const subTask = task.getSubTask(subTaskLike.name);
-          copyStateAttemptsAndLastExecutedAt(subTaskLike, subTask);
+          copyStateAttemptsAndExecutionTimes(subTaskLike, subTask);
         }
       }
     }
 
     // Finally recursively copy the taskLike's state, attempts and last executed at date-time to its corresponding task
-    copyStateAttemptsAndLastExecutedAt(taskLike, task);
+    copyStateAttemptsAndExecutionTimes(taskLike, task);
     return task;
   }
 
@@ -221,23 +232,21 @@ class TaskFactory {
   }
 
   /**
-   * Creates a list of new tasks from the given list of active task definitions and then updates them with the relevant
-   * information extracted from the given list of zero or more old task-like objects, which are the prior versions of the
-   * tasks from the previous attempt (if any). Any and all old tasks that do NOT appear in the list of new active tasks
-   * are recreated as abandoned tasks. Returns both the newly created and updated, active tasks and any no longer active,
-   * abandoned tasks.
+   * Creates a list of new tasks from either the given list of active task definitions (if opts.onlyRecreateExisting is
+   * false) or from the list of task definitions that are active AND have prior versions (if opts.onlyRecreateExisting
+   * is true) and then updates these new tasks with the relevant information extracted from the given list of zero or
+   * more old task-like objects, which are the prior versions of the tasks from the previous attempt (if any). Any and
+   * all old tasks that do NOT appear in the list of new active tasks are recreated as abandoned tasks. Returns both the
+   * newly created and updated, active tasks and any no longer active, abandoned tasks.
    *
    * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
    * @param {TaskLike[]|Task[]} priorVersions - a list of zero or more old task-like objects or tasks, which are the prior
    * versions of the active tasks from a previous attempt (if any)
-   * @param {TaskOpts|undefined} [opts] - optional options to use to alter the behaviour of the newly created & updated Tasks
-   * @returns {Array.<Task[]>} both the updated, newly created tasks and any abandoned tasks
+   * @param {ReviveTasksOpts|undefined} [opts] - optional options to use to influence which tasks get created and how they get created during task revival/re-incarnation
+   * @returns {[Task[], Task[]]} both the updated, newly created tasks and any abandoned tasks
    */
-  createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions, opts) {
-    const activeTaskNames = activeTaskDefs.map(t => t.name);
-
-    // Create a new list of tasks from the given active task definitions
-    const newTasks = activeTaskDefs.map(taskDef => this.createTask(taskDef, opts));
+  reincarnateTasks(activeTaskDefs, priorVersions, opts) {
+    const onlyRecreateExisting = opts && opts.onlyRecreateExisting;
 
     // Reconstruct a complete hierarchy of a pseudo top-level task and its sub-tasks (if any), which is an approximation
     // of the original hierarchy of root task and its sub-tasks, for EACH of the given old task-like objects
@@ -245,6 +254,14 @@ class TaskFactory {
 
     // Update each of the newly created tasks with the relevant information from the prior version of each of these tasks
     const oldTasksByName = new Map(oldTasks.map(t => [t.name, t]));
+
+    // Determine which of the active task definitions to use to create the new tasks
+    const taskDefsToUse = onlyRecreateExisting ? activeTaskDefs.filter(t => oldTasksByName.has(t.name)) : activeTaskDefs;
+
+    const activeTaskNames = activeTaskDefs.map(t => t.name);
+
+    // Create a new list of tasks from the given active task definitions
+    const newTasks = taskDefsToUse.map(taskDef => this.createTask(taskDef, opts));
 
     const updatedNewTasks = newTasks.map(newTask => {
       // Update the new task with the old task's details (if any)
@@ -291,8 +308,9 @@ class TaskFactory {
    */
   generateExecute(task, execute) {
     const self = this;
-    const returnSuccessOrFailure = task.returnSuccessOrFailure !== undefined ?
-      task.returnSuccessOrFailure : self.returnSuccessOrFailure;
+    const returnMode = task.returnMode ? task.returnMode : self.returnMode;
+    const returnPromise = returnMode === ReturnMode.PROMISE;
+    const returnSuccessOrFailure = returnMode === ReturnMode.SUCCESS_OR_FAILURE;
 
     // Ensure we have an executable task
     if (!task || !task.executable) { // only does a surface check to avoid circular dependency on tasks module
@@ -314,45 +332,81 @@ class TaskFactory {
      * completely resolved. For further details see `generateExecute` description above.
      * @this {Task} the task that is being executed
      * @param {...*} args - any and all arguments, which were passed to this task's `execute` method (i.e. to this function) and that will be passed as is to the task's definition's original `execute` function
-     * @returns {*|Success|Failure} the value returned by the original execute function (if returnSuccessOrFailure is false); otherwise the value returned wrapped in a Success or the error thrown wrapped in a Failure
-     * @throws {Error} an error if the execute function throws an error (only thrown if returnSuccessOrFailure is false; otherwise returned as a Failure)
-     * @throws {FinalisedError} an error if this task is already fully finalised and should not have been re-executed (only thrown if returnSuccessOrFailure is false; otherwise returned as a Failure)
-     * @throws {FrozenError} an error if this task is already frozen and can no longer be updated (only thrown if returnSuccessOrFailure is false; otherwise returned as a Failure)
+     * @returns {*|(Success|Failure)|Promise} the value returned by the original execute function (if returnMode is NORMAL);
+     * otherwise the value returned wrapped in a Success or the error thrown wrapped in a Failure (if returnMode is SUCCESS_OR_FAILURE);
+     * otherwise the value returned wrapped in a resolved Promise or the error thrown wrapped in a rejected Promise (if returnMode is PROMISE)
+     * @throws {Error} an error if the execute function throws an error (only thrown if returnMode is NORMAL)
+     * @throws {FinalisedError} an error if this task is already fully finalised and should not have been re-executed (only thrown if returnMode is NORMAL; otherwise returned as a Failure or rejected Promise)
+     * @throws {FrozenError} an error if this task is already frozen and can no longer be updated (only thrown if returnMode is NORMAL; otherwise returned as a Failure or rejected Promise)
      */
     function executeAndUpdateTask(args) {
+      const executeArguments = arguments;
+
+      /**
+       * Resolves a short, current description of the item/target/subject  for logging purposes from the arguments
+       * originally passed to the `execute` function.
+       * @returns {string} a short, current description of the item or an empty string
+       */
+      function describeItem() {
+        const describe = task.definition && task.definition.describeItem ? task.definition.describeItem : self.describeItem;
+        const itemDesc = describe ? Try.try(() => describe.apply(self, executeArguments)).recover(err => {
+          self.logger.error(`Failed to derive an item description using ${describe.name} from ${executeArguments.length} arguments during execution of task (${task.name})`, err.stack);
+          return '';
+        }).get() : '';
+        return itemDesc ? itemDesc + ' ' : '';
+      }
+
       if (!task.isFullyFinalised()) {
         if (!task.isFrozen()) {
           // First "start" the task (but ONLY if it's in an unstarted state), which changes its state to started,
           // increments its number of attempts and updates its last executed at date-time, since the task is starting
           // to execute
-          task.start(new Date(), false);
+          const startTime = new Date();
+          task.start(startTime, false);
 
-          // Execute the task's actual execute function
-          const startTime = Date.now();
+          // Execute the task's actual execute function and wrap its result or error in a Success or Failure
           const outcome = Try.try(() => execute.apply(task, arguments));
-          self.logger.log('INFO', `Task (${task.name}) ${outcome.isFailure() ? 'failure' : 'success'} took ${Date.now() - startTime} ms`);
 
           if (outcome.isFailure()) {
-            self.logger.error(`Execution of task (${task.name}) failed - ${stringify(task)}`, outcome.error.stack);
+            self.logger.error(`${describeItem()}${task.name} execution failed`, outcome.error.stack);
           }
-          // Asynchronously update the task if necessary when every one of the outcome's promise(s) resolve
-          self.updateTask(task, outcome);
 
-          // NB: Return the outcome's returned value or rethrow its thrown error (unless returnSuccessOrFailure is true,
-          // in which case return the outcome instead)
+          // Asynchronously update the task if necessary when every one of the outcome's promise(s) resolve
+          self.updateTask(task, outcome, startTime.getTime(), describeItem);
+
+          if (returnPromise) {
+            // Convert Success or Failure into a Promise
+            const promise = outcome.toPromise();
+
+            promise.catch(
+              error => {
+                if (error !== outcome.error) {
+                  self.logger.error(`${describeItem()}${task.name} execution failed`, error.stack);
+                }
+                throw error;
+              }
+            );
+
+            return promise;
+          }
+
+          // NB: Return the outcome's returned value or rethrow its thrown error (unless returnMode is SUCCESS_OR_FAILURE,
+          // in which case return the Success or Failure outcome instead)
           return returnSuccessOrFailure ? outcome : outcome.get();
 
         } else {
-          const errMsg = `Cannot execute a task (${task.name}) that is frozen in state (${task.state}) - ${stringify(task)}`;
-          self.logger.error(errMsg);
+          const errMsg = `${describeItem()}${task.name} is frozen in state (${task.state}) & cannot be executed`;
+          self.logger.log('WARN', errMsg);
           const frozenError = new FrozenError(errMsg);
+          if (returnPromise) return Promise.reject(frozenError);
           if (returnSuccessOrFailure) return new Failure(frozenError);
           throw frozenError;
         }
       } else {
-        const errMsg = `Cannot execute a fully finalised task (${task.name}) in state (${task.state}) - ${stringify(task)}`;
-        self.logger.error(errMsg);
+        const errMsg = `${describeItem()}${task.name} that is fully finalised in state (${task.state}) & cannot be executed`;
+        self.logger.log('WARN', errMsg);
         const finalisedError = new FinalisedError(errMsg);
+        if (returnPromise) return Promise.reject(finalisedError);
         if (returnSuccessOrFailure) return new Failure(finalisedError);
         throw finalisedError;
       }
@@ -370,29 +424,53 @@ class TaskFactory {
    * Precondition: !task.isFrozen()
    * @param {Task} task - the task to be updated
    * @param {Success|Failure} outcome - the success or failure outcome of the given task's execution
+   * @param {number} startTimeInMs - the time in milliseconds (since epoch) at which the task was started
+   * @param {function(): string} [describeItem] - a function to use to derive a short, current description of the item that was passed to the task's execute function for logging purposes
    */
-  updateTask(task, outcome) {
-    // Create a "done" promise that will only resolve after the synchronous or asynchronous outcome is resolved and ...
-    const executionDonePromise = Promises.every(this.extractPotentialPromises(outcome));
+  updateTask(task, outcome, startTimeInMs, describeItem) {
+    const self = this;
+    // Create a "done" promise that will only resolve after the synchronous or asynchronous outcome is fully resolved and ...
+    const executionDonePromise = Promises.flatten(outcome.toPromise());
+
     // ... after the task's state is updated (if necessary)
     const donePromise = executionDonePromise.then(
-      promiseOutcomes => {
-        // Find the first Failure (if any) out of the execution outcome and the promise's outcomes
-        const firstFailure = outcome.isFailure() ? outcome : promiseOutcomes.find(o => o.isFailure());
+      result => {
+        // Set the ended at time
+        const endTime = new Date();
+        const ms = endTime.getTime() - startTimeInMs;
+        task.endedAt(endTime);
+
+        // Convert zero, single or multiple valued result into an appropriate array of results
+        const results = Array.isArray(result) ? result : result ? [result] : [];
+        const outcomes = results.filter(o => o instanceof Try);
+
+        // Find the first Failure (if any) out of the promise's result(s)
+        const firstFailure = outcomes.find(o => o.isFailure());
+
         if (firstFailure === undefined) {
           // No promises were rejected, so if this task is still in a started (or unstarted) state after its execute
           // function completed successfully and after every one of its outcome's promise(s) resolved successfully, then
           // complete the task
-          this.completeTaskIfNecessary(task, outcome.value);
+          self.completeTaskIfNecessary(task, result, describeItem);
         } else {
           // At least one of the promise(s) was rejected, so fail the task, but ONLY if its not already rejected or failed
-          this.failTaskIfNecessary(task, firstFailure.error);
+          self.failTaskIfNecessary(task, firstFailure.error, describeItem);
         }
-        return promiseOutcomes;
+
+        self.logger.log('DEBUG', `${describeItem()}${task.name} is done - state (${task.state}) - ${outcomes.length > 0 ? Try.describeSuccessAndFailureCounts(outcomes) : 'success'} took ${ms} ms`);
+
+        return result;
       },
       err => {
-        this.logger.error(`Waiting for every promise to resolve should NOT have failed for task (${task.name}) - ${stringify(task)}`, err.stack);
-        this.failTaskIfNecessary(task, err);
+        // Set the ended at time
+        const endTime = new Date();
+        const ms = endTime.getTime() - startTimeInMs;
+        task.endedAt(endTime);
+
+        self.failTaskIfNecessary(task, err, describeItem);
+
+        self.logger.error(`${describeItem()}${task.name} is done - state (${task.state}) - rejection took ${ms} ms`, err.stack);
+
         throw err;
       }
     );
@@ -401,42 +479,26 @@ class TaskFactory {
     task.executed(outcome, donePromise);
   }
 
-  //noinspection JSMethodCanBeStatic
-  /**
-   * Extracts a list of potential promises from the given outcome by returning the outcome's array value or by putting
-   * its non-array value into a new array (if the outcome is a Success); otherwise by putting a rejected promise with
-   * the outcome's error into a new array (if the outcome is a Failure). This function assumes that an asynchronous
-   * outcome is any outcome with a value that is either a single promise or an array of promises.
-   *
-   * Override this function if you need a different definition of an asynchronous outcome.
-   *
-   * @param {Success|Failure} outcome - the outcome from which to extract a list of potential promises
-   * @returns {[*]} a list of potential promises
-   */
-  extractPotentialPromises(outcome) {
-    return outcome.isSuccess() ? Array.isArray(outcome.value) ? outcome.value : [outcome.value] :
-      [Promise.reject(outcome.error)];
-  }
-
   /**
    * Changes the given task's state to Completed and updates its result (if not already defined) with the given result,
    * but ONLY if the task is still in a Started (or, just in case, an Unstarted) state. Override this function to alter
    * the definition of necessary.
    * @param {Task} task - the task to complete
    * @param {*} result - the result of successful invocation of the task's original execute function
+   * @param {function(): string} describeItem - a function to use to derive a short, current description of the item that was passed to the task's execute function for logging purposes
    */
-  completeTaskIfNecessary(task, result) {
+  completeTaskIfNecessary(task, result, describeItem) {
     // If this task is still in an unstarted state after its execute function completed successfully, then help it along
     if (task.started || task.unstarted) { //} && (task.subTasks.length <= 0 || task.subTasks.every(t => t.isFullyFinalised()))) {
       if (task.unstarted) {
-        this.logger.log('WARN', `Task (${task.name}) should have been started already, but it's still in state (${task.state}) - ${stringify(task)}`)
+        this.logger.log('WARN', `${describeItem()}${task.name} should have been started already, but it's still in state (${task.state}) - ${JSON.stringify(task)}`)
       }
       // If the task is already frozen, then its too late to change its state
       if (!task.isFrozen()) {
         // Complete the task
-        task.complete(result, false);
+        task.complete(result, {overrideTimedOut: false}, false);
       } else {
-        this.logger.log('WARN', `Task (${task.name}) is frozen in state (${task.state}) and cannot be updated to Completed`);
+        this.logger.log('WARN', `${describeItem()}${task.name} is frozen in state (${task.state}) & cannot be updated to Completed`);
       }
     }
   }
@@ -446,8 +508,9 @@ class TaskFactory {
    * or timed-out or failed state. Override this function to alter the definition of necessary.
    * @param {Task} task - the task to update
    * @param {Error} error - the error encountered during execution of the task's original execute function
+   * @param {function(): string} describeItem - a function to use to derive a short, current description of the item that was passed to the task's execute function for logging purposes
    */
-  failTaskIfNecessary(task, error) {
+  failTaskIfNecessary(task, error, describeItem) {
     // If this task is not already rejected or failed, then fail it
     if (!task.rejected && !task.failed && !task.timedOut) {
       // If the task is already frozen, then its too late to change its state
@@ -459,14 +522,14 @@ class TaskFactory {
         task.fail(error);
 
         if (wasCompleted) {
-          this.logger.log('WARN', `Failed completed task (${task.name}) in state (${stringify(beforeState.name)}) due to subsequent error (${stringify(error)})`, error.stack);
+          this.logger.log('WARN', `Failed ${describeItem()}completed ${task.name} in state (${stringify(beforeState.name)}) due to subsequent error (new state (${task.state}))`, error.stack);
         }
       } else {
-        this.logger.log('WARN', `Task (${task.name}) is frozen in state (${task.state}) and cannot be updated to Failed with error (${stringify(error)})`, error.stack);
+        this.logger.log('WARN', `${describeItem()}${task.name} is frozen in state (${task.state}) & cannot be updated to Failed with error:`, error.stack);
       }
     } else {
       if (task.rejected || task.timedOut || error !== task.error) {
-        this.logger.log('WARN', `Ignoring attempt to fail ${task.rejected ? 'rejected' : task.timedOut ? 'timed out' : 'previously failed'} task (${task.name}) in state (${task.state}) with error (${task.error}) - ignoring new error`, error.stack);
+        this.logger.log('WARN', `Ignored attempt to fail ${describeItem()}${task.rejected ? 'rejected' : task.timedOut ? 'timed out' : 'previously failed'} ${task.name} in state (${task.state}) with error (${task.error}) - ignored new error`, error.stack);
       }
     }
   }
@@ -475,4 +538,3 @@ class TaskFactory {
 
 // Export this TaskFactory "class"
 module.exports = TaskFactory;
-

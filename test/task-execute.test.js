@@ -12,19 +12,22 @@ const test = require("tape");
 const Task = require('../tasks');
 const TaskFactory = require('../task-factory');
 
+const core = require('../core');
+const StateType = core.StateType;
+const ReturnMode = core.ReturnMode;
+const FrozenError = core.FrozenError;
+const FinalisedError = core.FinalisedError;
+
 const TaskDef = require('../task-defs');
 const states = require('../task-states');
 const TaskState = states.TaskState;
 
-const taskFactory = new TaskFactory(console, {returnSuccessOrFailure: false});
+const taskFactorySettings = {logger: console, describeItem: genDescribeItem(10)};
+const taskFactory = new TaskFactory(taskFactorySettings, {returnMode: ReturnMode.NORMAL});
 
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
 const isNotBlank = Strings.isNotBlank;
-
-const errors = require('../errors');
-const FrozenError = errors.FrozenError;
-// const FinalisedError = errors.FinalisedError;
 
 const Action = {
   COMPLETE: 'COMPLETE',
@@ -34,17 +37,37 @@ const Action = {
   NONE: 'NONE'
 };
 
+function genDescribeItem(maxArgLength) {
+  // An arbitrary describeItem function
+  function describeItem() {
+    const n = arguments.length;
+    const args = new Array(n);
+    for (let i = 0; i < n; ++i) {
+      const arg = arguments[i];
+      const isObject = arg && typeof arg === 'object';
+      const isString = typeof arg === 'string';
+      const s = JSON.stringify(arg);
+      const suffix = s && s.length > maxArgLength ? ' ...' + (isObject ? '}' : isString ? '"' : '') : '';
+      args[i] = s ? s.length > 0 && maxArgLength > 0 ? s.substring(0, maxArgLength) + suffix : s : `${s}`;
+    }
+    return n > 0 ? `Args (${args.join(", ")})` : '';
+  }
+
+  return describeItem;
+}
+
 /**
  * Creates a simple task.
  * @param {string} name
  * @param {Function} executeFn
+ * @param {TaskDefSettings} taskDefSettings
  * @param {TaskFactory|undefined} [factory]
  * @param {TaskOpts|undefined} [opts]
  * @returns {Task}
  */
-function createSimpleTask(name, executeFn, factory, opts) {
+function createSimpleTask(name, executeFn, taskDefSettings, factory, opts) {
   factory = factory ? factory : taskFactory;
-  return factory.createTask(TaskDef.defineTask(`Task ${name}`, executeFn), opts);
+  return factory.createTask(TaskDef.defineTask(`Task ${name}`, executeFn, taskDefSettings), opts);
 }
 
 function genFn(name, ms) {
@@ -151,31 +174,33 @@ test('Task execute returning 1 promise', t => {
   const executeFn = () => {
     return a(null, 'A')
   };
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const executeResult = task.execute();
 
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
+  t.ok(task.outcome.value instanceof Promise, `${task.name} outcome.value must be Promise`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   executeResult.then(
     result => {
       const expected = 'A';
-      t.equal(result, expected, `${task.name} execute() result must be ${expected}`);
+      t.equal(result, expected, `${task.name} execute() result must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isSuccess(), `${task.name} resolutions[0].isSuccess() must be true`);
-          t.equal(resolutions[0].value, expected, `${task.name} resolutions[0].value must be ${expected}`);
+        doneResult => {
+          t.equal(doneResult, expected, `${task.name} done result must be ${stringify(expected)}`);
           t.ok(task.completed, `${task.name} must be completed`);
           t.equal(task.state, TaskState.instances.Completed, `${task.name} state must be Completed`);
-          t.equal(task.result, executeResult, `${task.name} result must be ${stringify(executeResult)}`);
+          t.equal(task.result, expected, `${task.name} result must be ${stringify(expected)}`);
           t.end();
         },
         err => t.end(err)
@@ -194,31 +219,33 @@ test('Task execute returning chain of 3 promises', t => {
   const executeFn = () => {
     return a(null, 'A').then(d => b(null, d + 'B').then(d => c(null, d + 'C')))
   };
-  const task = createSimpleTask('ABC', executeFn);
+  const task = createSimpleTask('ABC', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const executeResult = task.execute();
 
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
+  t.ok(task.outcome.value instanceof Promise, `${task.name} outcome.value must be Promise`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   executeResult.then(
     result => {
       const expected = 'ABC';
-      t.equal(result, expected, `${task.name} execute() result must be ${expected}`);
+      t.equal(result, expected, `${task.name} execute() result must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isSuccess(), `${task.name} resolutions[0].isSuccess() must be true`);
-          t.equal(resolutions[0].value, expected, `${task.name} resolutions[0].value must be ${expected}`);
+        doneResult => {
+          t.equal(doneResult, expected, `${task.name} done result must be ${stringify(expected)}`);
           t.ok(task.completed, `${task.name} must be completed`);
           t.equal(task.state, TaskState.instances.Completed, `${task.name} state must be Completed`);
-          t.equal(task.result, executeResult, `${task.name} result must be ${stringify(executeResult)}`);
+          t.equal(task.result, expected, `${task.name} result must be ${stringify(expected)}`);
           t.end();
         },
         err => t.end(err)
@@ -237,19 +264,22 @@ test('Task execute returning a list of 3 promises', t => {
   const executeFn = () => {
     return [a(null, 'A'), b(null, 'B'), c(null, 'C')];
   };
-  const task = createSimpleTask('ABC', executeFn);
+  const task = createSimpleTask('ABC', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const executeResult = task.execute();
 
+  t.ok(Array.isArray(executeResult), `executeResult must be an Array`);
+  t.equal(executeResult.length, 3, `executeResult.length must be 3`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
-
-  t.equal(executeResult.length, 3, `executeResult.length must be 3`);
+  t.ok(Array.isArray(task.outcome.value), `${task.name} outcome.value must be Array`);
 
   Promise.all(executeResult).then(
     result => {
@@ -257,17 +287,18 @@ test('Task execute returning a list of 3 promises', t => {
       t.deepEqual(result, expected, `${task.name} execute() result must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 3, `resolutions.length must be 3`);
-          t.ok(resolutions[0].isSuccess(), `${task.name} resolutions[0].isSuccess() must be true`);
-          t.ok(resolutions[1].isSuccess(), `${task.name} resolutions[1].isSuccess() must be true`);
-          t.ok(resolutions[2].isSuccess(), `${task.name} resolutions[2].isSuccess() must be true`);
-          t.equal(resolutions[0].value, expected[0], `${task.name} resolutions[0].value must be ${expected[0]}`);
-          t.equal(resolutions[1].value, expected[1], `${task.name} resolutions[1].value must be ${expected[1]}`);
-          t.equal(resolutions[2].value, expected[2], `${task.name} resolutions[2].value must be ${expected[2]}`);
+        doneResult => {
+          t.deepEqual(doneResult, expected, `${task.name} doneResult must be ${stringify(expected)}`);
+          // t.equal(doneResult.length, 3, `doneResult.length must be 3`);
+          // t.ok(doneResult[0].isSuccess(), `${task.name} doneResult[0].isSuccess() must be true`);
+          // t.ok(doneResult[1].isSuccess(), `${task.name} doneResult[1].isSuccess() must be true`);
+          // t.ok(doneResult[2].isSuccess(), `${task.name} doneResult[2].isSuccess() must be true`);
+          // t.equal(doneResult[0].value, expected[0], `${task.name} doneResult[0].value must be ${expected[0]}`);
+          // t.equal(doneResult[1].value, expected[1], `${task.name} doneResult[1].value must be ${expected[1]}`);
+          // t.equal(doneResult[2].value, expected[2], `${task.name} doneResult[2].value must be ${expected[2]}`);
           t.ok(task.completed, `${task.name} must be completed`);
           t.equal(task.state, TaskState.instances.Completed, `${task.name} state must be Completed`);
-          t.equal(task.result, executeResult, `${task.name} result must be ${stringify(executeResult)}`);
+          t.equal(task.result, doneResult, `${task.name} result must be ${stringify(doneResult)}`);
           t.end();
         },
         err => t.end(err)
@@ -286,16 +317,20 @@ test('Task execute returning 1 promise that rejects', t => {
   const executeFn = () => {
     return a(error, null);
   };
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const executeResult = task.execute();
 
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
+  t.ok(task.outcome.value instanceof Promise, `${task.name} outcome.value must be Promise`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   executeResult.then(
@@ -307,17 +342,17 @@ test('Task execute returning 1 promise that rejects', t => {
       t.equal(err, expected, `${task.name} execute() error must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isFailure(), `${task.name} resolutions[0].isFailure() must be true`);
-          t.equal(resolutions[0].error, expected, `${task.name} resolutions[0].error must be ${stringify(expected)}`);
+        doneResult => {
+          t.end(`${task.name} should NOT have resolved with done result (${stringify(doneResult)})`);
+        },
+        doneError => {
+          t.equal(doneError, expected, `${task.name} doneError must be ${expected}`);
           t.ok(task.failed, `${task.name} must be failed`);
           t.equal(task.error, error, `${task.name} error must be ${stringify(expected)}`);
           t.equal(task.state.name, TaskState.names.Failed, `${task.name} state name must be ${TaskState.names.Failed}`);
           t.equal(task.state.error, error.toString(), `${task.name} state error must be ${stringify(expected.toString())}`);
           t.end();
-        },
-        err => t.end(err)
+        }
       );
     }
   );
@@ -332,7 +367,7 @@ test('Task execute throwing an error', t => {
   const executeFn = () => {
     return a(error, null);
   };
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
@@ -350,17 +385,17 @@ test('Task execute throwing an error', t => {
     t.equal(err, expected, `${task.name} execute() caught error must be ${stringify(expected)}`);
     t.ok(task.donePromise, `${task.name} has a done promise`);
     task.donePromise.then(
-      resolutions => {
-        t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-        t.ok(resolutions[0].isFailure(), `${task.name} resolutions[0].isFailure() must be true`);
-        t.equal(resolutions[0].error, expected, `${task.name} resolutions[0].error must be ${stringify(expected)}`);
+      doneResult => {
+        t.end(`${task.name} should NOT have finished with done result (${stringify(doneResult)})`);
+      },
+      doneError => {
+        t.equal(doneError, error, `${task.name} doneError must be ${error}`);
         t.ok(task.failed, `${task.name} must be failed`);
         t.equal(task.error, error, `${task.name} error must be ${stringify(expected)}`);
         t.equal(task.state.name, TaskState.names.Failed, `${task.name} state name must be ${TaskState.names.Failed}`);
         t.equal(task.state.error, error.toString(), `${task.name} state error must be ${stringify(expected.toString())}`);
         t.end();
-      },
-      err => t.end(err)
+      }
     );
   }
 });
@@ -372,25 +407,27 @@ test('Task execute returning sync result', t => {
   const executeFn = () => {
     return a(null, 'A')
   };
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const executeResult = task.execute();
 
+  t.ok(typeof executeResult === 'string', `executeResult must be a string`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
+
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   const expected = 'A';
-  t.equal(executeResult, expected, `${task.name} execute() result must be ${expected}`);
+  t.equal(executeResult, expected, `${task.name} execute() result must be ${stringify(expected)}`);
   t.ok(task.donePromise, `${task.name} has a done promise`);
   task.donePromise.then(
-    resolutions => {
-      t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-      t.ok(resolutions[0].isSuccess(), `${task.name} resolutions[0].isSuccess() must be true`);
-      t.equal(resolutions[0].value, expected, `${task.name} resolutions[0].value must be ${expected}`);
+    doneResult => {
+      t.equal(doneResult, expected, `${task.name} doneResult must be ${stringify(expected)}`);
       t.ok(task.completed, `${task.name} must be completed`);
       t.equal(task.state, TaskState.instances.Completed, `${task.name} state must be Completed`);
       t.equal(task.result, expected, `${task.name} result must be ${stringify(expected)}`);
@@ -409,16 +446,19 @@ test('Task execute returning a list of sync results', t => {
   const executeFn = () => {
     return [a(null, 'A'), b(null, 'B'), c(null, 'C')]
   };
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const executeResult = task.execute();
 
+  t.ok(Array.isArray(executeResult), `executeResult must be an Array`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.deepEqual(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   const result = executeResult;
@@ -426,17 +466,18 @@ test('Task execute returning a list of sync results', t => {
   t.deepEqual(executeResult, expected, `${task.name} execute() result must be ${expected}`);
   t.ok(task.donePromise, `${task.name} has a done promise`);
   task.donePromise.then(
-    resolutions => {
-      t.equal(resolutions.length, 3, `resolutions.length must be 3`);
-      t.ok(resolutions[0].isSuccess(), `${task.name} resolutions[0].isSuccess() must be true`);
-      t.ok(resolutions[1].isSuccess(), `${task.name} resolutions[1].isSuccess() must be true`);
-      t.ok(resolutions[2].isSuccess(), `${task.name} resolutions[2].isSuccess() must be true`);
-      t.equal(resolutions[0].value, expected[0], `${task.name} resolutions[0].value must be ${expected[0]}`);
-      t.equal(resolutions[1].value, expected[1], `${task.name} resolutions[1].value must be ${expected[1]}`);
-      t.equal(resolutions[2].value, expected[2], `${task.name} resolutions[2].value must be ${expected[2]}`);
+    doneResult => {
+      t.equal(doneResult.length, 3, `${task.name} doneResult.length must be 3`);
+      t.deepEqual(doneResult, expected, `${task.name} doneResult must be ${stringify(expected)}`);
+      // t.ok(doneResult[0].isSuccess(), `${task.name} doneResult[0].isSuccess() must be true`);
+      // t.ok(doneResult[1].isSuccess(), `${task.name} doneResult[1].isSuccess() must be true`);
+      // t.ok(doneResult[2].isSuccess(), `${task.name} doneResult[2].isSuccess() must be true`);
+      // t.equal(doneResult[0].value, expected[0], `${task.name} doneResult[0].value must be ${expected[0]}`);
+      // t.equal(doneResult[1].value, expected[1], `${task.name} doneResult[1].value must be ${expected[1]}`);
+      // t.equal(doneResult[2].value, expected[2], `${task.name} doneResult[2].value must be ${expected[2]}`);
       t.ok(task.completed, `${task.name} must be completed`);
       t.equal(task.state, TaskState.instances.Completed, `${task.name} state must be Completed`);
-      t.deepEqual(task.result, expected, `${task.name} result must be ${stringify(expected)}`);
+      t.equal(task.result, doneResult, `${task.name} result must be ${stringify(doneResult)}`);
       t.end();
     },
     err => t.end(err)
@@ -446,7 +487,7 @@ test('Task execute returning a list of sync results', t => {
 test('Task execute returning 1 promise that fulfills, but self-managed to Succeeded - original succeed "prevents" later complete', t => {
   const ms = 10;
 
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
@@ -455,9 +496,12 @@ test('Task execute returning 1 promise that fulfills, but self-managed to Succee
 
   const executeResult = task.execute('A', null, 'A', ms, Action.SUCCEED, null, stateName);
 
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   executeResult.then(
@@ -466,13 +510,14 @@ test('Task execute returning 1 promise that fulfills, but self-managed to Succee
       t.equal(result, expected, `${task.name} execute() result must be ${expected}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isSuccess(), `${task.name} resolutions[0].isSuccess() must be true`);
-          t.equal(resolutions[0].value, expected, `${task.name} resolutions[0].value must be ${expected}`);
+        doneResult => {
+          t.equal(doneResult, expected, `${task.name} doneResult must be ${stringify(expected)}`);
           t.ok(task.completed, `${task.name} must be completed`);
           t.equal(task.state, TaskState.instances.Succeeded, `${task.name} state must be Succeeded`);
           t.equal(task.state.name, stateName, `${task.name} state name must be ${stateName}`);
+          const expectedStateType = StateType.COMPLETED;
+          t.equal(task.state.kind, expectedStateType, `${task.name} state kind must be ${expectedStateType}`);
+          t.equal(task.stateType, expectedStateType, `${task.name} stateType must be ${expectedStateType}`);
           //t.equal(task.result, executeResult, `${task.name} result must be ${stringify(executeResult)}`);
           t.equal(task.result, expected, `${task.name} result must be ${stringify(expected)}`); // internal success set result
           t.end();
@@ -493,7 +538,7 @@ test('Task execute returning 1 promise that rejects, but self managed to Rejecte
   const internalError = new TypeError("Kaboom");
   error.extra2 = 'Kaboom extra info';
 
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
@@ -502,9 +547,12 @@ test('Task execute returning 1 promise that rejects, but self managed to Rejecte
 
   const executeResult = task.execute('A', error, undefined, ms, Action.REJECT, internalError, stateName);
 
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   executeResult.then(
@@ -516,17 +564,20 @@ test('Task execute returning 1 promise that rejects, but self managed to Rejecte
       t.equal(err, expected, `${task.name} execute() error must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isFailure(), `${task.name} resolutions[0].isFailure() must be true`);
-          t.equal(resolutions[0].error, expected, `${task.name} resolutions[0].error must be ${stringify(expected)}`);
+        doneResult => {
+          t.end(`${task.name} should NOT have resolved with done result (${stringify(doneResult)})`);
+        },
+        doneError => {
+          t.equal(doneError, error, `${task.name} doneError must be ${error}`);
           t.ok(task.rejected, `${task.name} must be rejected`);
           t.equal(task.error, internalError, `${task.name} error must be ${stringify(internalError)}`);
           t.equal(task.state.name, stateName, `${task.name} state name must be ${stateName}`);
+          const expectedStateType = StateType.REJECTED;
+          t.equal(task.state.kind, expectedStateType, `${task.name} state kind must be ${expectedStateType}`);
+          t.equal(task.stateType, expectedStateType, `${task.name} stateType must be ${expectedStateType}`);
           t.equal(task.state.error, internalError.toString(), `${task.name} state error must be ${stringify(internalError.toString())}`);
           t.end();
-        },
-        err => t.end(err)
+        }
       );
     }
   );
@@ -541,7 +592,7 @@ test('Task execute returning 1 promise that rejects, but self managed to Failed 
   const internalError = new TypeError("Kaboom");
   internalError.extra2 = 'Kaboom extra info';
 
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
@@ -550,9 +601,12 @@ test('Task execute returning 1 promise that rejects, but self managed to Failed 
 
   const executeResult = task.execute('A', error, undefined, ms, Action.FAIL, internalError, stateName);
 
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
+
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   executeResult.then(
@@ -564,17 +618,20 @@ test('Task execute returning 1 promise that rejects, but self managed to Failed 
       t.equal(err, expected, `${task.name} execute() error must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isFailure(), `${task.name} resolutions[0].isFailure() must be true`);
-          t.equal(resolutions[0].error, expected, `${task.name} resolutions[0].error must be ${stringify(expected)}`);
+        doneResult => {
+          t.end(`${task.name} should NOT have resolved with done result (${stringify(doneResult)})`);
+        },
+        doneError => {
+          t.equal(doneError, error, `${task.name} doneError must be ${error}`);
           t.ok(task.failed, `${task.name} must be failed`);
           t.equal(task.error, internalError, `${task.name} error must be ${stringify(internalError)}`);
           t.equal(task.state.name, stateName, `${task.name} state name must be ${stateName}`);
+          const expectedStateType = StateType.FAILED;
+          t.equal(task.state.kind, expectedStateType, `${task.name} state kind must be ${expectedStateType}`);
+          t.equal(task.stateType, expectedStateType, `${task.name} stateType must be ${expectedStateType}`);
           t.equal(task.state.error, internalError.toString(), `${task.name} state error must be ${stringify(internalError.toString())}`);
           t.end();
-        },
-        err => t.end(err)
+        }
       );
     }
   );
@@ -589,17 +646,21 @@ test('Task execute returning 1 promise that rejects, but self managed to Succeed
   const internalError = new TypeError("Kaboom");
   internalError.extra2 = 'Kaboom extra info';
 
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const stateName = TaskState.names.Succeeded;
+
   const executeResult = task.execute('A', error, undefined, ms, Action.SUCCEED, internalError, stateName);
+
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
 
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   executeResult.then(
@@ -611,17 +672,17 @@ test('Task execute returning 1 promise that rejects, but self managed to Succeed
       t.equal(err, expected, `${task.name} execute() error must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isFailure(), `${task.name} resolutions[0].isFailure() must be true`);
-          t.equal(resolutions[0].error, expected, `${task.name} resolutions[0].error must be ${stringify(expected)}`);
+        doneResult => {
+          t.end(`${task.name} should NOT have resolved with done result (${stringify(doneResult)})`);
+        },
+        doneError => {
+          t.equal(doneError, error, `${task.name} doneError must be ${error}`);
           t.ok(task.failed, `${task.name} must be failed`);
           t.equal(task.error, error, `${task.name} error must be ${stringify(error)}`);
           t.equal(task.state.name, TaskState.names.Failed, `${task.name} state name must be ${TaskState.names.Failed}`);
           t.equal(task.state.error, error.toString(), `${task.name} state error must be ${stringify(error.toString())}`);
           t.end();
-        },
-        err => t.end(err)
+        }
       );
     }
   );
@@ -634,7 +695,7 @@ test('Task execute returning 1 promise, but task gets frozen before start', t =>
   const executeFn = () => {
     return a(null, 'A')
   };
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
@@ -642,7 +703,6 @@ test('Task execute returning 1 promise, but task gets frozen before start', t =>
   // Simulate external freeze of task before it even executes
   task.freeze();
   t.ok(task.isFrozen(), `${task.name} must be frozen`);
-
 
   // Attempt to execute the task
   t.throws(() => task.execute(), FrozenError, `execute must throw FrozenError`);
@@ -669,17 +729,20 @@ test('Task execute returning 1 promise, but task gets frozen during execute', t 
       return r;
     })
   };
-  const task = createSimpleTask('A', executeFn);
+  const task = createSimpleTask('A', executeFn, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
 
   const executeResult = task.execute();
 
+  t.ok(executeResult instanceof Promise, `executeResult must be an instance of Promise`);
+
   t.notOk(task.isFrozen(), `${task.name} must NOT be frozen yet`);
   t.ok(task.started, `${task.name} must be started`);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
 
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
   t.ok(task.donePromise, `${task.name} donePromise must be defined`);
@@ -687,14 +750,12 @@ test('Task execute returning 1 promise, but task gets frozen during execute', t 
   executeResult.then(
     result => {
       const expected = 'A';
-      t.equal(result, expected, `${task.name} execute() result must be ${expected}`);
+      t.equal(result, expected, `${task.name} execute() result must be ${stringify(expected)}`);
       t.ok(task.donePromise, `${task.name} has a done promise`);
       task.donePromise.then(
-        resolutions => {
+        doneResult => {
           t.ok(task.isFrozen(), `${task.name} must be frozen`);
-          t.equal(resolutions.length, 1, `resolutions.length must be 1`);
-          t.ok(resolutions[0].isSuccess(), `${task.name} resolutions[0].isSuccess() must be true`);
-          t.equal(resolutions[0].value, expected, `${task.name} resolutions[0].value must be ${expected}`);
+          t.equal(doneResult, expected, `${task.name} doneResult must be ${stringify(expected)}`);
 
           // Freeze before auto-complete must leave the task in its frozen state (blocking any update of its state)
           t.notOk(task.completed, `${task.name} must NOT be completed`);
@@ -708,4 +769,43 @@ test('Task execute returning 1 promise, but task gets frozen during execute', t 
     },
     err => t.end(err)
   );
+});
+
+test('Task execute returning 1 promise, but task was already finalised before start', t => {
+  const ms = 10;
+  const a = genFn('A', ms);
+
+  const executeFn = () => {
+    return a(null, 'A')
+  };
+  const task = createSimpleTask('A', executeFn, undefined);
+
+  t.ok(task.unstarted, `${task.name} must be unstarted`);
+  t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
+
+  // Simulate finalisation of task before it even executes
+  task.start();
+  task.incrementAttempts();
+  task.succeed(42);
+
+  t.equal(task.state, states.instances.Succeeded, `${task.name} state must be Succeeded`);
+  t.ok(task.completed, `${task.name} must be completed`);
+  t.ok(task.isFullyFinalised(), `${task.name} must be fully finalised`);
+  t.equal(task.attempts, 2, `${task.name} attempts must be 2`);
+
+  // Attempt to execute the task
+  t.throws(() => task.execute(), FinalisedError, `execute must throw FinalisedError`);
+
+  t.ok(task.isFullyFinalised(), `${task.name} must still be fully finalised`);
+
+  // Finalised beforehand must leave the task in its original finalised state (blocking any update of its state)
+  t.equal(task.state, states.instances.Succeeded, `${task.name} state must still be Succeeded`);
+  t.ok(task.completed, `${task.name} must still be completed`);
+  t.equal(task.result, 42, `${task.name} result must still be 42`);
+  t.ok(task.isFullyFinalised(), `${task.name} must still be fully finalised`);
+  t.equal(task.attempts, 2, `${task.name} attempts must still be 2`);
+  t.notOk(task.outcome, `${task.name} outcome must be undefined`);
+  t.notOk(task.donePromise, `${task.name} donePromise must be undefined`);
+
+  t.end();
 });

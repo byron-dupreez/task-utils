@@ -4,13 +4,18 @@ const TaskDef = require('./task-defs');
 const TaskFactory = require('./task-factory');
 const Task = require('./tasks');
 const isTaskLike = Task.isTaskLike;
-const errors = require('./errors');
+const core = require('./core');
+const ReturnMode = core.ReturnMode;
 const states = require('./task-states');
-const Objects = require('core-functions/objects');
+
+const copying = require('core-functions/copying');
+const copy = copying.copy;
+const merging = require('core-functions/merging');
+const merge = merging.merge;
+
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
-const Booleans = require('core-functions/booleans');
-const isTrueOrFalse = Booleans.isTrueOrFalse;
+// const Booleans = require('core-functions/booleans');
 const tries = require('core-functions/tries');
 const Try = tries.Try;
 const Failure = tries.Failure;
@@ -28,8 +33,10 @@ module.exports = {
   getTasks: getTasks,
   getTasksAndSubTasks: getTasksAndSubTasks,
   setTask: setTask,
-  // Function to replace task-likes in a tasks by name map with new tasks updated from the old task-likes
-  replaceTasksWithNewTasksUpdatedFromOld: replaceTasksWithNewTasksUpdatedFromOld,
+  // Function to revive tasks by replacing task-likes in a tasks by name map with new tasks updated from the old task-likes
+  reviveTasks: reviveTasks,
+  /** @deprecated Synonym for reviveTasks */
+  replaceTasksWithNewTasksUpdatedFromOld: reviveTasks,
   // Task factory configuration
   isTaskFactoryConfigured: isTaskFactoryConfigured,
   configureTaskFactory: configureTaskFactory,
@@ -38,10 +45,12 @@ module.exports = {
 
   // To simplify usage and reduce the number of explicit imports required
 
-  // 1. Re-export errors for convenience
-  TimeoutError: errors.TimeoutError,
-  FrozenError: errors.FrozenError,
-  FinalisedError: errors.FinalisedError,
+  // 1. Re-export enums & errors for convenience
+  StateType: core.StateType,
+  ReturnMode: core.ReturnMode,
+  TimeoutError: core.TimeoutError,
+  FrozenError: core.FrozenError,
+  FinalisedError: core.FinalisedError,
 
   // 2. Re-export TaskState class and all of its subclasses and TimeoutError class from task-states.js module
 
@@ -183,25 +192,26 @@ function setTask(tasksByName, taskName, task) {
 }
 
 /**
- * Replaces all of the old tasks in the given tasksByName "map" object with new tasks created from the given list of
- * active task definitions and updates these new tasks with the status-related information of the old tasks or task-
- * like objects, which are the prior versions of the tasks from a previous attempt (if any). Any and all old tasks that
- * do NOT appear in the list of new active tasks are also recreated and added to the given tasksByName as abandoned
- * tasks. Finally, returns both the newly created and updated, active tasks and any no longer active, abandoned tasks
- * that were all added to the given tasksByName.
+ * Revives all of the tasks on the given tasksByName "map" object by replacing all of its old task-likes with new tasks
+ * created from the given list of active task definitions and updates these new tasks with the status-related information
+ * of the old tasks or task-like objects, which are the prior versions of the tasks from a previous attempt (if any).
+ * Any and all old tasks that do NOT appear in the list of new active tasks are also recreated and added to the given
+ * tasksByName as abandoned tasks. Finally, returns both the newly created and updated, active tasks and any no longer
+ * active, abandoned tasks that were all added to the given tasksByName.
  *
  * @param {Object|Map} tasksByName - the tasksByName "map" object (or Map) on which to replace its old tasks or task-likes
  * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
  * @param {TaskFactory} taskFactory - the task factory to use to create the replacement tasks
- * @param {TaskOpts|undefined} [opts] - optional options to use to alter the behaviour of all newly created Tasks
- * @returns {Array.<Task[]>} both the updated, newly created tasks and any abandoned tasks
+ * @param {ReviveTasksOpts|undefined} [opts] - optional options to use to influence which tasks get created and how they get created during task revival/re-incarnation
+ * @param {boolean|undefined} [opts.onlyRecreateExisting] - whether to only recreate existing old tasks or to create new tasks for every active task definition (regardless of whether the task existed before or not)
+ * @returns {[Task[], Task[]]} both the updated, newly created tasks and any abandoned tasks
  */
-function replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs, taskFactory, opts) {
+function reviveTasks(tasksByName, activeTaskDefs, taskFactory, opts) {
   // Fetch any and all of the existing previous version tasks from the given tasksByName map
   const priorTasks = getTasks(tasksByName);
 
   // Create new tasks from the given active task definitions and update them with the info from the previous tasks
-  const newTasksAndAbandonedTasks = taskFactory.createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorTasks, opts);
+  const newTasksAndAbandonedTasks = taskFactory.reincarnateTasks(activeTaskDefs, priorTasks, opts);
   const newTasks = newTasksAndAbandonedTasks[0];
   const abandonedTasks = newTasksAndAbandonedTasks[1];
   const allTasks = newTasks.concat(abandonedTasks);
@@ -226,51 +236,56 @@ function isTaskFactoryConfigured(context) {
  * and then configures the given context object with the new task factory, but ONLY if the given context does NOT
  * already have a valid task factory.
  * @param {TaskFactoryAware|Object} context - the context onto which to configure a task factory
- * @param {TaskFactorySettings|undefined} [settings] - optional settings to use to construct the task factory
- * @param {BasicLogger|console|undefined} [logger] - the logger with which to construct the task factory (defaults to console if undefined)
- * @param {TaskFactoryOptions|undefined} [factoryOpts] - optional factory opts with which to construct the task factory
+ * @param {TaskFactoryExtendedSettings|undefined} [settings] - optional extended settings to use to construct & configure the task factory
+ * @param {TaskFactoryOptions|undefined} [options] - optional factory opts with which to construct the task factory
  * @returns {TaskFactoryAware} the given context configured with a task factory
  */
-function configureTaskFactory(context, settings, logger, factoryOpts) {
+function configureTaskFactory(context, settings, options) {
   // Check if a task factory is already configured on the context
   if (isTaskFactoryConfigured(context)) {
     return context;
   }
-  // Resolve the task factory opts to be used
-  const opts = factoryOpts && typeof factoryOpts === 'object' ? Objects.copy(factoryOpts, {deep: true}) : {};
-  Objects.merge(getDefaultTaskFactoryOpts(), opts);
-
   // Resolve the `createTaskFactory` function to use (if configured)
-  const createTaskFactory = settings && typeof settings === 'object' && settings.createTaskFactory ?
-    settings.createTaskFactory : undefined;
+  const createTaskFactory = settings ? settings.createTaskFactory : undefined;
 
-  context.taskFactory = constructTaskFactory(createTaskFactory, logger, opts);
+  context.taskFactory = constructTaskFactory(createTaskFactory, settings, options);
 
   return context;
 }
 
 /** Loads the local default options & merges them with the static default options */
 function getDefaultTaskFactoryOpts() {
-  const defaultOptions = Objects.copy(require('./default-factory-opts.json'), {deep: true});
-  // Remove any non-boolean defaultOptions.returnSuccessOrFailure
-  if (!isTrueOrFalse(defaultOptions.returnSuccessOrFailure)) {
-    delete defaultOptions.returnSuccessOrFailure;
+  const defaultOptions = copy(require('./default-factory-opts.json'), {deep: true});
+  // Remove any invalid defaultOptions.returnMode
+  if (!ReturnMode.isValid(defaultOptions.returnMode)) {
+    delete defaultOptions.returnMode;
   }
-  return Objects.merge({returnSuccessOrFailure: false}, defaultOptions);
+  return merge({returnMode: ReturnMode.NORMAL}, defaultOptions);
 }
 
 /**
  * Constructs a new task factory with the given logger and factory opts using either the given `createTaskFactory`
  * function (if defined) or the default TaskFactory constructor (if not).
  * @param {CreateTaskFactory|undefined} [createTaskFactory] - an optional function to use to create a new task factory
- * @param {BasicLogger|console|undefined} [logger] - the logger with which to construct the task factory (defaults to console if undefined)
- * @param {TaskFactoryOptions|undefined} [opts] - optional opts with which to construct the task factory
+ * @param {TaskFactorySettings|undefined} [settings] - optional settings to use to construct the task factory
+ * @param {TaskFactoryOptions|undefined} [options] - optional options to use to construct the task factory
  * @returns {TaskFactory} a new TaskFactory instance
  * @throws {Error} if the given createTaskFactory function is defined, but is not a function or does not create a valid
  * TaskFactory or if it throws an error
  */
-function constructTaskFactory(createTaskFactory, logger, opts) {
-  if (!logger) logger = console;
+function constructTaskFactory(createTaskFactory, settings, options) {
+  // Resolve the task factory settings to be used
+  const settingsToUse = settings && typeof settings === 'object' ? copy(settings, {deep: false}) :
+    {logger: console};
+
+  // Resolve & default logger if missing
+  if (!settingsToUse.logger) settingsToUse.logger = console; // default logger to console if undefined
+  const logger = settingsToUse.logger;
+
+  // Resolve the task factory options to be used
+  const optionsToUse = options && typeof options === 'object' ? copy(options, {deep: true}) : {};
+  merge(getDefaultTaskFactoryOpts(), optionsToUse);
+
   if (createTaskFactory) {
     // Ensure that `createTaskFactory` is a function
     if (typeof createTaskFactory !== "function") {
@@ -279,7 +294,7 @@ function constructTaskFactory(createTaskFactory, logger, opts) {
       throw new Error(errMsg);
     }
     // Attempt to create a task factory using the given `createTaskFactory` function
-    const outcome = Try.try(() => createTaskFactory(logger, opts)).map(
+    const outcome = Try.try(() => createTaskFactory(settingsToUse, optionsToUse)).map(
       taskFactory => {
         // Ensure that the `createTaskFactory` function actually returned a valid TaskFactory instance
         if (!(taskFactory instanceof TaskFactory)) {
@@ -287,7 +302,7 @@ function constructTaskFactory(createTaskFactory, logger, opts) {
           logger.error(errMsg);
           return new Failure(new Error(errMsg)); // throw new Error(errMsg);
         }
-        logger.log('INFO', `Constructed a ${taskFactory.constructor.name} task factory using ${stringify(createTaskFactory)}`);
+        logger.log('DEBUG', `Constructed a ${taskFactory.constructor.name} task factory using ${stringify(createTaskFactory)} with options ${stringify(optionsToUse)}`);
         return taskFactory;
       },
       err => {
@@ -298,6 +313,6 @@ function constructTaskFactory(createTaskFactory, logger, opts) {
     );
     return outcome.get();
   }
-  logger.log('INFO', `Constructed a TaskFactory task factory using the default TaskFactory constructor`);
-  return new TaskFactory(logger, opts);
+  logger.log('DEBUG', `Constructed a TaskFactory task factory using the default TaskFactory constructor with options ${stringify(optionsToUse)}`);
+  return new TaskFactory(settingsToUse, optionsToUse);
 }

@@ -1,12 +1,13 @@
 'use strict';
 
-const errors = require('./errors');
-
 /**
  * A TaskState class and its subclasses with static utilities for defining the state of a task or operation.
  * @module task-utils/task-states
  * @author Byron du Preez
  */
+
+const core = require('./core');
+const StateType = core.StateType;
 
 /**
  * The names of the task states that have fixed names.
@@ -33,107 +34,34 @@ const names = {
 /**
  * TaskState - The base class for a state of a task or operation.
  * @extends {Object}
- * @property {string} name - the name of the state
- * @property {boolean} completed - whether to consider a task with this state as completed or not
- * @property {boolean} timedOut - whether to consider a task with this state as timed out (or failed due to a timeout) or not
+ * @property {string} name - the name of this state
+ * @property {StateType} kind - the type of this state
  * @property {string|undefined} [error] - an optional error with which a task was failed, timed out or rejected
- * @property {boolean} rejected - whether to consider a task with this state as rejected/abandoned/discarded or not
  * @property {string|undefined} [reason] - an optional reason given for rejecting a task
  */
 class TaskState {
   /**
    * Constructs a TaskState.
-   * @param {string} name - the name of the state
-   * @param {boolean|Boolean} completed - whether to consider a task with this state as completed or not
-   * @param {boolean|Boolean} timedOut - whether to consider a task with this state as timed out (or failed due to a timeout) or not
+   * @param {string} name - the name of this state
+   * @param {StateType} kind - the type/kind of this state
    * @param {Error|string|undefined} [error] - an optional error
-   * @param {boolean|Boolean} rejected - whether to consider a task with this state as rejected/abandoned/discarded or not
    * @param {string|undefined} [reason] - an optional reason given for rejecting this task
    */
-  constructor(name, completed, timedOut, error, rejected, reason) {
+  constructor(name, kind, error, reason) {
     // Create each property as read-only (writable: false and configurable: false are defaults)
-    Object.defineProperty(this, '_name', {value: name, enumerable: true});
-    Object.defineProperty(this, '_completed', {value: !!completed, enumerable: true}); // !! deals with being given a non-boolean completed
-    Object.defineProperty(this, '_timedOut', {value: !!timedOut, enumerable: true}); // !! deals with being given a non-boolean
+    Object.defineProperty(this, 'name', {value: name, enumerable: true});
+    Object.defineProperty(this, 'kind', {value: kind, enumerable: true});
 
     // Convert the given error (if any) into a string (to facilitate serialization to and from JSON)
     const errorMessage = typeof error === 'string' ? error : error instanceof String ? error.valueOf() :
         error ? error.toString() : undefined;
 
-    Object.defineProperty(this, '_error', {value: errorMessage, enumerable: true});
-    Object.defineProperty(this, '_rejected', {value: !!rejected, enumerable: true}); // !! deals with being given a non-boolean
-    Object.defineProperty(this, '_reason', {value: reason, enumerable: true});
-  }
-
-  /**
-   * Customized toJSON method, which is used by {@linkcode JSON.stringify} to output the internal _name, _completed,
-   * _timedOut, _error, _rejected and _reason properties without their underscores.
-   */
-  toJSON() {
-    return {
-      name: this._name,
-      completed: this._completed,
-      timedOut: this._timedOut,
-      error: this._error,
-      rejected: this._rejected,
-      reason: this._reason
-    };
+    Object.defineProperty(this, 'error', {value: errorMessage, enumerable: true});
+    Object.defineProperty(this, 'reason', {value: reason, enumerable: true});
   }
 
   // ===================================================================================================================
   // State accessors
-  // ===================================================================================================================
-
-  /**
-   * Returns the name of this state.
-   * @return {string} the name of this state.
-   */
-  get name() {
-    return this._name;
-  }
-
-  /**
-   * Returns true if this state is a completed state; false otherwise.
-   * @return {boolean} true if has timed out; false otherwise.
-   */
-  get completed() {
-    return this._completed;
-  }
-
-  /**
-   * Returns true if this state is a timed out state (i.e. timed out, not completed and not rejected); false otherwise.
-   * @return {boolean} true if timed out; false otherwise.
-   */
-  get timedOut() {
-    return this._timedOut;
-  }
-
-  /**
-   * Returns the error encountered when this state is a failed or timed out state; otherwise undefined.
-   * @return {string|undefined} the error encountered; otherwise undefined.
-   */
-  get error() {
-    return this._error;
-  }
-
-  /**
-   * Returns true if this state is a rejected state; false otherwise.
-   * @return {boolean} true if rejected; false otherwise.
-   */
-  get rejected() {
-    return this._rejected;
-  }
-
-  /**
-   * Returns the reason for rejection if this state is a rejected state; otherwise undefined.
-   * @return {string|undefined} the reason for rejection; otherwise undefined.
-   */
-  get reason() {
-    return this._reason;
-  }
-
-  // ===================================================================================================================
-  // Accessors for derived state
   // ===================================================================================================================
 
   /**
@@ -142,7 +70,7 @@ class TaskState {
    * @returns {boolean} true if unstarted; false otherwise
    */
   get unstarted() {
-    return !this._completed && !this._timedOut && !this._error && !this._rejected && this._name !== names.Started;
+    return this.kind === StateType.UNSTARTED;
   }
 
   /**
@@ -151,15 +79,15 @@ class TaskState {
    * @returns {boolean} true if started; false otherwise
    */
   get started() {
-    return !this._completed && !this._timedOut && !this._error && !this._rejected && this._name === names.Started;
+    return this.kind === StateType.STARTED;
   }
 
   /**
-   * Returns true if this state is an incomplete state (i.e. not completed and not rejected); false otherwise
-   * @returns {boolean} true if incomplete; false otherwise
+   * Returns true if this state is a completed state; false otherwise.
+   * @return {boolean} true if has timed out; false otherwise.
    */
-  get incomplete() {
-    return !this._completed && !this._rejected;
+  get completed() {
+    return this.kind === StateType.COMPLETED;
   }
 
   /**
@@ -168,7 +96,35 @@ class TaskState {
    * @return {boolean} true if failed; false otherwise.
    */
   get failed() {
-    return !this._completed && !this._timedOut && !this._rejected && !!this._error;
+    return this.kind === StateType.FAILED;
+  }
+
+  /**
+   * Returns true if this state is a timed out state (i.e. timed out, not completed and not rejected); false otherwise.
+   * @return {boolean} true if timed out; false otherwise.
+   */
+  get timedOut() {
+    return this.kind === StateType.TIMED_OUT;
+  }
+
+  /**
+   * Returns true if this state is a rejected state; false otherwise.
+   * @return {boolean} true if rejected; false otherwise.
+   */
+  get rejected() {
+    return this.kind === StateType.REJECTED;
+  }
+
+  // ===================================================================================================================
+  // Accessors for derived state
+  // ===================================================================================================================
+
+  /**
+   * Returns true if this state is an incomplete state (i.e. not completed and not rejected); false otherwise
+   * @returns {boolean} true if incomplete; false otherwise
+   */
+  get incomplete() {
+    return this.kind !== StateType.COMPLETED && this.kind !== StateType.REJECTED;
   }
 
   /**
@@ -176,7 +132,7 @@ class TaskState {
    * @returns {boolean} true if a finalised state; false otherwise
    */
   get finalised() {
-    return this._completed || this._rejected;
+    return this.kind === StateType.COMPLETED || this.kind === StateType.REJECTED;
   }
 
   /**
@@ -215,7 +171,7 @@ class TaskState {
 class Unstarted extends TaskState {
   /** Constructs an Unstarted task state */
   constructor() {
-    super(names.Unstarted, false, false, undefined, false, undefined);
+    super(names.Unstarted, StateType.UNSTARTED, undefined, undefined);
   }
 }
 
@@ -227,7 +183,7 @@ class Unstarted extends TaskState {
 class Started extends TaskState {
   /** Constructs a Started task state */
   constructor() {
-    super(names.Started, false, false, undefined, false, undefined);
+    super(names.Started, StateType.STARTED, undefined, undefined);
   }
 }
 
@@ -242,7 +198,7 @@ class CompletedState extends TaskState {
    * @param {string} name - the name of the state
    */
   constructor(name) {
-    super(name, true, false, undefined, false, undefined);
+    super(name, StateType.COMPLETED, undefined, undefined);
   }
 }
 
@@ -259,7 +215,7 @@ class TimedOutState extends TaskState {
    * @param {Error|string|undefined} [error] - an optional error that occurred that triggered this TimedOutState state
    */
   constructor(name, error) {
-    super(name, false, true, error, false, undefined);
+    super(name, StateType.TIMED_OUT, error, undefined);
   }
 }
 
@@ -276,7 +232,7 @@ class FailedState extends TaskState {
    * @param {Error|string} error - the error encountered
    */
   constructor(name, error) {
-    super(name, false, false, error, false, undefined);
+    super(name, StateType.FAILED, error, undefined);
   }
 }
 
@@ -294,7 +250,7 @@ class RejectedState extends TaskState {
    * @param {Error|string|undefined} [error] - an optional error
    */
   constructor(name, reason, error) {
-    super(name, false, false, error, true, reason);
+    super(name, StateType.REJECTED, error, reason);
   }
 }
 
@@ -437,15 +393,17 @@ const instances = {
 };
 Object.freeze(instances);
 
-// Install the names & instances constants as static properties on TaskState
+// Install the names, instances constants & State enum as static properties on TaskState
 Object.defineProperty(TaskState, 'names', {value: names});
 Object.defineProperty(TaskState, 'instances', {value: instances});
+// Enum for the types of states supported - re-exported for convenience
+Object.defineProperty(TaskState, 'StateType', {value: StateType});
 
 /**
- * Constructs an appropriate TaskState instance based on the given name, completed, timedOut, optional error, rejected &
- * optional reason.
+ * Constructs an appropriate `TaskState` instance from the given legacy state-like properties: `name`; `completed`;
+ * `timedOut`; optional `error`; `rejected`; and optional `reason`.
  *
- * @param {string} name - the name of this state
+ * @param {string} name - the name of the task state
  * @param {boolean} completed - whether or not to consider a task with this state as completed or not
  * @param {boolean} timedOut - whether or not to consider a task with this state as timed out or not
  * @param {Error|string|undefined} [error] - an optional error
@@ -453,7 +411,7 @@ Object.defineProperty(TaskState, 'instances', {value: instances});
  * @param {string|undefined} [reason] - an optional reason given for rejecting this task
  * @return {AnyTaskState} the appropriate TaskState instance created
  */
-function toTaskState(name, completed, timedOut, error, rejected, reason) {
+function fromLegacyStateLikeProperties(name, completed, timedOut, error, rejected, reason) {
   if (!completed && !timedOut && !error && !rejected && !reason) {
     return name === names.Started ? instances.Started : instances.Unstarted;
   }
@@ -472,26 +430,84 @@ function toTaskState(name, completed, timedOut, error, rejected, reason) {
       name === names.Discarded ? new Discarded(reason, error) :
         name === names.Abandoned ? new Abandoned(reason, error) : new RejectedState(name, reason, error);
   }
-  return new TaskState(name, completed, timedOut, error, rejected, reason);
+
+  // Translate the given rejected, timedOut, error & completed arguments into an appropriate state to use
+  //noinspection JSUnusedLocalSymbols
+  const state = rejected ? StateType.REJECTED : timedOut ? StateType.TIMED_OUT : error ? StateType.FAILED :
+        completed ? StateType.COMPLETED : StateType.UNSTARTED;
+
+  return new TaskState(name, state, error, reason);
 }
 // Install it as a static method too
-if (!TaskState.toTaskState) TaskState.toTaskState = toTaskState;
+if (!TaskState.fromLegacyStateLikeProperties) TaskState.fromLegacyStateLikeProperties = fromLegacyStateLikeProperties;
+
+/**
+ * Constructs an appropriate `TaskState` instance from the given new state-like properties: `name`; `state`; optional
+ * `error`; and optional `reason`.
+ *
+ * @param {string} name - the name of the task state
+ * @param {StateType} state - the underlying state of the task state
+ * @param {Error|string|undefined} [error] - an optional error with which the task failed
+ * @param {string|undefined} [reason] - an optional reason given for rejecting the task
+ * @return {AnyTaskState} the appropriate TaskState instance created
+ */
+function fromStateLikeProperties(name, state, error, reason) {
+  if (state) {
+    switch (state) {
+      case StateType.UNSTARTED:
+        return instances.Unstarted;
+
+      case StateType.STARTED:
+        return instances.Started;
+
+      case StateType.COMPLETED:
+        return name === names.Completed ? instances.Completed :
+          name === names.Succeeded ? instances.Succeeded : new CompletedState(name);
+
+      case StateType.FAILED:
+        return name === names.Failed ? new Failed(error) : new FailedState(name, error);
+
+      case StateType.TIMED_OUT:
+        return name === names.TimedOut ? new TimedOut(error) : new TimedOutState(name, error);
+
+      case StateType.REJECTED:
+        return name === names.Rejected ? new Rejected(reason, error) :
+          name === names.Discarded ? new Discarded(reason, error) :
+            name === names.Abandoned ? new Abandoned(reason, error) :
+              new RejectedState(name, reason, error);
+
+      default:
+        throw new Error(`Unexpected state (${state}) for task state-like with name: ${name}, error: ${error} & reason: ${reason}`);
+    }
+  }
+  return undefined;
+}
+
+// Install it as a static method too
+if (!TaskState.fromStateLikeProperties) TaskState.fromStateLikeProperties = fromStateLikeProperties;
 
 /**
  * Converts the given state-like object back into an appropriate TaskState.
- * @param {TaskStateLike|undefined} stateLike - an optional state-like object to convert
+ * @param {TaskStateLike|LegacyTaskStateLike|undefined} stateLike - an optional state-like object to convert
  * @returns {AnyTaskState|undefined} an appropriate TaskState for the given state-like object (if defined); otherwise
  * undefined
  */
 function toTaskStateFromStateLike(stateLike) {
   return stateLike ?
-    toTaskState(stateLike.name, stateLike.completed, stateLike.timedOut, stateLike.error, stateLike.rejected, stateLike.reason) :
+    stateLike.hasOwnProperty('kind') ?
+      fromStateLikeProperties(stateLike.name, stateLike.kind, stateLike.error, stateLike.reason) :
+      stateLike.hasOwnProperty('completed') || stateLike.hasOwnProperty('rejected') || stateLike.hasOwnProperty('timedOut') ?
+        fromLegacyStateLikeProperties(stateLike.name, stateLike.completed, stateLike.timedOut, stateLike.error, stateLike.rejected, stateLike.reason) :
+        undefined :
     undefined;
 }
 // Install it as a static method too
 if (!TaskState.toTaskStateFromStateLike) TaskState.toTaskStateFromStateLike = toTaskStateFromStateLike;
 
 module.exports = {
+  // Enum for the types of states supported - re-exported for convenience
+  StateType: StateType,
+
   // Task state names for task states with fixed names
   names: names,
 

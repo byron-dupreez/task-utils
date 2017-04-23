@@ -1,17 +1,17 @@
 'use strict';
 
 /**
- * Unit tests for task-utils/errors.js
+ * Unit tests for task-utils/core.js
  * @author Byron du Preez
  */
 
 const test = require("tape");
 
-const errors = require('../errors');
+const core = require('../core');
 // Error constructors
-const TimeoutError = errors.TimeoutError;
-const FrozenError = errors.FrozenError;
-const FinalisedError = errors.FinalisedError;
+const TimeoutError = core.TimeoutError;
+const FrozenError = core.FrozenError;
+const FinalisedError = core.FinalisedError;
 
 test(`TimeoutError constructor`, t => {
   const msg = 'Tick, tock, ..., BEEP';

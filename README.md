@@ -1,4 +1,4 @@
-# task-utils v5.0.2
+# task-utils v6.0.0
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -11,8 +11,9 @@ executable tasks (with their own configurable execute functions) or internal, no
 managed completely by the execute function of their parent task.
 
 Currently includes:
-- errors.js 
-  - Task-related Error subclasses
+- core.js 
+  - A core module containing enum objects such as `ReturnMode` and error subclasses for specific errors that can be
+    thrown when executing a Task.
 - task-states.js 
   - A TaskState class and its subclasses with static utilities for defining the state of a task or operation.
 - task-defs.js 
@@ -40,13 +41,16 @@ $ npm i --save task-utils
 
 In Node.js:
 
-* To use the task-related errors
+* To use the task-related enums & errors
 ```js
-const errors = require('task-utils/errors');
+const core = require('task-utils/core');
+// Enums
+const StateType = core.StateType;
+const ReturnMode = core.ReturnMode;
 // Task-related errors
-const TimeoutError = errors.TimeoutError;
-const FrozenError = errors.FrozenError;
-const FinalisedError = errors.FinalisedError;
+const TimeoutError = core.TimeoutError;
+const FrozenError = core.FrozenError;
+const FinalisedError = core.FinalisedError;
 ```
 * To use the task state classes and subclasses
 ```js
@@ -96,12 +100,12 @@ const timedOut2 = new TimedOut(new Error('My optional error that triggered timeo
 const customTimedOutState = new TimedOutState('MyTimedOutState');
 const customTimedOutState2 = new TimedOutState('MyTimedOutState', new TimeoutError('My optional error that triggered timeout ...'));
 
-// Example failure states
+// Example failed states
 const failed = new Failed(new Error('Another error'));
 
 const customFailedState = new FailedState('MyFailedState', new Error('Kaboom'));
 
-// Example rejection states
+// Example rejected states
 const rejected = new Rejected('My reason for rejecting', new Error('My optional error that triggered reject ...'));
 const discarded = new Discarded('My reason for discarding');
 const abandoned = new Abandoned('My reason for abandoning');
@@ -130,15 +134,17 @@ const subSubTaskA1aDef = subTaskA1Def.defineSubTask('SubSubTaskA1a');
 const TaskFactory = require('task-utils/task-factory');
 const Task = require('task-utils/tasks');
 
-const logger = console; // or, better yet, use a logger created using `logging-utils` module
-const factoryOpts = {}; // or {returnSuccessOrFailure: true} to change default `execute` behaviour to only return Success or Failure outcomes
-const taskFactory = new TaskFactory(logger, factoryOpts); // or better yet, use `taskUtils.configureTaskFactory` (see below)
+const settings = {logger: console, describeItem: undefined}; // or, better yet, use a logger created using `logging-utils` module
+const options = {returnMode: ReturnMode.NORMAL}; // or just undefined or {} to use the same default returnMode
+  // OR use: {returnMode: ReturnMode.PROMISE} to change default `execute` behaviour to only return Promises 
+  // OR use: {returnMode: ReturnMode.SUCCESS_OR_FAILURE} to change default `execute` behaviour to only return Success or Failure outcomes
+const taskFactory = new TaskFactory(settings, options); // or better yet, use `taskUtils.configureTaskFactory` (see below)
 
 // To create a new task (and any & all of its sub-tasks)
 // e.g. using task definition taskADef as defined above, this would create a new task (named TaskA) 
 // with 3 new sub-tasks (named SubTaskA1, SubTaskA2 & SubTaskA3) under the new task  
 // and 1 new sub-sub-task (named SubSubTaskA1a) under sub-task SubTaskA1
-const taskOpts = {}; // use this to set the task's optional `returnSuccessOrFailure` property, which if set to true or false, will override the factory's `returnSuccessOrFailure` property for this task
+const taskOpts = {}; // use this to set the task's optional `returnMode` property, which if set will override the factory's `returnMode` property for this task
 const taskA = taskFactory.createTask(taskADef, taskOpts);
 ```
 
@@ -147,11 +153,11 @@ const taskA = taskFactory.createTask(taskADef, taskOpts);
 const taskUtils = require('task-utils');
 
 const context = {}; // or your own context object (preferably configured as a logger too using logging-utils)
-const settings = undefined; // use this to define your own custom `createTaskFactory` function to be used
-const factoryOpts = undefined; // use this to override the factory's default false `returnSuccessOrFailure` property
+const settings = {createTaskFactory: undefined, logger: console, describeItem: undefined}; // use this to define your own custom `createTaskFactory` function to be used
+const options = {returnMode: undefined}; // use this to override the factory's default NORMAL `returnMode` property
 
 // Configure a task factory on the context object
-taskUtils.configureTaskFactory(context, settings, logger, factoryOpts);
+taskUtils.configureTaskFactory(context, settings, options);
 
 assert(context.taskFactory instanceof taskUtils.TaskFactory);
 ```
@@ -200,6 +206,31 @@ $ tape test/*.js
 
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
+## Migrating from version 5.x+ to 6.x+
+- Depending on your usage, you probably need to EITHER `require` & use the new `task-factory` module:
+  ```js
+  const TaskFactory = require('task-utils/task-factory');
+  // ... 
+  const settings = {createTaskFactory: undefined, logger: console, describeItem: undefined}; // or, better yet, use a logger created using `logging-utils` module
+  const options = {}; // which defaults to {returnMode: ReturnMode.NORMAL}
+  // or: const options = {returnMode: ReturnMode.SUCCESS_OR_FAILURE}; // to change default `execute` behaviour to only return a Success or Failure outcome
+  // or: const options = {returnMode: ReturnMode.PROMISE}; // to change default `execute` behaviour to only return a resolved or rejected Promise
+  const taskFactory = new TaskFactory(settings, options);
+  ```
+  ... OR, better yet, configure a task factory on a context object:
+  ```js
+  const taskUtils = require('task-utils');
+
+  const context = {}; // or your own context object (preferably configured as a logger too using logging-utils)
+  const settings = {createTaskFactory: undefined, logger: context, describeItem: undefined}; // use this to define your own custom `createTaskFactory` function to be used
+  const options = undefined; // use this to set the factory's default `returnMode` property
+
+  // Configure a task factory on the context object
+  taskUtils.configureTaskFactory(context, settings, options);
+
+  assert(context.taskFactory instanceof taskUtils.TaskFactory);
+  ```
+  
 ## Migrating from version 4.x to 5.x
 - Replace all requires of `task-defs` module with:
   ```js
@@ -214,7 +245,9 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   const TaskFactory = require('task-utils/task-factory');
   // ... 
   const logger = console; // or, better yet, use a logger created using `logging-utils` module
-  const factoryOpts = {}; // or {returnSuccessOrFailure: true} to change default `execute` behaviour to only return Success or Failure outcomes
+  const factoryOpts = {}; // which defaults to {returnMode: ReturnMode.NORMAL}
+  // or: const factoryOpts = {returnMode: ReturnMode.SUCCESS_OR_FAILURE}; // to change default `execute` behaviour to only return a Success or Failure outcome
+  // or: const factoryOpts = {returnMode: ReturnMode.PROMISE}; // to change default `execute` behaviour to only return a resolved or rejected Promise
   const taskFactory = new TaskFactory(logger, factoryOpts);
   ```
   ... OR, better yet, configure a task factory on a context object:
@@ -223,7 +256,7 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
 
   const context = {}; // or your own context object (preferably configured as a logger too using logging-utils)
   const settings = undefined; // use this to define your own custom `createTaskFactory` function to be used
-  const factoryOpts = undefined; // use this to set the factory's default `returnSuccessOrFailure` property
+  const factoryOpts = undefined; // use this to set the factory's default `returnMode` property
 
   // Configure a task factory on the context object
   taskUtils.configureTaskFactory(context, settings, logger, factoryOpts);
@@ -236,6 +269,108 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 6.0.0
+- Renamed `errors` module to `core` module:
+  - Added `StateType` enum to represent the underlying types/kinds of states
+  - Added `ReturnMode` enum to represent the different types of return modes that can be used to handle values returned 
+    and errors thrown by tasks' `execute` methods
+- Changes to `task-states` module:
+  - Changes to `TaskState` class:
+    - Renamed `_name` property to `name`
+    - Added a new StateType `kind` property (see `StateType` enum in `core` module for valid values)
+    - Removed `_completed`, `_timedOut` & `_rejected` properties, which were all replaced by the new StateType `kind` property
+    - Renamed `_error` property to `error` 
+    - Renamed `_reason` property to `reason`
+    - Changed `TaskState` constructor to take a single StateType `kind` argument instead of the original three `completed`, 
+      `timedOut` & `rejected` arguments
+    - Removed `name`, `error` & `reason` getters, which were no longer needed after the rename of the `_name`, `_error` 
+      and `_reason` properties
+    - Re-implemented `unstarted`, `started`, `completed`, `failed`, `timedOut`, `rejected`, `incomplete` & `finalised` 
+      getters to use the new StateType `kind` property
+    - Removed `toJSON` method (redundant after rename & change of properties)
+  - Changed constructors of all `TaskState` subclasses to pass the appropriate StateType `kind` argument to their 
+    superclass constructor
+  - Renamed the old `toTaskState` function to `fromLegacyStateLikeProperties`
+  - Added a new `fromStateLikeProperties` function that only accepts the new state properties: `name`; `kind`; `error`; 
+    and `reason`
+  - Changed the `toTaskStateFromStateLike` function to use the new version of the `fromStateLikeProperties` function if 
+    the given state-like has a `kind` property; otherwise to use the `fromLegacyStateLikeProperties` function if the 
+    given state-like has a legacy `completed`, `timedOut` or `rejected` property; otherwise to return undefined 
+- Changes to `task-utils` module:
+  - Renamed `replaceTasksWithNewTasksUpdatedFromOld` function to `reviveTasks`
+  - Added `onlyRecreateExisting` option to `opts` argument of `reviveTasks` function
+  - Removed `logger` argument from `configureTaskFactory` function, since now incorporated into its `settings` argument
+  - Replaced `logger` argument of `constructTaskFactory` function with new `settings` argument
+- Changes to `task-factory` module & `TaskFactory` class:
+  - Changes to `TaskFactory` constructor:
+    - Replaced first `logger` argument with more generic `settings` argument (non-backward compatible change), which 
+      enables configuration of the `logger` & a default `describeItem` function
+    - Renamed second `opts` argument to `options`
+  - Added a new optional `describeItem` function property to the `TaskFactory` class
+  - Replaced boolean `returnSuccessOrFailure` property with `returnMode` property
+  - Changed the `generateExecute` function to use the new `returnMode` properties of the `TaskFactory` & `Task` 
+    classes and to also support the new `ReturnMode.PROMISE` return mode, which wraps the value returned in a resolved 
+    Promise or the error thrown in a rejected Promise
+  - Changed the `generateExecute` function to use the new optional `describeItem` function property to generate a short 
+    description of a task's `execute` arguments to use for logging & to pass to the `updateTask` method
+  - Changed the `updateTask` method to accept an extra `startTimeInMs` argument to use to calculate `end` time
+  - Changed the `updateTask`, `completeTaskIfNecessary` & `failTaskIfNecessary` methods to accept an extra `describeItem`
+    argument to use for logging
+  - Changed the `updateTask` method to trigger the new `endedAt` method on its given task
+  - Changed the `updateTask` method to use the `core-functions/promises` module's new `flatten` function instead of the 
+    `every` function to resolve the execution done promise for the task
+  - Removed dead `extractPotentialPromises` function
+  - Renamed `createNewTasksUpdatedFromPriorVersions` method to `reincarnateTasks`
+    - Added `onlyRecreateExisting` option to `opts` argument of `reincarnateTasks` method
+  - Renamed `copyStateAttemptsAndLastExecutedAt` method to `copyStateAttemptsAndExecutionTimes`
+    - Updated `copyStateAttemptsAndExecutionTimes` method to set a task's `_began`, `_took` & `_ended` properties
+- Changes to `tasks` module & `Task` class:
+  - Renamed `_lastExecutedAt` property of `Task` class to `_began`
+  - Renamed `lastExecutedAt` getter of `Task` class to `began`
+  - Added new `ended` getter and `_ended` property to `Task` class
+  - Added new `took` getter and `_took` property to `Task` class
+  - Added new static `calculateEnded` & `calculateTook` utility functions to `Task` class
+  - Added new `beganAt` method to `Task` class to set the new `_began` & `_took` properties
+  - Changed `start` method to use new `beganAt` method
+  - Added new `endedAt` method to `Task` class to set the new `_ended` & `_took` properties
+  - Replaced boolean `returnSuccessOrFailure` property with `returnMode` property
+  - Added a convenience `stateType` method to return the StateType `kind` of a task's `state`  
+  - Updated & optimised `toJSON` method to reflect `began`, `took` & optionally `ended` properties & omit empty `subTasks`
+    - Patched static `isTaskLike` & `forEachTaskLike` methods to handle omitted `subTasks` properties
+  - Renamed `updateLastExecutedAt` method to `updateBegin` & then commented it out, since not currently used
+  - Changed `updateFromPriorVersion` method to update new `_began`, `_took` & `_ended` properties
+  - Changes to `complete` and `succeed` methods:
+    - Replaced 2nd `overrideTimedOut` boolean argument with a more generic object `opts` argument, which currently only 
+      accepts an `overrideTimedOut` property. For backward compatibility, any boolean `opts` argument will be treated as 
+      a legacy `overrideTimedOut` argument
+  - Changes to `completeAs` method:
+    - Replaced 3rd `overrideTimedOut` boolean argument with a more generic object `opts` argument, which currently only 
+      accepts an `overrideTimedOut` property. For backward compatibility, any boolean `opts` argument will be treated as
+      a legacy `overrideTimedOut` argument
+  - Changes to `timeout` method:
+    - Replaced 2nd `overrideCompleted` boolean argument with a more generic object `opts` argument, which now accepts 
+      `overrideCompleted`, `overrideUnstarted` and `reverseAttempt` properties. For backward compatibility, any boolean 
+      `opts` argument will be treated as a legacy `overrideCompleted` argument
+  - Changes to `timeoutAs` method:
+    - Replaced 3rd `overrideCompleted` boolean argument with a more generic object `opts` argument, which now accepts 
+      `overrideCompleted`, `overrideUnstarted` and `reverseAttempt` properties. For backward compatibility, any boolean 
+      `opts` argument will be treated as a legacy `overrideCompleted` argument
+  - Changes to `timeout` and `timeoutAs` methods:
+    - When the new `overrideUnstarted` option is set to:
+      - `false` (the default), then the timeout will actually be suppressed if the task is still unstarted; or
+      - `true`, then the timeout will be applied (even if the task is still unstarted.
+    - When the new `reverseAttempt` option is set to:
+      - `true`, then the timeout will "reverse the attempt" by decrementing the number of attempts, but ONLY if the task 
+        was started; or
+      - `false` (the default), then the timeout will leave the number of attempts as is
+  - Added new `taskDefSettings` arguments to the `createSubTask` & `getOrCreateSubTask` methods between their `execute` 
+    & `opts` arguments
+- Changes to `task-defs` module:
+  - Added new optional `settings` argument to `TaskDef` constructor & to static `defineTask` & `defineSubTasks` methods 
+    to enable configuration of a custom `describeItem` function to be used for logging
+  - Added new `describeItem` property to `TaskDef` class
+- Updated `core-functions` dependency to version 3.0.2
 
 ### 5.0.2
 - Updates to `README.md`

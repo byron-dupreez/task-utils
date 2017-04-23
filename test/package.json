@@ -1,7 +1,7 @@
 {
   "name": "task-utils-tests",
   "description": "Unit tests for task-utils modules",
-  "version": "5.0.2",
+  "version": "6.0.0",
   "author": "Byron du Preez",
   "license": "Apache-2.0",
   "private": true,

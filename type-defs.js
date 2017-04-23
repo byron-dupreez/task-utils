@@ -1,6 +1,14 @@
 /**
  * @typedef {Object} TaskStateLike - a task state-like object.
  * @property {string} name - the name of the state
+ * @property {StateType} kind - the type/kind of this state
+ * @property {string|undefined} [error] - an optional error with which a task was failed, timed out or rejected
+ * @property {string|undefined} [reason] - an optional reason given for rejecting a task
+ */
+
+/**
+ * @typedef {Object} LegacyTaskStateLike - a legacy task state-like object.
+ * @property {string} name - the name of the state
  * @property {boolean} completed - whether to consider a task with this state as completed or not
  * @property {boolean} timedOut - whether to consider a task with this state as timed out (or failed due to a timeout) or not
  * @property {string|undefined} [error] - an optional error with which a task was failed, timed out or rejected
@@ -33,26 +41,69 @@
  */
 
 /**
+ * @typedef {function(...args): string} DescribeItem - an optional function to use to extract a short description of the
+ * current item/target/subject from the arguments passed to a task's execute function for logging purposes.
+ * NB: The arguments of a `describeItem` function MUST match those of its corresponding `execute` function, since it
+ * will be called with the same arguments within the generated `execute` wrapper function
+ */
+
+/**
+ * @typedef {Object} TaskDefSettings - settings to use to configure a task definition (i.e. TaskDef instance)
+ * @property {DescribeItem|undefined} [describeItem] - an optional function to use to extract a short description of the current item/target/subject from the arguments passed to a task's execute function for logging purposes
+ */
+
+/**
  * @typedef {Object} TaskDef - a task definition, which is used to construct tasks
  * @property {string} name - the name that will be assigned to any task created using this definition
  * @property {Function|undefined} [execute] - the optional function to be executed when any task created using this definition is executed
  * @property {TaskDef|undefined} [parent] - an optional parent task (or sub-task) definition
  * @property {TaskDef[]} subTaskDefs - an array of zero or more executable and/or non-executable, internal sub-task definitions, which can be used to define executable and/or non-executable, internal sub-tasks
+ * @property {DescribeItem|undefined} [describeItem] - an optional function to use to extract a short description of the current item/target/subject from the arguments passed to a task's execute function for logging purposes
+ */
+
+/**
+ * @typedef {Object} TaskFactorySettings - settings to use to construct a task factory
+ * @property {BasicLogger|console} logger - the logger or logger-like object to use for logging
+ * @property {DescribeItem|undefined} [describeItem] - an optional default function to use to extract a short description of the current item/target/subject from the arguments passed to a task's execute function for logging purposes
+ */
+
+/**
+ * @typedef {Object} TaskFactoryOptions - options to use to construct a task factory
+ * @property {ReturnMode|undefined} [returnMode] - whether to generate task `execute` methods that only return a Promise
+ * (if returnMode is PROMISE); or a `Success` or `Failure` outcome (if returnMode is SUCCESS_OR_FAILURE); or return or
+ * throw normally (if returnMode is NORMAL or anything else)
+ */
+
+/**
+ * @typedef {function(settings: TaskFactorySettings, options: TaskFactoryOptions): TaskFactory} CreateTaskFactory - a function to use to create a new TaskFactory instance (or custom subclass instance)
+ */
+
+/**
+ * @typedef {TaskFactorySettings} TaskFactoryExtendedSettings - extended settings to use to construct & configure a task factory
+ * @property {CreateTaskFactory|undefined} [createTaskFactory] - an optional function to use to create a new task factory (defaults to using `TaskFactory` constructor if undefined)
  */
 
 /**
  * @typedef {Object} TaskFactory - represents a task factory, which is used to create Tasks and generate wrapper `execute` functions for Tasks
  * @property {BasicLogger|console} logger - the logger or logger-like object to use for logging
- * @property {boolean} returnSuccessOrFailure - whether to generate task `execute` functions that ONLY return `Success`
- * or `Failure` outcomes (if true); or return or throw normally (if false) - NB: ONLY used when a task's own
- * `returnSuccessOrFailure` property is undefined
+ * @property {ReturnMode} returnMode - whether to generate task `execute` methods that only return a Promise (if
+ * returnMode is PROMISE); or a `Success` or `Failure` outcome (if returnMode is SUCCESS_OR_FAILURE); or return or throw
+ * normally (if returnMode is NORMAL or anything else) - NB: ONLY used when a task's own `returnMode` property is undefined
+ * @property {DescribeItem|undefined} [describeItem] - an optional default function to use to extract a short description of the current item/target/subject from the arguments passed to a task's execute function for logging purposes
  */
 
 /**
- * @typedef {Object} TaskOpts - options to use to alter the behaviour of a Task
- * @property {boolean|undefined} [returnSuccessOrFailure] - whether the `execute` function of a task must only return a
- * `Success` or `Failure` outcome (if true); or return or throw normally (if false); or let its task factory decide
- * (if undefined)
+ * @typedef {Object} TaskOpts - options to use to alter the behaviour of a Task's `execute` method
+ * @property {ReturnMode|undefined} [returnMode] - whether the `execute` function of a task must only return a Promise
+ * (if returnMode is PROMISE); or a `Success` or `Failure` outcome (if returnMode is SUCCESS_OR_FAILURE); or return or
+ * throw normally (if returnMode is NORMAL); or let its task factory decide (if undefined)
+ */
+
+/**
+ * @typedef {TaskOpts} ReviveTasksOpts - options to use to influence which tasks get created and how they get created during task revival/re-incarnation
+ * @property {boolean|undefined} [onlyRecreateExisting] - whether to only recreate existing old tasks or to create new tasks for every active task definition (regardless of whether the task existed before or not)
+ * @see {@link module:task-utils/task-utils.reviveTasks}
+ * @see {@link module:task-utils/task-factory#reincarnateTasks}
  */
 
 /**
@@ -62,7 +113,9 @@
  * @property {TaskStateLike} state - tht state of the task
  * @property {number} attempts - the number of attempts at the task
  * @property {number} totalAttempts - the total number of attempts at the task, which is never decremented by decrementAttempts
- * @property {string} lastExecutedAt - the ISO date-time at which the task was last executed (if executed)
+ * @property {string|undefined} [began] - the ISO date-time at which this task's last execution began (or undefined if not executed yet)
+ * @property {number|undefined} [took] - the number of milliseconds that this task's last execution took (or undefined if not executed yet)
+ * @property {string|undefined} [ended] - the ISO date-time at which this task's last execution ended (or undefined if not executed yet OR if redundant)
  * @property {TaskLike[]} subTasks - an array of zero or more non-executable, internal subTasks of this task
  */
 
@@ -89,13 +142,15 @@
  * @property {AnyTaskState} state - the state of the task
  * @property {number} attempts - the number of attempts at the task
  * @property {number} totalAttempts - the total number of attempts at the task, which is never decremented by decrementAttempts
- * @property {string} lastExecutedAt - the ISO date-time at which the task was last executed (if executed)
+ * @property {string|undefined} [began] - the ISO date-time at which this task's last execution began (or undefined if not executed yet)
+ * @property {number|undefined} [took] - the number of milliseconds that this task's last execution took (or undefined if not executed yet)
+ * @property {string|undefined} [ended] - the ISO date-time at which this task's last execution ended (or undefined if not executed yet)
  * @property {*|undefined} [result] - the result with which this task was completed (if any)
  * @property {Error|undefined} [error] - the error with which this task was failed, timed out or rejected (if any)
  * @property {boolean} frozen - whether this task has been frozen or not
  * @property {Success|Failure|undefined} [outcome] - the Success or Failure outcome of execution of this task (or undefined if not executed yet)
  * @property {Promise.<(Success|Failure)[]>|undefined} [donePromise] - a promise that will only resolve when every promise of this task's execution outcome resolves (or undefined if not executed yet)
- * @property {boolean|undefined} [returnSuccessOrFailure] - whether the `execute` function of this task must only return a `Success` or `Failure` outcome (if true); or return or throw normally (if false); or let its task execute factory decide (if undefined)
+ * @property {ReturnMode|undefined} [returnMode] - whether the `execute` function of this task must only return a Promise (if returnMode is PROMISE); or a `Success` or `Failure` outcome (if returnMode is SUCCESS_OR_FAILURE); or return or throw normally (if returnMode is NORMAL); or let its task factory decide (if undefined)
  * @property {boolean} unstarted - whether this task is in an unstarted state or not
  * @property {boolean} started - whether this task is in a started state or not
  * @property {boolean} incomplete - whether this task is in an incomplete state or not
@@ -129,15 +184,13 @@
  */
 
 /**
- * @typedef {function(logger: BasicLogger|console, opts: TaskFactoryOptions): TaskFactory} CreateTaskFactory - a function to use to create a new TaskFactory instance
+ * @typedef {Object} CompleteOpts - options to use to modify the behaviour of the complete, succeed and completeAs methods
+ * @property {boolean|undefined} [overrideTimedOut] - whether the complete is allowed to override an existing timedOut state or not
  */
 
 /**
- * @typedef {Object} TaskFactorySettings - settings to use to construct a task factory
- * @property {CreateTaskFactory|undefined} [createTaskFactory] - an optional function to use to create a new task factory (defaults to using `TaskFactory` constructor if undefined)
- */
-
-/**
- * @typedef {Object} TaskFactoryOptions - options to use to construct a task factory
- * @property {boolean|undefined} [returnSuccessOrFailure] - whether to generate task `execute` methods that only return `Success` or `Failure` outcomes (if truthy); or return or throw normally (if anything else)
+ * @typedef {Object} TimeoutOpts - options to use to modify the behaviour of the timeout and timeoutAs methods
+ * @property {boolean|undefined} [overrideCompleted] - whether the timeout is allowed to override an existing completed state or not
+ * @property {boolean|undefined} [overrideUnstarted] - whether the timeout is allowed to override an existing unstarted state or not
+ * @property {boolean|undefined} [reverseAttempt] - whether the timeout must reverse the prior increment of the task's number of attempts (if the task was started) or not
  */

@@ -11,12 +11,16 @@ const test = require("tape");
 const Task = require('../tasks');
 const TaskFactory = require('../task-factory');
 
+const core = require('../core');
+const ReturnMode = core.ReturnMode;
+
 const TaskDef = require('../task-defs');
 const states = require('../task-states');
 const TaskState = states.TaskState;
 
-const taskFactory1 = new TaskFactory(console, {returnSuccessOrFailure: false});
-const taskFactory2 = new TaskFactory(console, {returnSuccessOrFailure: true});
+const taskFactory1 = new TaskFactory({logger: console, describeItem: genDescribeItem(10)}, {returnMode: ReturnMode.NORMAL});
+const taskFactory2 = new TaskFactory({logger: console, describeItem: genDescribeItem(10)}, {returnMode: ReturnMode.SUCCESS_OR_FAILURE});
+// const taskFactory3 = new TaskFactory({logger: console, describeItem: genDescribeItem(10)}, {returnMode: ReturnMode.PROMISE});
 
 // Run with various opts values
 const optsList = [
@@ -24,16 +28,22 @@ const optsList = [
   // null,
   // [],
   // {},
-  // {returnSuccessOrFailure: null},
-  // {returnSuccessOrFailure: 'BLUE'},
-  // {returnSuccessOrFailure: new Boolean(0)}, // false
-  // {returnSuccessOrFailure: new Boolean('BLUE')}, // true
-  {returnSuccessOrFailure: false},
-  {returnSuccessOrFailure: true}
+  // {returnMode: null},
+  // {returnMode: 'BLUE'},
+  // {returnMode: new Boolean(0)}, // false
+  // {returnMode: new Boolean('BLUE')}, // true
+  {returnMode: ReturnMode.NORMAL},
+  {returnMode: ReturnMode.SUCCESS_OR_FAILURE},
+  {returnMode: ReturnMode.PROMISE}
 ];
 
-const Booleans = require('core-functions/booleans');
-const isTrueOrFalse = Booleans.isTrueOrFalse;
+// const tries = require('core-functions/tries');
+// const Success = tries.Success;
+
+// const Promises = require('core-functions/promises');
+
+// const Booleans = require('core-functions/booleans');
+// const isTrueOrFalse = Booleans.isTrueOrFalse;
 
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
@@ -46,6 +56,25 @@ const stringify = Strings.stringify;
 //   NONE: 'NONE'
 // };
 
+function genDescribeItem(maxArgLength) {
+  // An arbitrary describeItem function
+  function describeItem() {
+    const n = arguments.length;
+    const args = new Array(n);
+    for (let i = 0; i < n; ++i) {
+      const arg = arguments[i];
+      const isObject = arg && typeof arg === 'object';
+      const isString = typeof arg === 'string';
+      const s = JSON.stringify(arg);
+      const suffix = s && s.length > maxArgLength ? ' ...' + (isObject ? '}' : isString ? '"' : '') : '';
+      args[i] = s ? s.length > 0 && maxArgLength > 0 ? s.substring(0, maxArgLength) + suffix : s : `${s}`;
+    }
+    return n > 0 ? `on (${args.join(", ")})` : '';
+  }
+
+  return describeItem;
+}
+
 function execute1() {
   console.log(`Executing execute1 on task (${this.name})`);
 }
@@ -53,22 +82,20 @@ function execute2() {
   console.log(`Executing execute2 on task (${this.name})`);
 }
 
-function defineSimpleTask(name) {
-  return TaskDef.defineTask(`Task ${name}`, execute1);
+function defineSimpleTask(name, settings) {
+  return TaskDef.defineTask(`Task ${name}`, execute1, settings);
 }
 
-function defineComplexTask(name) {
-  const taskDef = defineSimpleTask();
-  const subTaskDef = taskDef.defineSubTask(`SubTask ${name}1`, execute2);
-  subTaskDef.defineSubTasks([`SubTask ${name}1a`, `SubTask ${name}1b`]);
+function defineComplexTask(name, settings) {
+  const taskDef = defineSimpleTask(name, settings);
+  const subTaskDef = taskDef.defineSubTask(`SubTask ${name}1`, execute2, settings);
+  subTaskDef.defineSubTasks([`SubTask ${name}1a`, `SubTask ${name}1b`], settings);
   return taskDef;
 }
 
 // Create a simple task from a simple task definition
-function createSimpleTask(name) {
-  const factory = taskFactory1;
-  const opts = undefined;
-  return factory.createTask(defineSimpleTask(name), opts);
+function createSimpleTask(name, taskDefSettings, opts) {
+  return taskFactory1.createTask(defineSimpleTask(name, taskDefSettings), opts);
 }
 
 function checkTask(t, task, taskDef, factory, optsPerLevel, mustBeExecutable, prefix) {
@@ -94,7 +121,7 @@ function checkTask(t, task, taskDef, factory, optsPerLevel, mustBeExecutable, pr
     t.throws(() => task._opts = -1, TypeError, 'task._opts must be immutable');
     t.throws(() => task.executable = -1, TypeError, 'task.executable must be immutable');
     t.throws(() => task.execute = -1, TypeError, 'task.execute must be immutable');
-    t.throws(() => task.returnSuccessOrFailure = -1, TypeError, 'task.returnSuccessOrFailure must be immutable');
+    t.throws(() => task.returnMode = -1, TypeError, 'task.returnMode must be immutable');
     t.throws(() => task._subTasks = -1, TypeError, 'task._subTasks must be immutable');
     t.throws(() => task._subTasksByName = -1, TypeError, 'task._subTasksByName must be immutable');
 
@@ -123,10 +150,10 @@ function checkOpts(t, task, parent, opts) {
   const expectedOpts = opts ? opts : parent ? parent._opts : undefined;
   t.equal(task._opts, expectedOpts, `${task.name} _opts must be expected ${stringify(opts)}`);
 
-  const returnSuccessOrFailure = expectedOpts && isTrueOrFalse(expectedOpts.returnSuccessOrFailure) ?
-    !!expectedOpts.returnSuccessOrFailure : undefined;
+  const returnMode = expectedOpts && expectedOpts.returnMode && ReturnMode.isValid(expectedOpts.returnMode) ?
+    expectedOpts.returnMode : undefined;
 
-  t.equal(task.returnSuccessOrFailure, returnSuccessOrFailure, `${task.name} returnSuccessOrFailure must be ${stringify(returnSuccessOrFailure)}`);
+  t.equal(task.returnMode, returnMode, `${task.name} returnMode must be ${stringify(returnMode)}`);
 }
 
 // =====================================================================================================================
@@ -137,7 +164,7 @@ function checkOpts(t, task, parent, opts) {
 test('createTask', t => {
   function check(factory, taskDef, optsPerLevel, mustPass, mustBeExecutable) {
     const opts = Array.isArray(optsPerLevel) ? optsPerLevel[0] : optsPerLevel;
-    const prefix = `############ createTask(${taskDef ? taskDef.name : taskDef}, ${stringify(opts)})`;
+    const prefix = `createTask(${taskDef ? taskDef.name : taskDef}, ${stringify(opts)})`;
     try {
       const task = factory.createTask(taskDef, opts);
       if (mustPass) {
@@ -163,22 +190,23 @@ test('createTask', t => {
 
   function checkCreatedTask(task, taskDef, factory, optsPerLevel, mustBeExecutable) {
     const opts = Array.isArray(optsPerLevel) ? optsPerLevel[0] : optsPerLevel;
-    const prefix = `############ createTask(${taskDef ? taskDef.name : taskDef}, ${stringify(opts)})`;
+    const prefix = `createTask(${taskDef ? taskDef.name : taskDef}, ${stringify(opts)})`;
     checkTask(t, task, taskDef, factory, optsPerLevel, mustBeExecutable, prefix);
     return task;
   }
 
   let factory = taskFactory1;
+  const taskDefSettings = {describeItem: genDescribeItem(10)};
 
   // Test opts permutations - simple task
-  const simpleTaskDef = defineSimpleTask('A');
+  const simpleTaskDef = defineSimpleTask('A', undefined);
   for (let i = 0; i < optsList.length; ++i) {
     const opts = optsList[i];
     check(factory, simpleTaskDef, [opts], true, true);
   }
 
   // Test opts permutations - complex task - with top-level opts that must flow down to all sub-tasks
-  const complexTaskDef = defineComplexTask('B');
+  const complexTaskDef = defineComplexTask('B', undefined);
   for (let i = 0; i < optsList.length; ++i) {
     const opts = optsList[i];
     check(factory, complexTaskDef, [opts, opts, opts], true, true);
@@ -187,27 +215,27 @@ test('createTask', t => {
   // Test opts permutations - complex task - with NO top-level opts, but sub-task opts
   for (let i = 0; i < optsList.length; ++i) {
     const opts = optsList[i];
-    const task = factory.createTask(defineSimpleTask('C'), undefined);
-    const subTask = task.createSubTask('SubTask C1', execute2, opts);
-    subTask.createSubTask('SubTask C1a', execute2, opts);
+    const task = factory.createTask(defineSimpleTask('C', taskDefSettings), undefined);
+    const subTask = task.createSubTask('SubTask C1', execute2, taskDefSettings, opts);
+    subTask.createSubTask('SubTask C1a', execute2, taskDefSettings, opts);
     checkCreatedTask(task, task.definition, factory, [undefined, opts, opts], true);
   }
 
   // Test opts permutations - complex task - with NO parent opts at all and only leaf sub-task opts
   for (let i = 0; i < optsList.length; ++i) {
     const opts = optsList[i];
-    const task = factory.createTask(defineSimpleTask('D'), undefined);
-    const subTask = task.createSubTask('SubTask D1', execute2, undefined);
-    subTask.createSubTask('SubTask D1a', execute1, opts);
+    const task = factory.createTask(defineSimpleTask('D', taskDefSettings), undefined);
+    const subTask = task.createSubTask('SubTask D1', execute2, taskDefSettings, undefined);
+    subTask.createSubTask('SubTask D1a', execute1, taskDefSettings, opts);
     checkCreatedTask(t, task, task.definition, factory, [undefined, undefined, opts], true, undefined);
   }
 
   // Test opts permutations - complex task - with opts only at depth 1
   for (let i = 0; i < optsList.length; ++i) {
     const opts = optsList[i];
-    const task = factory.createTask(defineSimpleTask('D'), undefined);
-    const subTask = task.createSubTask('SubTask D1', execute2, opts);
-    subTask.createSubTask('SubTask D1a', execute1, undefined);
+    const task = factory.createTask(defineSimpleTask('D', taskDefSettings), undefined);
+    const subTask = task.createSubTask('SubTask D1', execute2, taskDefSettings, opts);
+    subTask.createSubTask('SubTask D1a', execute1, taskDefSettings, undefined);
     checkCreatedTask(t, task, task.definition, factory, [undefined, opts, opts], true, undefined);
   }
 
@@ -243,6 +271,7 @@ test('new Task', t => {
   }
 
   const factory = taskFactory2;
+  const taskDefSettings = {describeItem: genDescribeItem(10)};
   const opts = undefined;
 
   // Task with bad definition
@@ -253,26 +282,26 @@ test('new Task', t => {
   check(1, undefined, factory, opts, false, true);
   check('', undefined, factory, opts, false, true);
   check([], undefined, factory, opts, false, true);
-  check(defineSimpleTask('A'), undefined, undefined, opts, false, true); // missing factory
+  check(defineSimpleTask('A', taskDefSettings), undefined, undefined, opts, false, true); // missing factory
 
   // Simple task with no internal subtasks
-  const taskA = check(defineSimpleTask('A'), undefined, factory, opts, true, true);
+  const taskA = check(defineSimpleTask('A', taskDefSettings), undefined, factory, opts, true, true);
 
   // Add a subtask B to Task A
-  const subTaskDefB = new TaskDef('SubTask B', undefined, taskA.definition);
+  const subTaskDefB = new TaskDef('SubTask B', undefined, taskA.definition, taskDefSettings);
   const subTaskB = check(subTaskDefB, taskA, factory, opts, true, false);
   t.equal(subTaskB.subTasks.length, 0, `SubTask (${subTaskB.name}) subTasks length must be 0`);
   t.equal(taskA.subTasks.length, 1, `Task (${taskA.name}) subTasks length must be 1`);
 
   // Add a subtask B1 to SubTask B
-  const subTaskDefB1 = new TaskDef('SubTask B1', undefined, subTaskB.definition);
+  const subTaskDefB1 = new TaskDef('SubTask B1', undefined, subTaskB.definition, taskDefSettings);
   const subTaskB1 = check(subTaskDefB1, subTaskB, factory, opts, true, false);
   t.equal(subTaskB1.subTasks.length, 0, `SubTask (${subTaskB1.name}) subTasks length must be 0`);
   t.equal(subTaskB.subTasks.length, 1, `SubTask (${subTaskB.name}) subTasks length must be 1`);
   t.equal(taskA.subTasks.length, 1, `Task (${taskA.name}) subTasks length must be 1`);
 
   // Add another subtask C to Task A
-  const subTaskDefC = new TaskDef('SubTask C', undefined, taskA.definition);
+  const subTaskDefC = new TaskDef('SubTask C', undefined, taskA.definition, taskDefSettings);
   const subTaskC = check(subTaskDefC, taskA, factory, opts, true, false);
   t.equal(subTaskC.subTasks.length, 0, `SubTask (${subTaskC.name}) subTasks length must be 0`);
   t.equal(taskA.subTasks.length, 2, `Task (${taskA.name}) subTasks length must be 2`);
@@ -329,7 +358,7 @@ test('reconstructTasksFromRootTaskLike', t => {
   const opts = undefined;
 
   // Create a simple task from a simple task definition
-  const taskDefA = defineSimpleTask('A');
+  const taskDefA = defineSimpleTask('A', undefined);
   const taskA = factory.createTask(taskDefA, opts);
   // unstarted
   check(factory, taskA, opts, true, true);
@@ -339,7 +368,7 @@ test('reconstructTasksFromRootTaskLike', t => {
   check(factory, taskA, opts, true, true);
 
   // succeed it
-  taskA.completeAs('Ok', undefined, true);
+  taskA.completeAs('Ok', undefined, {overrideTimedOut: true}, false);
   check(factory, taskA, opts, true, true);
 
   // Create a complex task from a complex task definition
@@ -365,7 +394,7 @@ test('reconstructTasksFromRootTaskLike', t => {
 
 test('task state initial', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.notOk(task.started, `${task.name} must NOT be started`);
@@ -384,7 +413,7 @@ test('task state initial', t => {
 
 test('task start()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
   t.notOk(task.started, `${task.name} must NOT be started`);
@@ -430,10 +459,10 @@ test('task start()', t => {
 
 test('task succeed()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -451,10 +480,10 @@ test('task succeed()', t => {
 
 test('task completeAs()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Complete it
-  task.completeAs('MySuccessState', undefined, true);
+  task.completeAs('MySuccessState', undefined, {overrideTimedOut: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -470,12 +499,13 @@ test('task completeAs()', t => {
   t.end();
 });
 
-test('task timeout()', t => {
+test('task timeout() with overrideUnstarted', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
+  t.ok(task.unstarted, `${task.name} must be unstarted`);
 
-  // Time it out
-  task.timeout(new Error('Boom'), true);
+  // Time it out (with overrideUnstarted)
+  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -491,12 +521,91 @@ test('task timeout()', t => {
   t.end();
 });
 
-test('task timeoutAs()', t => {
+test('task timeout() without overrideUnstarted', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
+  t.ok(task.unstarted, `${task.name} must be unstarted`);
+
+  // Fail to time it out (since NOT overrideUnstarted)
+  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: false, reverseAttempt: true}, false);
+
+  t.ok(task.unstarted, `${task.name} must still be unstarted`);
+  t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+
+  // Now start the task to move it out of its unstarted state, so that it can be timed out (without having to use overrideUnstarted)
+  task.start(new Date(), true);
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.started, `${task.name} must now be started`);
+
+  // Time it out (still without overrideUnstarted)
+  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: false, reverseAttempt: true}, false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timedOut`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task timeoutAs() with overrideUnstarted', t => {
+  // Create a simple task from a simple task definition
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Fail it
-  task.timeoutAs('MyTimeoutState', new Error('Boom'), true);
+  task.timeoutAs('MyTimeoutState', new Error('Boom'), {
+    overrideCompleted: true,
+    overrideUnstarted: true,
+    reverseAttempt: true
+  }, false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.incomplete, `${task.name} must be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.ok(task.timedOut, `${task.name} must be timedOut`);
+  t.notOk(task.failed, `${task.name} must not be failed`);
+  t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task timeoutAs() without overrideUnstarted', t => {
+  // Create a simple task from a simple task definition
+  const task = createSimpleTask('A', undefined, undefined);
+  t.ok(task.unstarted, `${task.name} must be unstarted`);
+
+  // Fail to time it out (since NOT overrideUnstarted)
+  task.timeoutAs('MyTimeoutState', new Error('Boom'), {
+    overrideCompleted: true,
+    overrideUnstarted: false,
+    reverseAttempt: true
+  }, false);
+
+  t.ok(task.unstarted, `${task.name} must still be unstarted`);
+  t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+
+  // Now start the task to move it out of its unstarted state, so that it can be timed out (without having to use overrideUnstarted)
+  task.start(new Date(), true);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.ok(task.started, `${task.name} must now be started`);
+
+  // Time it out (still without overrideUnstarted)
+  task.timeoutAs('MyTimeoutState', new Error('Boom'), {
+    overrideCompleted: true,
+    overrideUnstarted: false,
+    reverseAttempt: true
+  }, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -514,7 +623,7 @@ test('task timeoutAs()', t => {
 
 test('task fail()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Fail it
   task.fail(new Error('Boom'));
@@ -535,7 +644,7 @@ test('task fail()', t => {
 
 test('task failAs()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Fail it
   task.failAs('MyFailureState', new Error('Boom'));
@@ -556,7 +665,7 @@ test('task failAs()', t => {
 
 test('task reject()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Reject it
   task.reject('Rotten', new Error('Yuck'), false);
@@ -577,7 +686,7 @@ test('task reject()', t => {
 
 test('task discard()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Reject it
   task.discard('AttemptsExceeded', undefined, false);
@@ -599,7 +708,7 @@ test('task discard()', t => {
 
 test('task abandon()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   // Reject it
   task.abandon('Forgotten', undefined, false);
@@ -620,7 +729,7 @@ test('task abandon()', t => {
 
 test('task complete() and timeout() with and without overrideCompleted and overrideTimedOut flags', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -630,7 +739,7 @@ test('task complete() and timeout() with and without overrideCompleted and overr
   t.ok(task.started, `${task.name} must be started`);
 
   // Time it out with overrideCompleted false
-  task.timeout(new Error('Boom'), false);
+  task.timeout(new Error('Boom'), {overrideCompleted: false, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -644,27 +753,27 @@ test('task complete() and timeout() with and without overrideCompleted and overr
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Fail to complete it with overrideTimedOut false
-  task.complete(undefined, false);
+  task.complete(undefined, {overrideTimedOut: false}, false);
 
   t.notOk(task.completed, `${task.name} must NOT be completed`);
   t.ok(task.timedOut, `${task.name} must be timed out`);
 
   // Complete it with overrideTimedOut true
-  task.complete(undefined, true);
+  task.complete(undefined, {overrideTimedOut: true}, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Fail to time it out with overrideCompleted false
-  task.timeout(new Error('Boom'), false);
+  task.timeout(new Error('Boom'), {overrideCompleted: false, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Time it out with overrideCompleted true
-  task.timeout(new Error('Boom'), true);
+  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
-  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.unstarted, `${task.name} must NOT be unstartesd`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
   t.notOk(task.completed, `${task.name} must NOT be completed`);
   t.ok(task.timedOut, `${task.name} must be timed out`);
@@ -679,7 +788,7 @@ test('task complete() and timeout() with and without overrideCompleted and overr
   task.reset();
 
   // Re-complete it with overrideTimedOut false
-  task.complete(undefined, false);
+  task.complete(undefined, {overrideTimedOut: false}, false);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -697,12 +806,16 @@ test('task complete() and timeout() with and without overrideCompleted and overr
 
 test('task succeed() and timeoutAs() with and without overrideCompleted and overrideTimedOut flags', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   const stateName = 'MyTimedOutState';
 
   // Time it out with overrideCompleted false
-  task.timeoutAs(stateName, new Error('Boom'), false);
+  task.timeoutAs(stateName, new Error('Boom'), {
+    overrideCompleted: false,
+    overrideUnstarted: true,
+    reverseAttempt: true
+  }, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -716,25 +829,33 @@ test('task succeed() and timeoutAs() with and without overrideCompleted and over
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Fail to complete it with overrideTimedOut false
-  task.succeed(undefined, false);
+  task.succeed(undefined, {overrideTimedOut: false}, false);
 
   t.notOk(task.completed, `${task.name} must NOT be completed`);
   t.ok(task.timedOut, `${task.name} must be timed out`);
 
   // Complete it with overrideTimedOut true
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Fail to time it out with overrideCompleted false
-  task.timeoutAs(stateName, new Error('Boom'), false);
+  task.timeoutAs(stateName, new Error('Boom'), {
+    overrideCompleted: false,
+    overrideUnstarted: true,
+    reverseAttempt: true
+  }, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Time it out with overrideCompleted true
-  task.timeoutAs(stateName, new Error('Boom'), true);
+  task.timeoutAs(stateName, new Error('Boom'), {
+    overrideCompleted: true,
+    overrideUnstarted: true,
+    reverseAttempt: true
+  }, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -751,7 +872,7 @@ test('task succeed() and timeoutAs() with and without overrideCompleted and over
   task.reset();
 
   // Re-complete it with overrideTimedOut false
-  task.succeed(undefined, false);
+  task.succeed(undefined, {overrideTimedOut: false}, false);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -769,7 +890,7 @@ test('task succeed() and timeoutAs() with and without overrideCompleted and over
 
 test('task succeed() then fail() then succeed()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -779,7 +900,7 @@ test('task succeed() then fail() then succeed()', t => {
   t.ok(task.started, `${task.name} must be started`);
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
 
@@ -798,7 +919,7 @@ test('task succeed() then fail() then succeed()', t => {
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Re-complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -816,7 +937,7 @@ test('task succeed() then fail() then succeed()', t => {
 
 test('task succeed() then cannot reject()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -826,7 +947,7 @@ test('task succeed() then cannot reject()', t => {
   // t.ok(task.started, `${task.name} must be started`);
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
 
@@ -849,7 +970,7 @@ test('task succeed() then cannot reject()', t => {
 
 test('task timeout() then succeed()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -859,10 +980,10 @@ test('task timeout() then succeed()', t => {
   t.ok(task.started, `${task.name} must be started`);
 
   // Time it out
-  task.timeout(new Error('Boom'), true);
+  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -880,7 +1001,7 @@ test('task timeout() then succeed()', t => {
 
 test('task timeout() then reject()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -890,7 +1011,7 @@ test('task timeout() then reject()', t => {
   t.ok(task.started, `${task.name} must be started`);
 
   // Time it out
-  task.timeout(new Error('Boom'), true);
+  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   // Reject it
   task.reject('Rotten', new Error('Yuck'), false);
@@ -911,7 +1032,7 @@ test('task timeout() then reject()', t => {
 
 test('task fail() then succeed()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -924,7 +1045,7 @@ test('task fail() then succeed()', t => {
   task.fail(new Error('Boom'));
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must not be unstarted`);
   t.notOk(task.incomplete, `${task.name} must not be incomplete`);
@@ -942,7 +1063,7 @@ test('task fail() then succeed()', t => {
 
 test('task fail() then reject()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -973,7 +1094,7 @@ test('task fail() then reject()', t => {
 
 test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t => {
 // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -988,7 +1109,7 @@ test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t =
   t.ok(task.rejected, `${task.name} must be rejected`);
 
   // Cannot complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -1016,7 +1137,7 @@ test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t =
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot time it out
-  task.timeout(new Error('Boom'), true);
+  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -1034,7 +1155,7 @@ test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t =
 
 test('task succeed() then fail() then reject() then cannot succeed(), cannot fail()', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
@@ -1044,7 +1165,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.ok(task.started, `${task.name} must be started`);
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
 
@@ -1068,7 +1189,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot re-complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -1104,56 +1225,56 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
 
 test('task starts with resets', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
   t.equal(task.totalAttempts, 0, `${task.name} totalAttempts must be 0`);
-  t.equal(task.lastExecutedAt, '', `${task.name} lastExecutedAt must be ''`);
+  t.equal(task.began, undefined, `${task.name} began must be undefined`);
 
   let dt = '2016-11-27T17:10:00.000Z';
   task.start(dt);
   t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
   t.equal(task.totalAttempts, 1, `${task.name} totalAttempts must be 1`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   task.start(new Date());
   t.equal(task.attempts, 1, `${task.name} attempts must still be 1`);
   t.equal(task.totalAttempts, 1, `${task.name} totalAttempts must still be 1`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   task.reset();
   dt = '2016-11-27T17:10:00.111Z';
   task.start(dt);
   t.equal(task.attempts, 2, `${task.name} attempts must be 2`);
   t.equal(task.totalAttempts, 2, `${task.name} totalAttempts must be 2`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   task.reset();
   dt = '2016-11-27T17:10:00.222Z';
   task.start(dt);
   t.equal(task.attempts, 3, `${task.name} attempts must be 3`);
   t.equal(task.totalAttempts, 3, `${task.name} totalAttempts must be 3`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   task.decrementAttempts(); // DECREMENT
   t.equal(task.attempts, 2, `${task.name} attempts must be 2`);
   t.equal(task.totalAttempts, 3, `${task.name} totalAttempts must be 3`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   task.reset();
   dt = '2016-11-27T17:10:00.333Z';
   task.start(dt);
   t.equal(task.attempts, 3, `${task.name} attempts must be 3`);
   t.equal(task.totalAttempts, 4, `${task.name} totalAttempts must be 4`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   task.start(new Date());
   t.equal(task.attempts, 3, `${task.name} attempts must still be 3`);
   t.equal(task.totalAttempts, 4, `${task.name} totalAttempts must still be 4`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   // Fail it
   task.fail(new Error('Badoom'));
@@ -1161,14 +1282,14 @@ test('task starts with resets', t => {
   task.start(new Date());
   t.equal(task.attempts, 3, `${task.name} attempts must still be 3`);
   t.equal(task.totalAttempts, 4, `${task.name} totalAttempts must still be 4`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   task.reset();
   dt = '2016-11-27T17:10:00.444Z';
   task.start(dt);
   t.equal(task.attempts, 4, `${task.name} attempts must be 4`);
   t.equal(task.totalAttempts, 5, `${task.name} totalAttempts must be 5`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   // Reject it
   task.reject('NoReason', undefined, false);
@@ -1176,7 +1297,7 @@ test('task starts with resets', t => {
   task.start(new Date());
   t.equal(task.attempts, 4, `${task.name} attempts must still be 4`);
   t.equal(task.totalAttempts, 5, `${task.name} totalAttempts must still be 5`);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be ${dt}`);
+  t.equal(task.began, dt, `${task.name} began must be ${dt}`);
 
   t.end();
 });
@@ -1187,7 +1308,7 @@ test('task starts with resets', t => {
 
 test('task incrementAttempts and decrementAttempts', t => {
   // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
+  const task = createSimpleTask('A', undefined, undefined);
 
   t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
   t.equal(task.totalAttempts, 0, `${task.name} totalAttempts must be 0`);
@@ -1213,7 +1334,7 @@ test('task incrementAttempts and decrementAttempts', t => {
   t.equal(task.totalAttempts, 4, `${task.name} totalAttempts must be 4`);
 
   // Complete it
-  task.succeed(undefined, true);
+  task.succeed(undefined, {overrideTimedOut: true}, false);
 
   task.incrementAttempts();
   t.equal(task.attempts, 3, `${task.name} attempts must still be 3`);
@@ -1236,87 +1357,87 @@ test('task incrementAttempts and decrementAttempts', t => {
   t.end();
 });
 
-// =====================================================================================================================
-// task updateLastExecutedAt
-// =====================================================================================================================
-
-test('task updateLastExecutedAt', t => {
-  // Create a simple task from a simple task definition
-  const task = createSimpleTask('A');
-
-  t.equal(task.lastExecutedAt, '', `${task.name} lastExecutedAt must be ''`);
-
-  let dt = '2016-11-27T17:10:00.000Z';
-  task.updateLastExecutedAt(dt, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
-
-  dt = '2016-11-27T17:10:00.111Z';
-  task.updateLastExecutedAt(dt, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
-
-  dt = '2016-11-27T17:10:00.222Z';
-  task.updateLastExecutedAt(dt, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
-
-  // Complete it
-  task.succeed(undefined, true);
-
-  let dt0 = '2016-11-27T17:10:00.333Z';
-  task.updateLastExecutedAt(dt0, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
-
-  // Fail it
-  task.fail(new Error('Badoom'));
-
-  dt = '2016-11-27T17:10:00.444Z';
-  task.updateLastExecutedAt(dt, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must be '${dt}'`);
-
-  // Reject it
-  task.reject('NoReason', undefined, false);
-
-  dt0 = '2016-11-27T17:10:00.555Z';
-  task.updateLastExecutedAt(dt0, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
-
-  // Make task more complex by adding some non-executable sub-tasks
-  const subTaskB = task.getOrCreateSubTask('SubTask B');
-  const subSubTaskC = subTaskB.getOrCreateSubTask('SubSubTask C');
-  t.equal(subTaskB.lastExecutedAt, '', `${subTaskB.name} lastExecutedAt must be ''`);
-  t.equal(subSubTaskC.lastExecutedAt, '', `${subSubTaskC.name} lastExecutedAt must be ''`);
-
-  let dt1 = '2016-11-27T17:10:00.666Z';
-  task.updateLastExecutedAt(dt1, false);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
-  t.equal(subTaskB.lastExecutedAt, '', `${subTaskB.name} lastExecutedAt must still be ''`);
-  t.equal(subSubTaskC.lastExecutedAt, '', `${subSubTaskC.name} lastExecutedAt must still be ''`);
-
-  dt1 = '2016-11-27T17:10:00.777Z';
-  task.updateLastExecutedAt(dt1, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
-  t.equal(subTaskB.lastExecutedAt, dt1, `${subTaskB.name} lastExecutedAt must be '${dt1}'`);
-  t.equal(subSubTaskC.lastExecutedAt, dt1, `${subSubTaskC.name} lastExecutedAt must be '${dt1}'`);
-
-  // Make task more complex by adding some executable sub-tasks
-  const subTaskD = task.getOrCreateSubTask('SubTask D', execute2);
-  const subSubTaskE = subTaskD.getOrCreateSubTask('SubSubTask E', execute1);
-  t.equal(subTaskD.lastExecutedAt, '', `${subTaskD.name} lastExecutedAt must be ''`);
-  t.equal(subSubTaskE.lastExecutedAt, '', `${subSubTaskE.name} lastExecutedAt must be ''`);
-
-  let dt2 = '2016-11-27T17:10:00.888Z';
-  task.updateLastExecutedAt(dt2, false);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
-  t.equal(subTaskD.lastExecutedAt, '', `${subTaskD.name} lastExecutedAt must still be ''`);
-  t.equal(subSubTaskE.lastExecutedAt, '', `${subSubTaskE.name} lastExecutedAt must still be ''`);
-
-  dt2 = '2016-11-27T17:10:00.999Z';
-  task.updateLastExecutedAt(dt2, true);
-  t.equal(task.lastExecutedAt, dt, `${task.name} lastExecutedAt must still be '${dt}'`);
-  t.equal(subTaskD.lastExecutedAt, dt2, `${subTaskD.name} lastExecutedAt must be '${dt2}'`);
-  t.equal(subSubTaskE.lastExecutedAt, dt2, `${subSubTaskE.name} lastExecutedAt must be '${dt2}'`);
-
-  t.end();
-});
+// // =====================================================================================================================
+// // task updateBegan
+// // =====================================================================================================================
+//
+// test('task updateBegan', t => {
+//   // Create a simple task from a simple task definition
+//   const task = createSimpleTask('A');
+//
+//   t.equal(task.began, undefined, `${task.name} began must be undefined`);
+//
+//   let dt = '2016-11-27T17:10:00.000Z';
+//   task.updateBegan(dt, true);
+//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+//
+//   dt = '2016-11-27T17:10:00.111Z';
+//   task.updateBegan(dt, true);
+//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+//
+//   dt = '2016-11-27T17:10:00.222Z';
+//   task.updateBegan(dt, true);
+//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+//
+//   // Complete it
+//   task.succeed(undefined, {overrideTimedOut: true}, false);
+//
+//   let dt0 = '2016-11-27T17:10:00.333Z';
+//   task.updateBegan(dt0, true);
+//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+//
+//   // Fail it
+//   task.fail(new Error('Badoom'));
+//
+//   dt = '2016-11-27T17:10:00.444Z';
+//   task.updateBegan(dt, true);
+//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+//
+//   // Reject it
+//   task.reject('NoReason', undefined, false);
+//
+//   dt0 = '2016-11-27T17:10:00.555Z';
+//   task.updateBegan(dt0, true);
+//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+//
+//   // Make task more complex by adding some non-executable sub-tasks
+//   const subTaskB = task.getOrCreateSubTask('SubTask B');
+//   const subSubTaskC = subTaskB.getOrCreateSubTask('SubSubTask C');
+//   t.equal(subTaskB.began, undefined, `${subTaskB.name} began must be undefined`);
+//   t.equal(subSubTaskC.began, undefined, `${subSubTaskC.name} began must be undefined`);
+//
+//   let dt1 = '2016-11-27T17:10:00.666Z';
+//   task.updateBegan(dt1, false);
+//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+//   t.equal(subTaskB.began, undefined, `${subTaskB.name} began must still be undefined`);
+//   t.equal(subSubTaskC.began, undefined, `${subSubTaskC.name} began must still be undefined`);
+//
+//   dt1 = '2016-11-27T17:10:00.777Z';
+//   task.updateBegan(dt1, true);
+//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+//   t.equal(subTaskB.began, dt1, `${subTaskB.name} began must be '${dt1}'`);
+//   t.equal(subSubTaskC.began, dt1, `${subSubTaskC.name} began must be '${dt1}'`);
+//
+//   // Make task more complex by adding some executable sub-tasks
+//   const subTaskD = task.getOrCreateSubTask('SubTask D', execute2);
+//   const subSubTaskE = subTaskD.getOrCreateSubTask('SubSubTask E', execute1);
+//   t.equal(subTaskD.began, undefined, `${subTaskD.name} began must be undefined`);
+//   t.equal(subSubTaskE.began, undefined, `${subSubTaskE.name} began must be undefined`);
+//
+//   let dt2 = '2016-11-27T17:10:00.888Z';
+//   task.updateBegan(dt2, false);
+//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+//   t.equal(subTaskD.began, undefined, `${subTaskD.name} began must still be undefined`);
+//   t.equal(subSubTaskE.began, undefined, `${subSubTaskE.name} began must still be undefined`);
+//
+//   dt2 = '2016-11-27T17:10:00.999Z';
+//   task.updateBegan(dt2, true);
+//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+//   t.equal(subTaskD.began, dt2, `${subTaskD.name} began must be '${dt2}'`);
+//   t.equal(subSubTaskE.began, dt2, `${subSubTaskE.name} began must be '${dt2}'`);
+//
+//   t.end();
+// });
 
 // =====================================================================================================================
 // createMasterTask
@@ -1374,7 +1495,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   });
 
   // Succeed the master task
-  masterTask.succeed(undefined, true);
+  masterTask.succeed(undefined, {overrideTimedOut: true}, false);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.completed, `slave (${st.name}) must be completed (after 1st succeed)`);
   });
@@ -1389,7 +1510,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   });
 
   // Re-complete the master task
-  masterTask.complete(undefined, true);
+  masterTask.complete(undefined, {overrideTimedOut: true}, false);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.completed, `slave (${st.name}) must be completed again (after 2nd complete)`);
     t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 2nd complete)`);
@@ -1416,7 +1537,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
 
   // Timeout the master task
   const err3 = new Error('Timeout 1st - err3');
-  masterTask.timeout(err3, true);
+  masterTask.timeout(err3, {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.timedOut, `slave (${st.name}) must be timed out (1st timeout after 1st reset)`);
     t.equal(st.state.error, err3.toString(), `slave (${st.name}) state error (${st.state.error}) must be err3 (1st timeout after 1st reset)`);
@@ -1424,7 +1545,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   });
 
   // Re-complete the master task again
-  masterTask.complete(undefined, true);
+  masterTask.complete(undefined, {overrideTimedOut: true}, false);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.completed, `slave (${st.name}) must be completed again (after 3rd complete)`);
     t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after 3rd complete)`);
@@ -1433,7 +1554,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
 
   // Fail to re-timeout with overrideCompleted false
   const err4 = new Error('Timeout 2nd - err4');
-  masterTask.timeout(err4, false);
+  masterTask.timeout(err4, {overrideCompleted: false, overrideUnstarted: true, reverseAttempt: true}, false);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.completed, `slave (${st.name}) must still be completed again (after timeout without override)`);
     t.equal(st.state.error, undefined, `slave (${st.name}) state error (${st.state.error}) must be undefined (after timeout without override)`);
@@ -1441,7 +1562,7 @@ function checkSlavesStatesAndAttempts(t, masterTask, skipReject) {
   });
 
   // Re-timeout the master task
-  masterTask.timeout(err4, true);
+  masterTask.timeout(err4, {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
   masterTask.slaveTasks.forEach(st => {
     t.ok(st.timedOut, `slave (${st.name}) must be timed out again (2nd timeout after 3rd complete)`);
     t.equal(st.state.error, err4.toString(), `slave (${st.name}) state error (${st.state.error}) must be err4 (2nd timeout after 3rd complete)`);
@@ -1567,7 +1688,7 @@ test('createMasterTask', t => {
 
   // Complete master slave 5
   const masterSlave5CompletedState = 'Master slave 5 completed state';
-  masterSlave5.completeAs(masterSlave5CompletedState, undefined, true);
+  masterSlave5.completeAs(masterSlave5CompletedState, undefined, {overrideTimedOut: true}, false);
 
   // Now fail master task B, which should have NO impact on its slave tasks, since they are already failed/rejected/completed
   const masterTaskBError = new Error('Master task B error');
@@ -1624,7 +1745,7 @@ test('createMasterTask', t => {
   t.equal(slave4SubTaskB1.state.error, masterSlave5SubTaskB1Error.toString(), `Slave 4 sub-task B1 must be failed with error (${masterSlave5SubTaskB1Error})`);
 
   // Complete the master sub-task B1, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
-  masterSubTaskB1.completeAs('masterSubTaskB1SuccessState', undefined, true);
+  masterSubTaskB1.completeAs('masterSubTaskB1SuccessState', undefined, {overrideTimedOut: true}, false);
 
   t.ok(masterSubTaskB1.state.completed, `Master sub-task B1 (${stringify(masterSubTaskB1.state)}) must be completed`);
   t.ok(slave1SubTaskB1.state.completed, `Slave 1 sub-task B1 (${stringify(slave1SubTaskB1.state)}) must be completed`);
@@ -1654,7 +1775,7 @@ test('createMasterTask', t => {
 
 
   // Complete the master sub-task B1a, should complete the same sub-task on all its slaves (1, (not rejected 2), master-slave 5, which should in turn complete its slaves 3 & 4)
-  masterSubTaskB1a.succeed(undefined, true);
+  masterSubTaskB1a.succeed(undefined, {overrideTimedOut: true}, false);
 
   t.ok(masterSubTaskB1a.state.completed, `Master sub-task B1a (${stringify(masterSubTaskB1a.state)}) must be completed`);
   t.ok(slave1SubTaskB1a.state.completed, `Slave 1 sub-task B1a (${stringify(slave1SubTaskB1a.state)}) must be completed`);
@@ -1662,6 +1783,304 @@ test('createMasterTask', t => {
   t.ok(masterSlave5SubTaskB1a.state.completed, `Master-slave 5 sub-task B1a (${stringify(masterSlave5SubTaskB1a.state)}) must be completed`);
   t.ok(slave3SubTaskB1a.state.completed, `Slave 3 sub-task B1a (${stringify(slave3SubTaskB1a.state)}) must be completed`);
   t.ok(slave4SubTaskB1a.state.completed, `Slave 4 sub-task B1a (${stringify(slave4SubTaskB1a.state)}) must be completed`);
+
+  t.end();
+});
+
+test('createMasterTask & setSlaveTasks - check master states after setSlaveTasks', t => {
+  const factory = taskFactory2;
+
+  // Create a complex master task from a complex task definition
+  const taskDefB = TaskDef.defineTask('Task B', execute1);
+  const subTaskDefsB = taskDefB.defineSubTasks(['SubTask B1', 'SubTask B2', 'SubTask B3']);
+  const subTaskDefB1 = subTaskDefsB[0];
+  subTaskDefB1.defineSubTasks(['SubTask B1a', 'SubTask B1b', 'SubTask B1c']);
+  const subTaskDefB2 = subTaskDefsB[1];
+  subTaskDefB2.defineSubTasks(['SubTask B2a', 'SubTask B2b']);
+
+  // 4 slaves - same definition
+  const slave1 = factory.createTask(taskDefB);
+  const slave2 = factory.createTask(taskDefB);
+  const slave3 = factory.createTask(taskDefB);
+  const slave4 = factory.createTask(taskDefB);
+
+  const slaves = [slave1, slave2, slave3, slave4];
+
+  let master = factory.createTask(taskDefB);
+
+  let expectedState = states.instances.Unstarted;
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+
+  master.setSlaveTasks(slaves);
+  expectedState = states.instances.Unstarted;
+  t.deepEqual(master.state, expectedState, `master state must still be ${expectedState}`);
+
+  // Change all slaves to Started
+  master.reset();
+  slaves.forEach(s => s.start());
+  master.setSlaveTasks(slaves);
+  expectedState = states.instances.Started;
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+
+  // Change all slaves back to Unstarted
+  master.reset();
+  slaves.forEach(s => s.reset());
+  master.setSlaveTasks(slaves);
+  expectedState = states.instances.Unstarted;
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+
+  // Change all slaves to Failed state
+  master.reset();
+  slaves.forEach(s => s.failAs('Eek', new Error('Bob did it')));
+  master.setSlaveTasks(slaves);
+  expectedState = new states.FailedState('Eek', new Error('Bob did it'));
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+
+  // Change all slaves to Completed state
+  master.reset();
+  slaves.forEach(s => s.completeAs('Done&Dusted', 123));
+  master.setSlaveTasks(slaves);
+  expectedState = new states.CompletedState('Done&Dusted');
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+
+  // Change all slaves to Completed state
+  master.fail(new Error('Undo'));
+  master.reset();
+  slaves.forEach(s => s.rejectAs('NoWay', 'No, No, No!', new Error('Nope')));
+  master.setSlaveTasks(slaves);
+  expectedState = new states.RejectedState('NoWay', 'No, No, No!', new Error('Nope'));
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+
+  t.end();
+});
+
+test('createMasterTask & setSlaveTasks - check master state only changes if unstarted during setSlaveTasks', t => {
+  const factory = taskFactory2;
+
+  // Create a complex master task from a complex task definition
+  const taskDefB = TaskDef.defineTask('Task B', execute1);
+  const subTaskDefsB = taskDefB.defineSubTasks(['SubTask B1', 'SubTask B2', 'SubTask B3']);
+  const subTaskDefB1 = subTaskDefsB[0];
+  subTaskDefB1.defineSubTasks(['SubTask B1a', 'SubTask B1b', 'SubTask B1c']);
+  const subTaskDefB2 = subTaskDefsB[1];
+  subTaskDefB2.defineSubTasks(['SubTask B2a', 'SubTask B2b']);
+
+  // 4 slaves - same definition
+  const slave1 = factory.createTask(taskDefB);
+  const slave2 = factory.createTask(taskDefB);
+  const slave3 = factory.createTask(taskDefB);
+  const slave4 = factory.createTask(taskDefB);
+
+  const slaves = [slave1, slave2, slave3, slave4];
+  slaves.forEach(s => s.failAs('Eek', new Error('Bob did it')));
+
+  let master = factory.createTask(taskDefB);
+
+  // Slave states cannot override a master state that is not unstarted
+  master.start();
+  let expectedState = states.instances.Started;
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+  master.setSlaveTasks(slaves);
+  t.deepEqual(master.state, expectedState, `master state must still be ${expectedState}`);
+
+  // Slave states cannot override a master state that is not unstarted
+  master.setSlaveTasks([]);
+  master.fail(new Error('Bang'));
+  expectedState = new states.Failed(new Error('Bang'));
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+  master.setSlaveTasks(slaves);
+  t.deepEqual(master.state, expectedState, `master state must still be ${expectedState}`);
+
+  // Slave states cannot override a master state that is not unstarted
+  master.setSlaveTasks([]);
+  master.reset();
+  expectedState = states.instances.Unstarted;
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+  master.setSlaveTasks(slaves);
+  expectedState = new states.FailedState('Eek', new Error('Bob did it'));
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+
+  t.end();
+});
+
+
+test('createMasterTask & setSlaveTasks - check master state only changes if all slaves have same state', t => {
+  const factory = taskFactory2;
+
+  // Create a complex master task from a complex task definition
+  const taskDefB = TaskDef.defineTask('Task B', execute1);
+  const subTaskDefsB = taskDefB.defineSubTasks(['SubTask B1', 'SubTask B2', 'SubTask B3']);
+  const subTaskDefB1 = subTaskDefsB[0];
+  subTaskDefB1.defineSubTasks(['SubTask B1a', 'SubTask B1b', 'SubTask B1c']);
+  const subTaskDefB2 = subTaskDefsB[1];
+  subTaskDefB2.defineSubTasks(['SubTask B2a', 'SubTask B2b']);
+
+  // 4 slaves - same definition
+  const slave1 = factory.createTask(taskDefB);
+  const slave2 = factory.createTask(taskDefB);
+  const slave3 = factory.createTask(taskDefB);
+  const slave4 = factory.createTask(taskDefB);
+
+  const slaves = [slave1, slave2, slave3, slave4];
+  slaves.forEach(s => s.failAs('Eek', new Error('Bob did it')));
+  slave3.reset();
+  slave3.failAs('Eek', new Error("Bob didn't do it"));
+
+  let master = factory.createTask(taskDefB);
+
+  // Different slave states cannot change their master state
+  let expectedState = states.instances.Unstarted;
+  t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+  master.setSlaveTasks(slaves);
+  // expectedState = new states.FailedState('Eek', new Error('Bob did it'));
+  t.deepEqual(master.state, expectedState, `master state must still be ${expectedState}`);
+
+  // Switch slave3's state back to be same as other slaves
+  slave3.reset();
+  slave3.failAs('Eek', new Error("Bob did it"));
+
+  master.setSlaveTasks(slaves);
+  expectedState = new states.FailedState('Eek', new Error('Bob did it'));
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+
+  t.end();
+});
+
+test('beganAt, endedAt, began, ended & took', t => {
+  const task = taskFactory2.createTask(defineSimpleTask('A', undefined), undefined);
+  let expectedBegan = new Date();
+
+  t.equal(task.began, undefined, `task.began must start as undefined`);
+  t.equal(task.took, undefined, `task.took must start as undefined`);
+  t.equal(task.ended, undefined, `task.ended must start as undefined`);
+
+  task.start(expectedBegan); // also calls beganAt
+
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, undefined, `task.took must start as undefined`);
+  t.equal(task.ended, undefined, `task.ended must start as undefined`);
+
+  let took = 1000;
+  let expectedEnded = new Date(expectedBegan.getTime() + took);
+
+  task.endedAt(expectedEnded);
+
+  t.equal(task.took, took, `task.took must be ${took} ms`);
+  t.equal(task.ended, expectedEnded.toISOString(), `task.ended must be '${expectedEnded.toISOString()}'`);
+  t.equal(task.took, Date.parse(task.ended) - Date.parse(task.began), `task.took must be task.ended - task.began`);
+
+  // Manually delete task _ended
+  delete task._ended;
+  t.equal(task._ended, undefined, `task._ended must be undefined (after manual deletion)'`);
+  t.equal(task.ended, expectedEnded.toISOString(), `task.ended must still recalculate as '${expectedEnded.toISOString()} (even after manual deletion)'`);
+
+  // Change began to ended
+  expectedBegan = expectedEnded;
+
+  task.beganAt(expectedBegan);
+
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, undefined, `task.took must start as undefined`);
+  t.equal(task.ended, undefined, `task.ended must start as undefined`);
+
+  took = 24 * 60 * 60 * 1000 + 999;
+  expectedEnded = new Date(expectedBegan.getTime() + took);
+
+  task.endedAt(expectedEnded);
+
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must still be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, took, `task.took must be ${took} ms`);
+  t.equal(task.ended, expectedEnded.toISOString(), `task.ended must be '${expectedEnded.toISOString()}'`);
+  t.equal(task.took, Date.parse(task.ended) - Date.parse(task.began), `task.took must be task.ended - task.began`);
+
+  // Manually delete task _ended
+  delete task._ended;
+  t.equal(task._ended, undefined, `task._ended must be undefined (after manual deletion)'`);
+  t.equal(task.ended, expectedEnded.toISOString(), `task.ended must still recalculate as '${expectedEnded.toISOString()} (even after manual deletion)'`);
+
+  // Delete began & took too ... to reset for next tests
+  delete task._began;
+  delete task._took;
+
+  t.equal(task.began, undefined, `task.began must start as undefined`);
+  t.equal(task.took, undefined, `task.took must start as undefined`);
+  t.equal(task.ended, undefined, `task.ended must start as undefined`);
+
+  expectedBegan = expectedEnded;
+  took = 48 * 60 * 60 * 1000;
+  expectedEnded = new Date(expectedBegan.getTime() + took);
+
+  task.endedAt(expectedEnded);
+
+  t.equal(task.began, undefined, `task.began must start as undefined`);
+  t.equal(task.took, undefined, `task.took must start as undefined`);
+  t.equal(task.ended, expectedEnded.toISOString(), `task.ended must be '${expectedEnded.toISOString()}'`);
+
+  task.beganAt(expectedBegan);
+
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, took, `task.took must be ${took} ms`);
+  t.equal(task.ended, expectedEnded.toISOString(), `task.ended must still be '${expectedEnded.toISOString()}'`);
+  t.equal(task.took, Date.parse(task.ended) - Date.parse(task.began), `task.took must be task.ended - task.began`);
+
+  // Delete began & took too ... to reset for next tests
+  delete task._began;
+  delete task._took;
+  delete task._ended;
+
+  t.equal(task.began, undefined, `task.began must start as undefined`);
+  t.equal(task.took, undefined, `task.took must start as undefined`);
+  t.equal(task.ended, undefined, `task.ended must start as undefined`);
+
+  task.endedAt(expectedBegan);
+
+  t.equal(task.began, undefined, `task.began must start as undefined`);
+  t.equal(task.took, undefined, `task.took must now be undefined`);
+  t.equal(task.ended, expectedBegan.toISOString(), `task.ended must still be '${expectedBegan.toISOString()}'`);
+
+  took = 0;
+  // expectedBegan = new Date(expectedBegan.getTime() + took);
+
+  // Set began to same value as ended
+  task.beganAt(expectedBegan);
+
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, took, `task.took must be ${took} ms`);
+  t.equal(task.ended, expectedBegan.toISOString(), `task.ended must still be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, Date.parse(task.ended) - Date.parse(task.began), `task.took must be task.ended - task.began`);
+
+  took = 0;
+  // expectedBegan = new Date(expectedBegan.getTime() + took);
+
+  // Set ended to same value as began AGAIN
+  task.endedAt(expectedBegan);
+
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must still be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, took, `task.took must be ${took} ms`);
+  t.equal(task.took, Date.parse(task.ended) - Date.parse(task.began), `task.took must be task.ended - task.began`);
+  t.equal(task.ended, expectedBegan.toISOString(), `task.ended must be '${expectedBegan.toISOString()}'`);
+
+  // Move began at 1 ms later
+  took = 1;
+  expectedBegan = new Date(expectedBegan.getTime() + took);
+
+  task.beganAt(expectedBegan);
+
+  // which must force reset of ended at and took ms
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, undefined, `task.took must now be undefined`);
+  t.equal(task.ended, undefined, `task.ended must now be undefined`);
+
+  took = 0;
+  // expectedBegan = new Date(expectedBegan.getTime() + took);
+
+  // Set ended to same value as began AGAIN
+  task.endedAt(expectedBegan);
+
+  t.equal(task.began, expectedBegan.toISOString(), `task.began must still be '${expectedBegan.toISOString()}'`);
+  t.equal(task.took, took, `task.took must be ${took} ms`);
+  t.equal(task.took, Date.parse(task.ended) - Date.parse(task.began), `task.took must be task.ended - task.began`);
+  t.equal(task.ended, expectedBegan.toISOString(), `task.ended must be '${expectedBegan.toISOString()}'`);
 
   t.end();
 });

@@ -17,6 +17,24 @@ const stringify = Strings.stringify;
 
 const states = require('../task-states');
 
+function genDescribeItem(maxArgLength) {
+  // An arbitrary describeItem function
+  function describeItem() {
+    const n = arguments.length;
+    const args = new Array(n);
+    for (let i = 0; i < n; ++i) {
+      const arg = arguments[i];
+      const isObject = arg && typeof arg === 'object';
+      const isString = typeof arg === 'string';
+      const s = JSON.stringify(arg);
+      const suffix = s && s.length > maxArgLength ? ' ...' + (isObject ? '}' : isString ? '"' : '') : '';
+      args[i] = s ? s.length > 0 && maxArgLength > 0 ? s.substring(0, maxArgLength) + suffix : s : `${s}`;
+    }
+    return n > 0 ? `on (${args.join(", ")})` : '';
+  }
+
+  return describeItem;
+}
 
 function execute1() {
   console.log(`Executing execute1 on task (${this.name})`);
@@ -148,10 +166,10 @@ function checkGetRoot(t, taskDef, expected, mustPass) {
 
 test('new TaskDef', t => {
 
-  function checkNewTaskDef(t, name, execute, parent, mustPass, mustBeExecutable) {
-    const prefix = `new TaskDef(${name}, ${stringify(execute ? execute.name ? execute.name : '<anon>' : execute)}, ${stringify(parent ? parent.name : parent)})`;
+  function checkNewTaskDef(t, name, execute, parent, settings, mustPass, mustBeExecutable) {
+    const prefix = `new TaskDef(${name}, ${stringify(execute ? execute.name ? execute.name : '<anon>' : execute)}, ${stringify(parent ? parent.name : parent)}, ${stringify(settings)})`;
     try {
-      const taskDef = new TaskDef(name, execute, parent);
+      const taskDef = new TaskDef(name, execute, parent, settings);
       if (mustPass) {
         t.pass(`${prefix} must pass`);
         t.ok(taskDef, 'taskDef must be created');
@@ -164,6 +182,7 @@ test('new TaskDef', t => {
       t.equal(taskDef.name, taskName, `name must be ${taskName}`);
       t.equal(taskDef.execute, execute, `execute must be ${stringify(execute)}`);
       t.equal(taskDef.parent, parent, `parent must be ${parent ? parent.name : parent}`);
+      t.equal(taskDef.describeItem, settings ? settings.describeItem : undefined, `describeItem must be ${stringify(settings.describeItem)}`);
 
       checkExecutable(t, taskDef, mustBeExecutable);
 
@@ -184,50 +203,52 @@ test('new TaskDef', t => {
     }
   }
 
-  const taskDefA = checkNewTaskDef(t, 'TaskA', execute1, undefined, true, true);
+  const settings = {describeItem: genDescribeItem(10)};
+
+  const taskDefA = checkNewTaskDef(t, 'TaskA', execute1, undefined, settings, true, true);
 
   // Task with non-string or blank name
-  checkNewTaskDef(t, undefined, execute1, undefined, false, true);
-  checkNewTaskDef(t, null, execute1, undefined, false, true);
-  checkNewTaskDef(t, {name: 'Bob'}, execute1, undefined, false, true);
-  checkNewTaskDef(t, 1, execute1, undefined, false, true);
-  checkNewTaskDef(t, '', execute1, undefined, false, true);
-  checkNewTaskDef(t, ' \n \t \r ', execute1, undefined, false, true);
+  checkNewTaskDef(t, undefined, execute1, undefined, settings, false, true);
+  checkNewTaskDef(t, null, execute1, undefined, settings, false, true);
+  checkNewTaskDef(t, {name: 'Bob'}, execute1, undefined, settings, false, true);
+  checkNewTaskDef(t, 1, execute1, undefined, settings, false, true);
+  checkNewTaskDef(t, '', execute1, undefined, settings, false, true);
+  checkNewTaskDef(t, ' \n \t \r ', execute1, undefined, settings, false, true);
 
   // Task with invalid execute
-  checkNewTaskDef(t, 'TaskB1', undefined, undefined, false, true);
-  checkNewTaskDef(t, 'TaskB2', null, undefined, false, true);
-  checkNewTaskDef(t, 'TaskB3', 'WRONG', undefined, false, true);
+  checkNewTaskDef(t, 'TaskB1', undefined, undefined, settings, false, true);
+  checkNewTaskDef(t, 'TaskB2', null, undefined, settings, false, true);
+  checkNewTaskDef(t, 'TaskB3', 'WRONG', undefined, settings, false, true);
 
   // Check trimming of name
-  checkNewTaskDef(t, '   TaskB   ', execute2, undefined, true, true);
+  checkNewTaskDef(t, '   TaskB   ', execute2, undefined, settings, true, true);
 
   // SubTask with parent & without execute
-  const subTaskDefB = checkNewTaskDef(t, 'SubTaskB', undefined, taskDefA, true, false);
+  const subTaskDefB = checkNewTaskDef(t, 'SubTaskB', undefined, taskDefA, settings, true, false);
 
   //console.log(`taskDefA=${stringify(taskDefA)}`);
   //console.log(`subTaskDefB=${stringify(subTaskDefB)}`);
   t.equal(taskDefA.subTaskDefs.length, 1, `TaskDef (${taskDefA.name}) subTaskDefs length must be 1`);
 
   /*const subTaskDefC =*/
-  checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, true, false);
+  checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, settings, true, false);
 
   t.equal(taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length must be 2`);
 
   // Prevent duplicate subTask def names
-  checkNewTaskDef(t, 'SubTaskB', undefined, taskDefA, false, true);
-  checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, false, false);
+  checkNewTaskDef(t, 'SubTaskB', undefined, taskDefA, settings, false, true);
+  checkNewTaskDef(t, 'SubTaskC', undefined, taskDefA, settings, false, false);
 
   t.equal(taskDefA.subTaskDefs.length, 2, `TaskDef (${taskDefA.name}) subTaskDefs length must be 2`);
 
   // SubTask with execute
-  const subTaskDefX = checkNewTaskDef(t, 'SubTaskX', execute1, taskDefA, true, true);
+  const subTaskDefX = checkNewTaskDef(t, 'SubTaskX', execute1, taskDefA, settings, true, true);
 
   // SubTask with a subTask parent
-  const subTaskDefD = checkNewTaskDef(t, 'SubTaskD', undefined, subTaskDefB, true, false);
+  const subTaskDefD = checkNewTaskDef(t, 'SubTaskD', undefined, subTaskDefB, settings, true, false);
   // SubTask with a subTask parent with a subTask parent
-  const subTaskDefE = checkNewTaskDef(t, 'SubTaskE', undefined, subTaskDefD, true, false);
-  const subTaskDefF = checkNewTaskDef(t, 'SubTaskF', undefined, subTaskDefD, true, false);
+  const subTaskDefE = checkNewTaskDef(t, 'SubTaskE', undefined, subTaskDefD, settings, true, false);
+  const subTaskDefF = checkNewTaskDef(t, 'SubTaskF', undefined, subTaskDefD, settings, true, false);
 
   t.equal(taskDefA.subTaskDefs.length, 3, `TaskDef (${taskDefA.name}) subTaskDefs length must be 3`);
   t.equal(subTaskDefB.subTaskDefs.length, 1, `TaskDef (${subTaskDefB.name}) subTaskDefs length must be 1`);
@@ -236,7 +257,7 @@ test('new TaskDef', t => {
   t.equal(subTaskDefF.subTaskDefs.length, 0, `TaskDef (${subTaskDefF.name}) subTaskDefs length must be 0`);
 
   // SubTask with parent & execute
-  checkNewTaskDef(t, 'SubTaskX1', execute2, subTaskDefX, true, true);
+  checkNewTaskDef(t, 'SubTaskX1', execute2, subTaskDefX, settings, true, true);
   t.equal(subTaskDefX.subTaskDefs.length, 1, `SubTaskX (${subTaskDefX.name}) subTaskDefs length must be 1`);
 
   t.end();
@@ -484,8 +505,8 @@ test('getRootTaskDef', t => {
   }
 
   // Can only do the following if temporarily allow parent to be updatable (bad)
-  // const t1 = new TaskDef('T1', noop, undefined);
-  // const t2 = new TaskDef('T2', undefined, t1);
+  // const t1 = new TaskDef('T1', noop, undefined, settings);
+  // const t2 = new TaskDef('T2', undefined, t1, settings);
   // Object.defineProperty(t1, 'parent', {value: t2, writable: true});
   // checkGetRoot(t, t1, undefined, false);
   // checkGetRoot(t, t2, undefined, false);
