@@ -1,4 +1,4 @@
-# task-utils v6.0.0
+# task-utils v6.0.1
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -269,6 +269,9 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 6.0.1
+- Updated `core-functions` dependency to version 3.0.3
 
 ### 6.0.0
 - Renamed `errors` module to `core` module:
