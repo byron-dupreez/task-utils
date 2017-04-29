@@ -13,6 +13,7 @@ const TaskFactory = require('../task-factory');
 
 const core = require('../core');
 const ReturnMode = core.ReturnMode;
+const StateType = core.StateType;
 
 const TaskDef = require('../task-defs');
 const states = require('../task-states');
@@ -96,6 +97,11 @@ function defineComplexTask(name, settings) {
 // Create a simple task from a simple task definition
 function createSimpleTask(name, taskDefSettings, opts) {
   return taskFactory1.createTask(defineSimpleTask(name, taskDefSettings), opts);
+}
+
+// Create a more complex task from a more complex task definition
+function createComplexTask(name, taskDefSettings, opts) {
+  return taskFactory1.createTask(defineComplexTask(name, taskDefSettings), opts);
 }
 
 function checkTask(t, task, taskDef, factory, optsPerLevel, mustBeExecutable, prefix) {
@@ -705,7 +711,6 @@ test('task discard()', t => {
   t.end();
 });
 
-
 test('task abandon()', t => {
   // Create a simple task from a simple task definition
   const task = createSimpleTask('A', undefined, undefined);
@@ -723,6 +728,62 @@ test('task abandon()', t => {
   t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
   t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
   t.ok(task.isAbandoned(), `${task.name} must be Abandoned`);
+
+  t.end();
+});
+
+test('task rejectAs()', t => {
+  // Create a simple task from a simple task definition
+  const task = createSimpleTask('A', undefined, undefined);
+
+  // Reject it
+  task.rejectAs('JunkStatus', 'ExcessiveCorruption', new Error('StateCaptured'), false);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.ok(task.state instanceof states.RejectedState, `${task.name} must be RejectedState`);
+  t.notOk(task.isRejected(), `${task.name} must NTO be Rejected`);
+  t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+
+  t.end();
+});
+
+test('task discardIfOverAttempted()', t => {
+  const maxNumberOfAttempts = 3;
+
+  // Create a simple task from a simple task definition
+  const task = createSimpleTask('A', undefined, undefined);
+
+  t.notOk(task.discardIfOverAttempted(maxNumberOfAttempts, false), `${task.name} with attempts (${task.attempts}) must NOT be discarded yet`);
+  t.ok(task.unstarted, `${task.name} must still be unstarted`);
+
+  task.incrementAttempts(true);
+  t.notOk(task.discardIfOverAttempted(maxNumberOfAttempts, false), `${task.name} with attempts (${task.attempts}) must NOT be discarded yet`);
+  t.ok(task.unstarted, `${task.name} must still be unstarted`);
+
+  task.incrementAttempts(true);
+  t.notOk(task.discardIfOverAttempted(maxNumberOfAttempts, false), `${task.name} with attempts (${task.attempts}) must NOT be discarded yet`);
+  t.ok(task.unstarted, `${task.name} must still be unstarted`);
+
+  task.incrementAttempts(true);
+  t.ok(task.discardIfOverAttempted(maxNumberOfAttempts, false), `${task.name} with attempts (${task.attempts}) must be discarded now`);
+
+  t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+  t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+  t.notOk(task.completed, `${task.name} must NOT be completed`);
+  t.notOk(task.timedOut, `${task.name} must not be timedOut`);
+  t.notOk(task.failed, `${task.name} must NOT be failed`);
+  t.ok(task.rejected, `${task.name} must be rejected`);
+
+  t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+  t.ok(task.isDiscarded(), `${task.name} must be Discarded`);
+  t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   t.end();
 });
@@ -1357,87 +1418,96 @@ test('task incrementAttempts and decrementAttempts', t => {
   t.end();
 });
 
-// // =====================================================================================================================
-// // task updateBegan
-// // =====================================================================================================================
-//
-// test('task updateBegan', t => {
-//   // Create a simple task from a simple task definition
-//   const task = createSimpleTask('A');
-//
-//   t.equal(task.began, undefined, `${task.name} began must be undefined`);
-//
-//   let dt = '2016-11-27T17:10:00.000Z';
-//   task.updateBegan(dt, true);
-//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
-//
-//   dt = '2016-11-27T17:10:00.111Z';
-//   task.updateBegan(dt, true);
-//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
-//
-//   dt = '2016-11-27T17:10:00.222Z';
-//   task.updateBegan(dt, true);
-//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
-//
-//   // Complete it
-//   task.succeed(undefined, {overrideTimedOut: true}, false);
-//
-//   let dt0 = '2016-11-27T17:10:00.333Z';
-//   task.updateBegan(dt0, true);
-//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
-//
-//   // Fail it
-//   task.fail(new Error('Badoom'));
-//
-//   dt = '2016-11-27T17:10:00.444Z';
-//   task.updateBegan(dt, true);
-//   t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
-//
-//   // Reject it
-//   task.reject('NoReason', undefined, false);
-//
-//   dt0 = '2016-11-27T17:10:00.555Z';
-//   task.updateBegan(dt0, true);
-//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
-//
-//   // Make task more complex by adding some non-executable sub-tasks
-//   const subTaskB = task.getOrCreateSubTask('SubTask B');
-//   const subSubTaskC = subTaskB.getOrCreateSubTask('SubSubTask C');
-//   t.equal(subTaskB.began, undefined, `${subTaskB.name} began must be undefined`);
-//   t.equal(subSubTaskC.began, undefined, `${subSubTaskC.name} began must be undefined`);
-//
-//   let dt1 = '2016-11-27T17:10:00.666Z';
-//   task.updateBegan(dt1, false);
-//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
-//   t.equal(subTaskB.began, undefined, `${subTaskB.name} began must still be undefined`);
-//   t.equal(subSubTaskC.began, undefined, `${subSubTaskC.name} began must still be undefined`);
-//
-//   dt1 = '2016-11-27T17:10:00.777Z';
-//   task.updateBegan(dt1, true);
-//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
-//   t.equal(subTaskB.began, dt1, `${subTaskB.name} began must be '${dt1}'`);
-//   t.equal(subSubTaskC.began, dt1, `${subSubTaskC.name} began must be '${dt1}'`);
-//
-//   // Make task more complex by adding some executable sub-tasks
-//   const subTaskD = task.getOrCreateSubTask('SubTask D', execute2);
-//   const subSubTaskE = subTaskD.getOrCreateSubTask('SubSubTask E', execute1);
-//   t.equal(subTaskD.began, undefined, `${subTaskD.name} began must be undefined`);
-//   t.equal(subSubTaskE.began, undefined, `${subSubTaskE.name} began must be undefined`);
-//
-//   let dt2 = '2016-11-27T17:10:00.888Z';
-//   task.updateBegan(dt2, false);
-//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
-//   t.equal(subTaskD.began, undefined, `${subTaskD.name} began must still be undefined`);
-//   t.equal(subSubTaskE.began, undefined, `${subSubTaskE.name} began must still be undefined`);
-//
-//   dt2 = '2016-11-27T17:10:00.999Z';
-//   task.updateBegan(dt2, true);
-//   t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
-//   t.equal(subTaskD.began, dt2, `${subTaskD.name} began must be '${dt2}'`);
-//   t.equal(subSubTaskE.began, dt2, `${subSubTaskE.name} began must be '${dt2}'`);
-//
-//   t.end();
-// });
+// =====================================================================================================================
+// task start
+// =====================================================================================================================
+
+test('task start', t => {
+  // Create a simple task from a simple task definition
+  const task = createSimpleTask('A');
+
+  t.equal(task.began, undefined, `${task.name} began must be undefined`);
+
+  let dt = '2016-11-27T17:10:00.000Z';
+  task.start(dt, true);
+  t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+
+  dt = '2016-11-27T17:10:00.111Z';
+  task.reset();
+  task.start(dt, true);
+  t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+
+  dt = '2016-11-27T17:10:00.222Z';
+  task.reset();
+  task.start(dt, true);
+  t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+
+  // Complete it
+  task.succeed(undefined, {overrideTimedOut: true}, false);
+
+  let dt0 = '2016-11-27T17:10:00.333Z';
+  task.reset();
+  task.start(dt0, true);
+  t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+
+  // Fail it
+  task.fail(new Error('Badoom'));
+
+  dt = '2016-11-27T17:10:00.444Z';
+  task.reset();
+  task.start(dt, true);
+  t.equal(task.began, dt, `${task.name} began must be '${dt}'`);
+
+  // Reject it
+  task.reject('NoReason', undefined, false);
+
+  dt0 = '2016-11-27T17:10:00.555Z';
+  task.reset();
+  task.start(dt0, true);
+  t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+
+  // Make task more complex by adding some non-executable sub-tasks
+  const subTaskB = task.getOrCreateSubTask('SubTask B');
+  const subSubTaskC = subTaskB.getOrCreateSubTask('SubSubTask C');
+  t.equal(subTaskB.began, undefined, `${subTaskB.name} began must be undefined`);
+  t.equal(subSubTaskC.began, undefined, `${subSubTaskC.name} began must be undefined`);
+
+  let dt1 = '2016-11-27T17:10:00.666Z';
+  task.reset();
+  task.start(dt1, false);
+  t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+  t.equal(subTaskB.began, undefined, `${subTaskB.name} began must still be undefined`);
+  t.equal(subSubTaskC.began, undefined, `${subSubTaskC.name} began must still be undefined`);
+
+  dt1 = '2016-11-27T17:10:00.777Z';
+  task.reset();
+  task.start(dt1, true);
+  t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+  t.equal(subTaskB.began, dt1, `${subTaskB.name} began must be '${dt1}'`);
+  t.equal(subSubTaskC.began, dt1, `${subSubTaskC.name} began must be '${dt1}'`);
+
+  // Make task more complex by adding some executable sub-tasks
+  const subTaskD = task.getOrCreateSubTask('SubTask D', execute2);
+  const subSubTaskE = subTaskD.getOrCreateSubTask('SubSubTask E', execute1);
+  t.equal(subTaskD.began, undefined, `${subTaskD.name} began must be undefined`);
+  t.equal(subSubTaskE.began, undefined, `${subSubTaskE.name} began must be undefined`);
+
+  let dt2 = '2016-11-27T17:10:00.888Z';
+  task.reset();
+  task.start(dt2, false);
+  t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+  t.equal(subTaskD.began, undefined, `${subTaskD.name} began must still be undefined`);
+  t.equal(subSubTaskE.began, undefined, `${subSubTaskE.name} began must still be undefined`);
+
+  dt2 = '2016-11-27T17:10:00.999Z';
+  task.reset();
+  task.start(dt2, true);
+  t.equal(task.began, dt, `${task.name} began must still be '${dt}'`);
+  t.equal(subTaskD.began, dt2, `${subTaskD.name} began must be '${dt2}'`);
+  t.equal(subSubTaskE.began, dt2, `${subSubTaskE.name} began must be '${dt2}'`);
+
+  t.end();
+});
 
 // =====================================================================================================================
 // createMasterTask
@@ -1846,7 +1916,8 @@ test('createMasterTask & setSlaveTasks - check master states after setSlaveTasks
   // Change all slaves to Completed state
   master.fail(new Error('Undo'));
   master.reset();
-  slaves.forEach(s => s.rejectAs('NoWay', 'No, No, No!', new Error('Nope')));
+  t.ok(master.unstarted, `master task must be reset to unstarted`);
+  slaves.forEach((s, i) => t.ok(s.rejectAs('NoWay', 'No, No, No!', new Error('Nope'), true), `Slave[${i}] (${s.name}) must be rejected`));
   master.setSlaveTasks(slaves);
   expectedState = new states.RejectedState('NoWay', 'No, No, No!', new Error('Nope'));
   t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
@@ -2081,6 +2152,400 @@ test('beganAt, endedAt, began, ended & took', t => {
   t.equal(task.took, took, `task.took must be ${took} ms`);
   t.equal(task.took, Date.parse(task.ended) - Date.parse(task.began), `task.took must be task.ended - task.began`);
   t.equal(task.ended, expectedBegan.toISOString(), `task.ended must be '${expectedBegan.toISOString()}'`);
+
+  t.end();
+});
+
+test('task reject() with sub-tasks', t => {
+  const reason = 'Rotten';
+  const err = new Error('Yuck');
+
+  function mustNotBeRejected(task, rejected) {
+    if (rejected !== undefined) {
+      t.notOk(rejected, `${task.name}.reject must return false`);
+    }
+    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+    t.ok(task.incomplete, `${task.name} must be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  function mustBeRejected(task, rejected) {
+    if (rejected !== undefined) {
+      t.ok(rejected, `${task.name}.reject must return true`);
+    }
+    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+    t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.ok(task.rejected, `${task.name} must be rejected`);
+
+    t.ok(task.isRejected(), `${task.name} must be Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  // First attempt to reject a complex task, but NOT recursively
+  const taskB = createComplexTask('B', undefined, undefined);
+  mustNotBeRejected(taskB, taskB.reject(reason, err, false));
+
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustNotBeRejected(subSubTask));
+    mustNotBeRejected(subTask);
+  });
+
+  // Next reject each of its sub-sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeRejected(subSubTask, subSubTask.reject('Rotten', err, false)));
+    mustNotBeRejected(subTask);
+  });
+  mustNotBeRejected(taskB);
+
+  // Next reject each of its sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => mustBeRejected(subTask, subTask.reject(reason, err, false)));
+  mustNotBeRejected(taskB);
+
+  // ... and then finally re-attempt to reject the complex task (non-recursively)
+  mustBeRejected(taskB, taskB.reject(reason, err, false));
+
+
+  // Reject a new complex task recursively
+  const taskC = createComplexTask('C', undefined, undefined);
+  mustBeRejected(taskC, taskC.reject(reason, err, true));
+
+  taskC.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeRejected(subSubTask));
+    mustBeRejected(subTask);
+  });
+
+  t.end();
+});
+
+test('task discard() with sub-tasks', t => {
+  const reason = 'AttemptsExceeded';
+  const err = new Error('TooManyAttempts');
+
+  function mustNotBeDiscarded(task, discarded) {
+    if (discarded !== undefined) {
+      t.notOk(discarded, `${task.name}.discard must return false`);
+    }
+    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+    t.ok(task.incomplete, `${task.name} must be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  function mustBeDiscarded(task, discarded) {
+    if (discarded !== undefined) {
+      t.ok(discarded, `${task.name}.discard must return true`);
+    }
+    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+    t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.ok(task.rejected, `${task.name} must be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must be NOT Rejected`);
+    t.ok(task.isDiscarded(), `${task.name} must be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  // First attempt to discard a complex task, but NOT recursively
+  const taskB = createComplexTask('B', undefined, undefined);
+  mustNotBeDiscarded(taskB, taskB.discard(reason, err, false));
+
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustNotBeDiscarded(subSubTask));
+    mustNotBeDiscarded(subTask);
+  });
+
+  // Next discard each of its sub-sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeDiscarded(subSubTask, subSubTask.discard('Rotten', err, false)));
+    mustNotBeDiscarded(subTask);
+  });
+  mustNotBeDiscarded(taskB);
+
+  // Next discard each of its sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => mustBeDiscarded(subTask, subTask.discard(reason, err, false)));
+  mustNotBeDiscarded(taskB);
+
+  // ... and then finally re-attempt to discard the complex task (non-recursively)
+  mustBeDiscarded(taskB, taskB.discard(reason, err, false));
+
+
+  // Reject a new complex task recursively
+  const taskC = createComplexTask('C', undefined, undefined);
+  mustBeDiscarded(taskC, taskC.discard(reason, err, true));
+
+  taskC.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeDiscarded(subSubTask));
+    mustBeDiscarded(subTask);
+  });
+
+  t.end();
+});
+
+test('task abandon() with sub-tasks', t => {
+  const reason = 'Rotten';
+  const err = new Error('Yuck');
+
+  function mustNotBeAbandoned(task, abandoned) {
+    if (abandoned !== undefined) {
+      t.notOk(abandoned, `${task.name}.abandon must return false`);
+    }
+    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+    t.ok(task.incomplete, `${task.name} must be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  function mustBeAbandoned(task, abandoned) {
+    if (abandoned !== undefined) {
+      t.ok(abandoned, `${task.name}.abandon must return true`);
+    }
+    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+    t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.ok(task.rejected, `${task.name} must be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.ok(task.isAbandoned(), `${task.name} must be Abandoned`);
+  }
+
+  // First attempt to abandon a complex task, but NOT recursively
+  const taskB = createComplexTask('B', undefined, undefined);
+  mustNotBeAbandoned(taskB, taskB.abandon(reason, err, false));
+
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustNotBeAbandoned(subSubTask));
+    mustNotBeAbandoned(subTask);
+  });
+
+  // Next abandon each of its sub-sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeAbandoned(subSubTask, subSubTask.abandon('Rotten', err, false)));
+    mustNotBeAbandoned(subTask);
+  });
+  mustNotBeAbandoned(taskB);
+
+  // Next abandon each of its sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => mustBeAbandoned(subTask, subTask.abandon(reason, err, false)));
+  mustNotBeAbandoned(taskB);
+
+  // ... and then finally re-attempt to abandon the complex task (non-recursively)
+  mustBeAbandoned(taskB, taskB.abandon(reason, err, false));
+
+
+  // Reject a new complex task recursively
+  const taskC = createComplexTask('C', undefined, undefined);
+  mustBeAbandoned(taskC, taskC.abandon(reason, err, true));
+
+  taskC.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeAbandoned(subSubTask));
+    mustBeAbandoned(subTask);
+  });
+
+  t.end();
+});
+
+test('task rejectAs() with sub-tasks', t => {
+  const name = 'BadEgg';
+  const reason = 'Foul';
+  const err = new Error('Nasty');
+
+  function mustNotBeRejected(task, rejected) {
+    if (rejected !== undefined) {
+      t.notOk(rejected, `${task.name}.reject must return false`);
+    }
+    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+    t.ok(task.incomplete, `${task.name} must be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+    t.notOk(task.state instanceof states.RejectedState, `${task.name} must NOT be RejectedState`);
+    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  function mustBeRejected(task, rejected) {
+    if (rejected !== undefined) {
+      t.ok(rejected, `${task.name}.reject must return true`);
+    }
+    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+    t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.ok(task.rejected, `${task.name} must be rejected`);
+
+    t.ok(task.state instanceof states.RejectedState, `${task.name} must be RejectedState`);
+    t.notOk(task.isRejected(), `${task.name} must be NOT Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  // First attempt to reject a complex task, but NOT recursively
+  const taskB = createComplexTask('B', undefined, undefined);
+  mustNotBeRejected(taskB, taskB.rejectAs(name, reason, err, false));
+
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustNotBeRejected(subSubTask));
+    mustNotBeRejected(subTask);
+  });
+
+  // Next reject each of its sub-sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeRejected(subSubTask, subSubTask.rejectAs(name, 'Rotten', err, false)));
+    mustNotBeRejected(subTask);
+  });
+  mustNotBeRejected(taskB);
+
+  // Next reject each of its sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => mustBeRejected(subTask, subTask.rejectAs(name, reason, err, false)));
+  mustNotBeRejected(taskB);
+
+  // ... and then finally re-attempt to reject the complex task (non-recursively)
+  mustBeRejected(taskB, taskB.rejectAs(name, reason, err, false));
+
+
+  // Reject a new complex task recursively
+  const taskC = createComplexTask('C', undefined, undefined);
+  mustBeRejected(taskC, taskC.rejectAs(name, reason, err, true));
+
+  taskC.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeRejected(subSubTask));
+    mustBeRejected(subTask);
+  });
+
+  t.end();
+});
+
+test('task discardIfOverAttempted() with sub-tasks', t => {
+  const maxNumberOfAttempts = 2;
+
+  function mustNotBeDiscarded(task, discarded) {
+    if (discarded !== undefined) {
+      t.notOk(discarded, `${task.name}.discard must return false`);
+    }
+    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+    t.ok(task.incomplete, `${task.name} must be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
+    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  function mustBeDiscarded(task, discarded) {
+    if (discarded !== undefined) {
+      t.ok(discarded, `${task.name}.discard must return true`);
+    }
+    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+    t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+    t.notOk(task.completed, `${task.name} must NOT be completed`);
+    t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
+    t.notOk(task.failed, `${task.name} must NOT be failed`);
+    t.ok(task.rejected, `${task.name} must be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must be NOT Rejected`);
+    t.ok(task.isDiscarded(), `${task.name} must be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
+
+  // First attempt to discard a complex task, but NOT recursively
+  const taskB = createComplexTask('B', undefined, undefined);
+  mustNotBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false));
+
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustNotBeDiscarded(subSubTask));
+    mustNotBeDiscarded(subTask);
+  });
+
+  // Next discard each of its sub-sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => {
+      subSubTask.incrementAttempts();
+      mustNotBeDiscarded(subSubTask, subSubTask.discardIfOverAttempted(maxNumberOfAttempts, false));
+
+      subSubTask.incrementAttempts();
+      mustBeDiscarded(subSubTask, subSubTask.discardIfOverAttempted(maxNumberOfAttempts, false))
+    });
+    mustNotBeDiscarded(subTask);
+  });
+  mustNotBeDiscarded(taskB);
+
+  // Next discard each of its sub-tasks (non-recursively)
+  taskB.subTasks.forEach(subTask => {
+    subTask.incrementAttempts();
+    mustNotBeDiscarded(subTask, subTask.discardIfOverAttempted(maxNumberOfAttempts, false));
+
+    subTask.incrementAttempts();
+    mustBeDiscarded(subTask, subTask.discardIfOverAttempted(maxNumberOfAttempts, false))
+  });
+  mustNotBeDiscarded(taskB);
+
+  // ... and then finally re-attempt to discard the complex task (non-recursively)
+  taskB.incrementAttempts();
+  mustNotBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false));
+
+  taskB.incrementAttempts();
+  mustBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false));
+
+  // Reject a new complex task recursively
+  const taskC = createComplexTask('C', undefined, undefined);
+
+  mustNotBeDiscarded(taskC, taskC.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+  taskC.incrementAttempts(true);
+  mustNotBeDiscarded(taskC, taskC.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+  taskC.incrementAttempts(true);
+  mustBeDiscarded(taskC, taskC.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+  taskC.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => mustBeDiscarded(subSubTask));
+    mustBeDiscarded(subTask);
+  });
 
   t.end();
 });

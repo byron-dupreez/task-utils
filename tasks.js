@@ -251,7 +251,7 @@ class Task {
   beganAt(startTime) {
     if (!this._frozen && this.incomplete) {
       const began = startTime instanceof Date ? startTime : startTime && typeof startTime === 'string' ?
-          new Date(Date.parse(startTime)) : new Date();
+        new Date(Date.parse(startTime)) : new Date();
 
       this._began = began.toISOString();
 
@@ -586,31 +586,6 @@ class Task {
     }
   }
 
-  // /**
-  //  * Updates this task's last executed at date-time to the given executed at date-time. If recursively is true, then
-  //  * also applies the update to each of this task' sub-tasks recursively.
-  //  * @param {Date|string|undefined} [startTime] - the ISO date-time at which this task was executed (defaults to now if undefined)
-  //  * @param {boolean|undefined} [recursively] - whether to also apply the update to sub-tasks recursively or not
-  //  */
-  // updateBegan(startTime, recursively) {
-  //   const began = startTime instanceof Date ? startTime : startTime && typeof startTime === 'string' ?
-  //       new Date(Date.parse(startTime)) : new Date();
-  //
-  //   if (this.incomplete) {
-  //     this.beganAt(began);
-  //   }
-  //
-  //   // If recursively, then also apply the update to each of this task's sub-tasks
-  //   if (recursively) {
-  //     this._subTasks.forEach(subTask => subTask.updateBegan(began, recursively));
-  //   }
-  //
-  //   // If this is a master task then ripple the update to each of its slave tasks
-  //   if (this.isMasterTask()) {
-  //     this._slaveTasks.forEach(slaveTask => slaveTask.updateBegan(began, recursively));
-  //   }
-  // }
-
   /**
    * Starts this task (but ONLY if it's still unstarted) by changing its state to started, incrementing the number of
    * attempts at this task and updates its last executed at date-time to the given executed at date-time. If recursively
@@ -900,18 +875,15 @@ class Task {
   }
 
   /**
-   * Rejects this task with a Rejected state with the given reason and optional error (if it is not already finalised)
-   * and also rejects any and all of its subTasks recursively that are not already finalised (if recursively is true).
+   * If recursively is true, first attempts to recursively reject any and all of this task's sub-tasks. and then, if
+   * this task is incomplete AND every one of its sub-tasks are fully finalised, rejects this task with a Rejected state
+   * with the given reason and optional error. Rationale: Cannot reject a task with incomplete sub-tasks.
    * @param {string} reason - the reason this task is being rejected
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively reject all of this task's sub-tasks as well
+   * @returns {boolean} true if this task was actually rejected; false otherwise.
    */
   reject(reason, error, recursively) {
-    if (this.incomplete) {
-      this._state = new states.Rejected(reason, error);
-      this._result = undefined;
-      this._error = error;
-    }
     if (recursively) {
       this._subTasks.forEach(subTask => subTask.reject(reason, error, recursively));
     }
@@ -919,21 +891,25 @@ class Task {
     if (this.isMasterTask()) {
       this._slaveTasks.forEach(slaveTask => slaveTask.reject(reason, error, recursively));
     }
+    if (this.incomplete && this._subTasks.every(t => t.isFullyFinalised())) {
+      this._state = new states.Rejected(reason, error);
+      this._result = undefined;
+      this._error = error;
+      return true;
+    }
+    return false;
   }
 
   /**
-   * Rejects this task with a Discarded state with the given reason and optional error (if it is not already finalised)
-   * and also discards any and all of its subTasks recursively that are not already finalised (if recursively is true).
+   * If recursively is true, first attempts to recursively discard any and all of this task's sub-tasks, and then, if
+   * this task is incomplete AND every one of its sub-tasks are fully finalised, rejects this task with a Discarded
+   * state with the given reason and optional error. Rationale: Cannot discard a task with incomplete sub-tasks.
    * @param {string} reason - the reason this task is being discarded
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively discard all of this task's sub-tasks as well
+   * @returns {boolean} true if this task was actually discarded; false otherwise.
    */
   discard(reason, error, recursively) {
-    if (this.incomplete) {
-      this._state = new states.Discarded(reason, error);
-      this._result = undefined;
-      this._error = error;
-    }
     if (recursively) {
       this._subTasks.forEach(subTask => subTask.discard(reason, error, recursively));
     }
@@ -941,21 +917,25 @@ class Task {
     if (this.isMasterTask()) {
       this._slaveTasks.forEach(slaveTask => slaveTask.discard(reason, error, recursively));
     }
+    if (this.incomplete && this._subTasks.every(t => t.isFullyFinalised())) {
+      this._state = new states.Discarded(reason, error);
+      this._result = undefined;
+      this._error = error;
+      return true;
+    }
+    return false;
   }
 
   /**
-   * Rejects this task with an Abandoned state with the given reason and optional error (if it is not already finalised)
-   * and also abandons any and all of its subTasks recursively that are not already finalised (if recursively is true).
+   * If recursively is true, first attempts to recursively abandon any and all of this task's sub-tasks, and then, if
+   * this task is incomplete AND every one of its sub-tasks are fully finalised, rejects this task with an Abandoned
+   * state with the given reason and optional error. Rationale: Cannot abandon a task with incomplete sub-tasks.
    * @param {string} reason - the reason this task is being abandoned
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively abandon all of this task's sub-tasks as well
+   * @returns {boolean} true if this task was actually abandoned; false otherwise.
    */
   abandon(reason, error, recursively) {
-    if (this.incomplete) {
-      this._state = new states.Abandoned(reason, error);
-      this._result = undefined;
-      this._error = error;
-    }
     if (recursively) {
       this._subTasks.forEach(subTask => subTask.abandon(reason, error, recursively));
     }
@@ -963,26 +943,26 @@ class Task {
     if (this.isMasterTask()) {
       this._slaveTasks.forEach(slaveTask => slaveTask.abandon(reason, error, recursively));
     }
+    if (this.incomplete && this._subTasks.every(t => t.isFullyFinalised())) {
+      this._state = new states.Abandoned(reason, error);
+      this._result = undefined;
+      this._error = error;
+      return true;
+    }
+    return false;
   }
 
   /**
-   * Rejects this task with a rejected state with the given state name, reason and optional error (if it is not already
-   * finalised) and also rejects any and all of its subTasks recursively that are not already finalised (if recursively
-   * is true).
+   * If recursively is true, first attempts to recursively reject any and all of this task's sub-tasks. and then, if
+   * this task is incomplete AND every one of its sub-tasks are fully finalised, rejects this task with a rejected state
+   * with the given state name, reason and optional error. Rationale: Cannot reject a task with incomplete sub-tasks.
    * @param {string} stateName - the name of the rejected state
    * @param {string} reason - the reason this task is being rejected
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively reject all of this task's sub-tasks as well
+   * @returns {boolean} true if this task was actually rejected; false otherwise.
    */
   rejectAs(stateName, reason, error, recursively) {
-    if (this.incomplete) {
-      this._state = stateName === TaskState.names.Rejected ? new states.Rejected(reason, error) :
-        stateName === TaskState.names.Discarded ? new states.Discarded(reason, error) :
-          stateName === TaskState.names.Abandoned ? new states.Abandoned(reason, error) :
-            new states.RejectedState(stateName, reason, error);
-      this._result = undefined;
-      this._error = error;
-    }
     if (recursively) {
       this._subTasks.forEach(subTask => subTask.rejectAs(stateName, reason, error, recursively));
     }
@@ -990,6 +970,43 @@ class Task {
     if (this.isMasterTask()) {
       this._slaveTasks.forEach(slaveTask => slaveTask.rejectAs(stateName, reason, error, recursively));
     }
+    if (this.incomplete && this._subTasks.every(t => t.isFullyFinalised())) {
+      this._state = stateName === TaskState.names.Rejected ? new states.Rejected(reason, error) :
+        stateName === TaskState.names.Discarded ? new states.Discarded(reason, error) :
+          stateName === TaskState.names.Abandoned ? new states.Abandoned(reason, error) :
+            new states.RejectedState(stateName, reason, error);
+      this._result = undefined;
+      this._error = error;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * If recursively is true, first attempts to recursively discard any and all of this task's over-attempted sub-tasks,
+   * and then, if this task is incomplete, over-attempted AND every one of its sub-tasks are fully finalised, rejects
+   * this task with a Discarded state with an appropriate over-attempted reason. Rationale: Cannot discard a task with
+   * incomplete sub-tasks.
+   * @param {number} maxNumberOfAttempts - the maximum number of attempts allowed
+   * @param {boolean|undefined} [recursively] - whether or not to recursively discard all of this task's sub-tasks as well
+   * @returns {boolean} true if this task was actually discarded; false otherwise.
+   */
+  discardIfOverAttempted(maxNumberOfAttempts, recursively) {
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.discardIfOverAttempted(maxNumberOfAttempts, recursively));
+    }
+    // If this is a master task then ripple the state change to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.discardIfOverAttempted(maxNumberOfAttempts, recursively));
+    }
+    if (this.incomplete && this._attempts >= maxNumberOfAttempts && this._subTasks.every(t => t.isFullyFinalised())) {
+      const reason = `The number of attempts (${this._attempts}) has ${this._attempts > maxNumberOfAttempts ? 'exceeded' : 'reached'} the maximum number of attempts allowed (${maxNumberOfAttempts})`;
+      this._state = new states.Discarded(reason);
+      this._result = undefined;
+      this._error = undefined;
+      return true;
+    }
+    return false;
   }
 
   /**

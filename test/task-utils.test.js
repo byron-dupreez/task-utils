@@ -1586,14 +1586,16 @@ test('reviveTasks - Scenario 5: Old finalised tasks with incomplete sub-tasks mu
 
   // Fail task 2 recursively and then mark itself as rejected
   task2.fail(new Error('Planned fail 2'), true);
+  task2.subTasks.forEach(subTask => t.ok(subTask.failed, `BEFORE ${subTask.name} must be failed`));
   task2.incrementAttempts(true);
   task2.incrementAttempts(true);
-  task2.reject('Rejected task 2', undefined, false);
 
-  task2.subTasks.forEach(task => {
-    t.ok(task.failed, `BEFORE ${task.name} must be failed`);
+  // task2.reject('Rejected task 2', undefined, true);
+  task2.subTasks.forEach(subTask => {
+    subTask.reject(`Rejected task 2 sub-task ${subTask.name}`, undefined, true);
+    t.ok(subTask.rejected, `BEFORE ${subTask.name} must be rejected`);
   });
-  t.ok(task2.rejected, `BEFORE ${task2.name} must be rejected`);
+  t.ok(task2.failed, `BEFORE ${task2.name} must still be rejected`);
 
   const task3 = createTask(taskDef3);
   // task3.start(new Date(), true);
@@ -1604,15 +1606,16 @@ test('reviveTasks - Scenario 5: Old finalised tasks with incomplete sub-tasks mu
     overrideUnstarted: true,
     reverseAttempt: true
   }, true);
-  task3.incrementAttempts(true);
-  task3.incrementAttempts(true);
-  task3.incrementAttempts(true);
-  task3.reject('Rejected task 3', undefined, false);
+  task3.subTasks.forEach(subTask => t.ok(subTask.timedOut, `BEFORE ${subTask.name} must be timed out`));
 
-  task3.subTasks.forEach(task => {
-    t.ok(task.timedOut, `BEFORE ${task.name} must be timed out`);
-  });
-  t.ok(task3.rejected, `BEFORE ${task3.name} must be rejected`);
+  task3.incrementAttempts(true);
+  task3.incrementAttempts(true);
+  task3.incrementAttempts(true);
+  // task3.reject('Rejected task 3', undefined, true);
+  task3.subTasks.forEach(subTask => subTask.reject(`Rejected task 3 sub-task ${subTask.name}`, undefined, true));
+
+  t.ok(task3.timedOut, `BEFORE ${task3.name} must still be timed out`);
+  task3.subTasks.forEach(subTask => t.ok(subTask.rejected, `BEFORE ${subTask.name} must be rejected`));
 
   const task4 = createTask(taskDef4);
 
@@ -1685,19 +1688,19 @@ test('reviveTasks - Scenario 5: Old finalised tasks with incomplete sub-tasks mu
 
   const t2 = newTasks.find(t => t.name === 'Task 2');
   t.ok(t2, `${t2.name} must be one of the new tasks`);
-  t.ok(t2.rejected, `AFTER ${t2.name} must still be rejected`);
-  t.ok(t2.isRejected(), `AFTER ${t2.name} must still be Rejected`);
+  t.ok(t2.unstarted, `AFTER ${t2.name} must be unstarted now`);
   t2.subTasks.forEach(st => {
-    t.ok(st.unstarted, `AFTER ${st.name} must be unstarted`);
+    t.ok(st.rejected, `AFTER ${st.name} must still be rejected`);
+    t.ok(st.isRejected(), `AFTER ${st.name} must still be Rejected`);
     t.equal(st.attempts, 2, `AFTER ${st.name} attempts must be 2`);
   });
 
   const t3 = newTasks.find(t => t.name === 'Task 3');
   t.ok(t3, `${t3.name} must be one of the new tasks`);
-  t.ok(t3.rejected, `AFTER ${t3.name} must still be rejected`);
-  t.ok(t3.isRejected(), `AFTER ${t3.name} must still be Rejected`);
+  t.ok(t3.unstarted, `AFTER ${t3.name} must be unstarted now`);
   t3.subTasks.forEach(st => {
-    t.ok(st.unstarted, `AFTER ${st.name} must be unstarted`);
+    t.ok(st.rejected, `AFTER ${st.name} must still be rejected`);
+    t.ok(st.isRejected(), `AFTER ${t3.name} must still be Rejected`);
     t.equal(st.attempts, 3, `AFTER ${st.name} attempts must be 3`);
   });
 

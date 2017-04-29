@@ -469,7 +469,7 @@ class TaskFactory {
 
         self.failTaskIfNecessary(task, err, describeItem);
 
-        self.logger.error(`${describeItem()}${task.name} is done - state (${task.state}) - rejection took ${ms} ms`, err.stack);
+        self.logger.error(`${describeItem()}${task.name} is done - state (${task.state}) - failure took ${ms} ms`, err.stack);
 
         throw err;
       }
