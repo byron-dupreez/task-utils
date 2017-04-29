@@ -273,11 +273,12 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
 ### 6.0.1
 - Changes to `tasks` module & `Task` class:
   - Fixed behaviour of `reject`, `discard`, `abandon` & `rejectAs` methods to first recurse through sub-tasks, to ONLY 
-    allow the state change if the task is incomplete AND every one of it sub-task is fully finalised & to return whether 
-    the state was changed or not. Rationale for change: Should NOT be able to reject a task with incomplete sub-tasks
+    allow the state change if the task is incomplete AND every one of it sub-task is fully finalised & to return the 
+    number of tasks & sub-tasks actually rejected. Rationale for change: Should NOT be able to reject a task with 
+    incomplete sub-tasks
   - Added new `discardIfOverAttempted` method, which is a variation of the `discard` method, that first recurses through 
     the task's sub-tasks, ONLY allows the state change if the task is incomplete, OVER-ATTEMPTED AND every one of its 
-    sub-task is fully finalised & finally returns whether the state was changed or not
+    sub-task is fully finalised & finally returns the number of tasks & sub-tasks actually rejected
 - Updated `core-functions` dependency to version 3.0.3
 
 ### 6.0.0

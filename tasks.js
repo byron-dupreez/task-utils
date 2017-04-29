@@ -881,11 +881,12 @@ class Task {
    * @param {string} reason - the reason this task is being rejected
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively reject all of this task's sub-tasks as well
-   * @returns {boolean} true if this task was actually rejected; false otherwise.
+   * @returns {number} the number of tasks and sub-tasks actually rejected
    */
   reject(reason, error, recursively) {
+    let count = 0;
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.reject(reason, error, recursively));
+      count += this._subTasks.reduce((acc, subTask) => acc + subTask.reject(reason, error, recursively), 0);
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
@@ -895,9 +896,9 @@ class Task {
       this._state = new states.Rejected(reason, error);
       this._result = undefined;
       this._error = error;
-      return true;
+      return count + 1;
     }
-    return false;
+    return count;
   }
 
   /**
@@ -907,11 +908,12 @@ class Task {
    * @param {string} reason - the reason this task is being discarded
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively discard all of this task's sub-tasks as well
-   * @returns {boolean} true if this task was actually discarded; false otherwise.
+   * @returns {number} the number of tasks and sub-tasks actually discarded
    */
   discard(reason, error, recursively) {
+    let count = 0;
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.discard(reason, error, recursively));
+      count += this._subTasks.reduce((acc, subTask) => acc + subTask.discard(reason, error, recursively), 0);
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
@@ -921,9 +923,9 @@ class Task {
       this._state = new states.Discarded(reason, error);
       this._result = undefined;
       this._error = error;
-      return true;
+      return count + 1;
     }
-    return false;
+    return count;
   }
 
   /**
@@ -933,11 +935,12 @@ class Task {
    * @param {string} reason - the reason this task is being abandoned
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively abandon all of this task's sub-tasks as well
-   * @returns {boolean} true if this task was actually abandoned; false otherwise.
+   * @returns {number} the number of tasks and sub-tasks actually abandoned
    */
   abandon(reason, error, recursively) {
+    let count = 0;
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.abandon(reason, error, recursively));
+      count += this._subTasks.reduce((acc, subTask) => acc + subTask.abandon(reason, error, recursively), 0);
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
@@ -947,9 +950,9 @@ class Task {
       this._state = new states.Abandoned(reason, error);
       this._result = undefined;
       this._error = error;
-      return true;
+      return count + 1;
     }
-    return false;
+    return count;
   }
 
   /**
@@ -960,11 +963,12 @@ class Task {
    * @param {string} reason - the reason this task is being rejected
    * @param {Error|undefined} [error] - an optional error that triggered this
    * @param {boolean|undefined} [recursively] - whether or not to recursively reject all of this task's sub-tasks as well
-   * @returns {boolean} true if this task was actually rejected; false otherwise.
+   * @returns {number} the number of tasks and sub-tasks actually rejected
    */
   rejectAs(stateName, reason, error, recursively) {
+    let count = 0;
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.rejectAs(stateName, reason, error, recursively));
+      count += this._subTasks.reduce((acc, subTask) => acc + subTask.rejectAs(stateName, reason, error, recursively), 0);
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
@@ -977,9 +981,9 @@ class Task {
             new states.RejectedState(stateName, reason, error);
       this._result = undefined;
       this._error = error;
-      return true;
+      return count + 1;
     }
-    return false;
+    return count;
   }
 
   /**
@@ -989,11 +993,12 @@ class Task {
    * incomplete sub-tasks.
    * @param {number} maxNumberOfAttempts - the maximum number of attempts allowed
    * @param {boolean|undefined} [recursively] - whether or not to recursively discard all of this task's sub-tasks as well
-   * @returns {boolean} true if this task was actually discarded; false otherwise.
+   * @returns {number} the number of tasks and sub-tasks actually discarded
    */
   discardIfOverAttempted(maxNumberOfAttempts, recursively) {
+    let count = 0;
     if (recursively) {
-      this._subTasks.forEach(subTask => subTask.discardIfOverAttempted(maxNumberOfAttempts, recursively));
+      count += this._subTasks.reduce((acc, subTask) => acc + subTask.discardIfOverAttempted(maxNumberOfAttempts, recursively), 0);
     }
     // If this is a master task then ripple the state change to each of its slave tasks
     if (this.isMasterTask()) {
@@ -1004,9 +1009,9 @@ class Task {
       this._state = new states.Discarded(reason);
       this._result = undefined;
       this._error = undefined;
-      return true;
+      return count + 1;
     }
-    return false;
+    return count;
   }
 
   /**
