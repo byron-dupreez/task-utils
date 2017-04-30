@@ -2162,20 +2162,13 @@ test('task reject() with sub-tasks', t => {
 
   function mustNotBeRejected(task, rejected) {
     if (rejected !== undefined) {
-      t.notOk(rejected, `${task.name}.reject must return false`);
+      t.notOk(rejected, `${task.name}.reject must return "false"`);
       t.equal(rejected, 0, `${task.name}.reject must return ${0}`);
     }
     t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
-
-    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
-    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
-    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
   }
 
   function mustBeRejected(task, rejected, expected) {
@@ -2192,9 +2185,6 @@ test('task reject() with sub-tasks', t => {
     t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.ok(task.rejected, `${task.name} must be rejected`);
 
     t.ok(task.isRejected(), `${task.name} must be Rejected`);
@@ -2252,20 +2242,13 @@ test('task discard() with sub-tasks', t => {
 
   function mustNotBeDiscarded(task, discarded) {
     if (discarded !== undefined) {
-      t.notOk(discarded, `${task.name}.discard must return false`);
+      t.notOk(discarded, `${task.name}.discard must return "false"`);
       t.equal(discarded, 0, `${task.name}.discard must return ${0}`);
     }
     t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
-
-    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
-    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
-    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
   }
 
   function mustBeDiscarded(task, discarded, expected) {
@@ -2282,9 +2265,6 @@ test('task discard() with sub-tasks', t => {
     t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.ok(task.rejected, `${task.name} must be rejected`);
 
     t.notOk(task.isRejected(), `${task.name} must be NOT Rejected`);
@@ -2343,20 +2323,13 @@ test('task abandon() with sub-tasks', t => {
 
   function mustNotBeAbandoned(task, abandoned) {
     if (abandoned !== undefined) {
-      t.notOk(abandoned, `${task.name}.abandon must return false`);
+      t.notOk(abandoned, `${task.name}.abandon must return "false"`);
       t.equal(abandoned, 0, `${task.name}.abandon must return ${0}`);
     }
     t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
-
-    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
-    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
-    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
   }
 
   function mustBeAbandoned(task, abandoned, expected) {
@@ -2373,9 +2346,6 @@ test('task abandon() with sub-tasks', t => {
     t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.ok(task.rejected, `${task.name} must be rejected`);
 
     t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
@@ -2435,21 +2405,13 @@ test('task rejectAs() with sub-tasks', t => {
 
   function mustNotBeRejected(task, rejected) {
     if (rejected !== undefined) {
-      t.notOk(rejected, `${task.name}.rejectAs must return false`);
+      t.notOk(rejected, `${task.name}.rejectAs must return "false"`);
       t.equal(rejected, 0, `${task.name}.rejectAs must return ${0}`);
     }
     t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
-
-    t.notOk(task.state instanceof states.RejectedState, `${task.name} must NOT be RejectedState`);
-    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
-    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
-    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
   }
 
   function mustBeRejected(task, rejected, expected) {
@@ -2466,9 +2428,6 @@ test('task rejectAs() with sub-tasks', t => {
     t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.ok(task.rejected, `${task.name} must be rejected`);
 
     t.ok(task.state instanceof states.RejectedState, `${task.name} must be RejectedState`);
@@ -2527,20 +2486,13 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
 
   function mustNotBeDiscarded(task, discarded) {
     if (discarded !== undefined) {
-      t.notOk(discarded, `${task.name}.discardIfOverAttempted must return false`);
+      t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
       t.equal(discarded, 0, `${task.name}.discardIfOverAttempted must return ${0}`);
     }
     t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
-
-    t.notOk(task.isRejected(), `${task.name} must NOT be Rejected`);
-    t.notOk(task.isDiscarded(), `${task.name} must NOT be Discarded`);
-    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
   }
 
   function mustBeDiscarded(task, discarded, expected) {
@@ -2557,9 +2509,6 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
     t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
-    // t.notOk(task.completed, `${task.name} must NOT be completed`);
-    // t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
-    // t.notOk(task.failed, `${task.name} must NOT be failed`);
     t.ok(task.rejected, `${task.name} must be rejected`);
 
     t.notOk(task.isRejected(), `${task.name} must be NOT Rejected`);
@@ -2569,6 +2518,7 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
 
   // First attempt to discard a complex task, but NOT recursively
   const taskB = createComplexTask('B', undefined, undefined);
+
   mustNotBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false));
 
   taskB.subTasks.forEach(subTask => {
@@ -2589,6 +2539,7 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
     mustNotBeDiscarded(subTask);
   });
   mustNotBeDiscarded(taskB);
+  mustNotBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false));
 
   // Next discard each of its sub-tasks (non-recursively)
   taskB.subTasks.forEach(subTask => {
@@ -2600,6 +2551,7 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
     mustBeDiscarded(subTask, subTask.discardIfOverAttempted(maxNumberOfAttempts, false), 0);
   });
   mustNotBeDiscarded(taskB);
+  mustNotBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false));
 
   // ... and then finally re-attempt to discard the complex task (non-recursively)
   taskB.incrementAttempts();
@@ -2608,6 +2560,7 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
   taskB.incrementAttempts();
   mustBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false), 1);
   mustBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false), 0);
+
 
   // Reject a new complex task recursively
   const taskC = createComplexTask('C', undefined, undefined);
@@ -2623,6 +2576,57 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
   mustBeDiscarded(taskC, taskC.discardIfOverAttempted(maxNumberOfAttempts, true), 0);
 
   taskC.subTasks.forEach(subTask => {
+    mustBeDiscarded(subTask);
+    subTask.subTasks.forEach(subSubTask => mustBeDiscarded(subSubTask));
+  });
+
+
+  // Reject a new complex task recursively (always discarding from the root task)
+  const taskD = createComplexTask('D', undefined, undefined);
+
+  mustNotBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+  taskD.subTasks.forEach(subTask => {
+    mustNotBeDiscarded(subTask);
+    subTask.subTasks.forEach(subSubTask => mustNotBeDiscarded(subSubTask));
+  });
+
+  // Next discard each of its sub-sub-tasks (recursively)
+  taskD.subTasks.forEach(subTask => {
+    subTask.subTasks.forEach(subSubTask => {
+      subSubTask.incrementAttempts();
+      mustNotBeDiscarded(subSubTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+      subSubTask.incrementAttempts();
+      mustBeDiscarded(subSubTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 1);
+      mustBeDiscarded(subSubTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 0);
+    });
+    mustNotBeDiscarded(subTask);
+  });
+  mustNotBeDiscarded(taskD);
+  mustNotBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+  // Next discard each of its sub-tasks (recursively)
+  taskD.subTasks.forEach(subTask => {
+    subTask.incrementAttempts();
+    mustNotBeDiscarded(subTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+    subTask.incrementAttempts();
+    mustBeDiscarded(subTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 1);
+    mustBeDiscarded(subTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 0);
+  });
+  mustNotBeDiscarded(taskD);
+  mustNotBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+  // Finally discard the root task too
+  taskD.incrementAttempts(true);
+  mustNotBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
+
+  taskD.incrementAttempts(true);
+  mustBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 1);
+  mustBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 0);
+
+  taskD.subTasks.forEach(subTask => {
     subTask.subTasks.forEach(subSubTask => mustBeDiscarded(subSubTask));
     mustBeDiscarded(subTask);
   });
