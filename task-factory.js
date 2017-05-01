@@ -440,12 +440,8 @@ class TaskFactory {
         const ms = endTime.getTime() - startTimeInMs;
         task.endedAt(endTime);
 
-        // Convert zero, single or multiple valued result into an appropriate array of results
-        const results = Array.isArray(result) ? result : result ? [result] : [];
-        const outcomes = results.filter(o => o instanceof Try);
-
         // Find the first Failure (if any) out of the promise's result(s)
-        const firstFailure = outcomes.find(o => o.isFailure());
+        const firstFailure = Try.findFailure(result);
 
         if (firstFailure === undefined) {
           // No promises were rejected, so if this task is still in a started (or unstarted) state after its execute
@@ -457,7 +453,9 @@ class TaskFactory {
           self.failTaskIfNecessary(task, firstFailure.error, describeItem);
         }
 
-        self.logger.log('DEBUG', `${describeItem()}${task.name} is done - state (${task.state}) - ${outcomes.length > 0 ? Try.describeSuccessAndFailureCounts(outcomes) : 'success'} took ${ms} ms`);
+        // Convert zero, single or multiple valued result into an appropriate array of results for logging purposes
+        const results = Array.isArray(result) ? result : result ? [result] : [];
+        self.logger.log('DEBUG', `${describeItem()}${task.name} is done - state (${task.state}) - ${results.length > 0 ? Try.describeSuccessAndFailureCounts(results) : 'success'} took ${ms} ms`);
 
         return result;
       },

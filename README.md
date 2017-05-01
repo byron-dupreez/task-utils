@@ -279,6 +279,9 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   - Added new `discardIfOverAttempted` method, which is a variation of the `discard` method, that first recurses through 
     the task's sub-tasks, ONLY allows the state change if the task is incomplete, OVER-ATTEMPTED AND every one of its 
     sub-task is fully finalised & finally returns the number of tasks & sub-tasks actually rejected
+- Changes to `task-factory` module:
+  - Changed the behaviour of the `updateTask` function to use `Try.findFailure` to do a much deeper search for a Failure 
+    instead of only checking the top-level result for a Failure
 - Updated `core-functions` dependency to version 3.0.3
 
 ### 6.0.0
