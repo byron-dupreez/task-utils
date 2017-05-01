@@ -33,6 +33,8 @@ module.exports = {
   getTasks: getTasks,
   getTasksAndSubTasks: getTasksAndSubTasks,
   setTask: setTask,
+  // Function to check if any of a tasks by name map's tasks is not fully finalised
+  isAnyTaskNotFullyFinalised: isAnyTaskNotFullyFinalised,
   // Function to revive tasks by replacing task-likes in a tasks by name map with new tasks updated from the old task-likes
   reviveTasks: reviveTasks,
   /** @deprecated Synonym for reviveTasks */
@@ -189,6 +191,19 @@ function getTasksAndSubTasks(tasksByName) {
 function setTask(tasksByName, taskName, task) {
   tasksByName instanceof Map ? tasksByName.set(taskName, task) : tasksByName[taskName] = task;
   return tasksByName;
+}
+
+/**
+ * Returns true if any of the given tasks by name map's tasks is not fully finalised yet; otherwise returns false.
+ * @param {Object|Map} tasksByName - the tasksByName "map" object (or Map) on which to check its tasks
+ * @return {boolean} true if any task is not fully finalised yet; otherwise false
+ */
+function isAnyTaskNotFullyFinalised(tasksByName) {
+  if (tasksByName) {
+    const tasks = getTasks(tasksByName);
+    return tasks.some(task => !task.isFullyFinalised());
+  }
+  return false;
 }
 
 /**

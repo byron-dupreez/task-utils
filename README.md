@@ -282,6 +282,8 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
 - Changes to `task-factory` module:
   - Changed the behaviour of the `updateTask` function to use `Try.findFailure` to do a much deeper search for a Failure 
     instead of only checking the top-level result for a Failure
+- Changes to `task-utils` module:
+  - Added new `isAnyTaskNotFullyFinalised` function
 - Updated `core-functions` dependency to version 3.0.3
 
 ### 6.0.0

@@ -14,6 +14,7 @@ const getSubTask = taskUtils.getSubTask;
 const getTasks = taskUtils.getTasks;
 const getTasksAndSubTasks = taskUtils.getTasksAndSubTasks;
 const setTask = taskUtils.setTask;
+const isAnyTaskNotFullyFinalised = taskUtils.isAnyTaskNotFullyFinalised;
 const reviveTasks = taskUtils.reviveTasks;
 const isTaskFactoryConfigured = taskUtils.isTaskFactoryConfigured;
 const configureTaskFactory = taskUtils.configureTaskFactory;
@@ -56,6 +57,11 @@ function createTaskFactoryThrows(settings, options) {
 }
 function createSimpleTaskFactory(settings, options) {
   return new SimpleTaskFactory(settings, options)
+}
+
+function createSimpleTask(name, executeFn, taskDefSettings, factory, opts) {
+  factory = factory ? factory : taskFactory1;
+  return factory.createTask(TaskDef.defineTask(`Task ${name}`, executeFn, taskDefSettings), opts);
 }
 
 const usableCreateTaskFactoryFunctions = [undefined, null, createTaskFactory, createSimpleTaskFactory];
@@ -1889,6 +1895,55 @@ test('configureTaskFactory', t => {
       checkThrows(createTaskFactory, new console.Console(process.stdout, process.stderr), describeItem, {returnMode: ReturnMode.SUCCESS_OR_FAILURE});
     }
   }
+
+  t.end();
+});
+
+test('isAnyTaskNotFullyFinalised', t => {
+  const taskDefSettings = undefined;
+  const taskOpts = undefined;
+
+  const taskA = createSimpleTask('A', () => 'A', taskDefSettings, undefined, taskOpts);
+  taskA.createSubTask('A1', () => 'A1', taskDefSettings, taskOpts);
+
+  const taskB = createSimpleTask('B', () => 'B', taskDefSettings, undefined, taskOpts);
+
+  const tasksByName = {
+    a: taskA,
+    b: taskB
+  };
+
+  // Maps with NO tasks must return false
+  t.equal(isAnyTaskNotFullyFinalised(undefined), false, `isAnyTaskNotFullyFinalised(undefined) must be false`);
+  t.equal(isAnyTaskNotFullyFinalised(null), false, `isAnyTaskNotFullyFinalised(null) must be false`);
+  t.equal(isAnyTaskNotFullyFinalised({}), false, `isAnyTaskNotFullyFinalised({}) must be false`);
+
+  // Maps with unstarted tasks must return true
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), true, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with unstarted tasks must be true`);
+
+  taskA.start(new Date(), true);
+  taskB.start();
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), true, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with started tasks must be true`);
+
+  taskB.complete('B done', {}, false);
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), true, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with only B completed must be true`);
+
+  taskA.complete('A done', {}, false);
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), true, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with A & B completed, but NOT A1 must still be true`);
+
+  taskA.getSubTask('A1').complete('A1 done', {}, false);
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), false, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with A, A1 & B completed must be false`);
+
+  taskA.fail(new Error('Boom'), true);
+  taskA.reset();
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), true, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with A reset & only B completed again must be true again`);
+
+  taskA.getSubTask('A1').complete('A1 done', {}, false);
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), true, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with A1 & B completed, but NOT A must be true`);
+
+  taskA.complete('A done', {}, false);
+  t.equal(isAnyTaskNotFullyFinalised(tasksByName), false, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with A1, A & B completed must be false again`);
+
 
   t.end();
 });
