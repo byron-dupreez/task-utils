@@ -504,6 +504,20 @@ function toTaskStateFromStateLike(stateLike) {
 // Install it as a static method too
 if (!TaskState.toTaskStateFromStateLike) TaskState.toTaskStateFromStateLike = toTaskStateFromStateLike;
 
+/**
+ * Compares state `a` with state `b` and returns a negative number if `a` is "less advanced" than `b`; zero if `a` is as
+ * advanced as `b`; or a positive number if `a` is "more advanced" than `b`.
+ * @param {TaskState} a - first state to compare
+ * @param {TaskState} b - second state to compare
+ * @returns {number} a negative number if `a` is "less advanced" than `b`; zero if `a` is as advanced as `b`; or a
+ * positive number if `a` is "more advanced" than `b`
+ */
+function compareStates(a, b) {
+  return StateType.compareStateTypes(a ? a.kind : undefined, b ? b.kind : undefined);
+}
+// Install it as a static method too
+if (!TaskState.compareStates) TaskState.compareStates = compareStates;
+
 module.exports = {
   // Enum for the types of states supported - re-exported for convenience
   StateType: StateType,

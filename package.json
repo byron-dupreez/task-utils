@@ -13,7 +13,6 @@
   },
   "repository": "https://github.com/byron-dupreez/task-utils",
   "dependencies": {
-    "core-functions": "^3.0.3",
-    "deep-equal": "^1.0.1"
+    "core-functions": "^3.0.3"
   }
 }

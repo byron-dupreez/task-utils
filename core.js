@@ -20,6 +20,25 @@ const StateType = {
   FAILED: 'FAILED',
   REJECTED: 'REJECTED'
 };
+
+/** State types ordered from "least" advanced to "most" advanced state */
+const ascendingStateTypes = [StateType.UNSTARTED, StateType.STARTED, StateType.FAILED, StateType.TIMED_OUT, StateType.COMPLETED, StateType.REJECTED];
+
+/**
+ * Compares state type `a` with state type `b` and returns a negative number if `a` is "less advanced" than `b`; zero if
+ * `a` is as advanced as `b`; or a positive number if `a` is "more advanced" than `b`
+ * @param {StateType} a - first state type to compare
+ * @param {StateType} b - second state type to compare
+ * @returns {number} a negative number if `a` is "less advanced" than `b`; zero if `a` is as advanced as `b`; or a
+ * positive number if `a` is "more advanced" than `b`
+ */
+function compareStateTypes(a, b) {
+  const aPos = a ? ascendingStateTypes.indexOf(a) : -1;
+  const bPos = b ? ascendingStateTypes.indexOf(b) : -1;
+  return aPos - bPos;
+}
+
+StateType.compareStateTypes = compareStateTypes;
 Object.freeze(StateType);
 
 /**

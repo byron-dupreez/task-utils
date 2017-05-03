@@ -16,16 +16,12 @@ const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
 const isNotBlank = Strings.isNotBlank;
 
-// const Booleans = require('core-functions/booleans');
-// const isBoolean = Booleans.isBoolean;
-
 const Arrays = require('core-functions/arrays');
 const isDistinct = Arrays.isDistinct;
 
 const core = require('./core');
 const ReturnMode = core.ReturnMode;
 
-const deepEqual = require('deep-equal');
 const strict = {strict: true};
 
 //======================================================================================================================
@@ -1118,9 +1114,10 @@ class Task {
 
   /**
    * Sets this master task's and its corresponding sub-tasks' slave tasks to the given slave tasks and their sub-tasks
-   * recursively and sets the master task's and its sub-tasks': attempts to the least of their respective slave tasks'
-   * attempts; and last executed at date-times to the most recent of their respective slave tasks' last executed at
-   * date-times.
+   * recursively and updates the master task (and recursively its sub-tasks) as follows:
+   * 1. Sets its attempts & total attempts to the least of its slave tasks' attempts & total attempts respectively;
+   * 2. Sets its began & ended date-times to those of its slave task with the most recent began date-time; and
+   * 3. Sets its state to the "least advanced" state of all of its slave tasks (if its undefined or unstarted).
    * @param {Task[]} slaveTasks - the slave tasks of this master task
    * @returns {Task} this task
    */
@@ -1131,14 +1128,10 @@ class Task {
 
     // Set this master task's number of attempts to the minimum of all of its slave tasks' numbers of attempts
     // Set this master task's total attempts to the minimum of all of its slave tasks' total attempts
-    // Set this master task's last executed at date-time to the maximum of all of its slave tasks' last executed at date-times
-    // Set this master task's state (if its not defined or still unstarted) to the common, single state shared by ALL
-    // of its slave tasks (if ALL of its slaves have deeply equal states)
-    let slaveState = undefined;
-    let prevSlaveState = undefined;
-
-    let minBegan = undefined;
-    let maxEnded = undefined;
+    // Set this master task's began & ended date-times to those of its slave task with the most recent began date-time
+    // Set this master task's state to the "least advanced" state of all of its slave tasks (if its undefined or unstarted)
+    let maxBegan = undefined;
+    let andEnded = undefined;
 
     for (let i = 0; i < slaves.length; ++i) {
       const slave = slaves[i];
@@ -1149,27 +1142,22 @@ class Task {
       const slaveTaskTotalAttempts = slave._totalAttempts;
       this._totalAttempts = i === 0 ? slaveTaskTotalAttempts : Math.min(this._totalAttempts, slaveTaskTotalAttempts);
 
-      const slaveTaskBegan = slave._began;
-      if (slaveTaskBegan && (!minBegan || slaveTaskBegan < minBegan)) {
-        minBegan = slaveTaskBegan;
+      const slaveBegan = slave._began;
+      if (slaveBegan && (!maxBegan || slaveBegan > maxBegan)) {
+        maxBegan = slaveBegan;
+        andEnded = slave._ended ? slave._ended : calculateEnded(slaveBegan, slave._took);
       }
-
-      const slaveTaskEnded = slave._ended ? slave._ended : calculateEnded(slave._began, slave._took);
-      if (slaveTaskEnded && (!maxEnded || slaveTaskEnded > maxEnded)) {
-        maxEnded = slaveTaskEnded;
-      }
-
-      slaveState = i === 0 ? slave._state : deepEqual(slave._state, prevSlaveState, strict) ? prevSlaveState : undefined;
-      prevSlaveState = slaveState;
     }
 
+    const states = slaves.map(s => s._state);
+    const slaveState = states.length > 0 ? states.sort(TaskState.compareStates)[0] : undefined;
     if (slaveState && (!this._state || this._state.unstarted)) {
       this._state = slaveState;
     }
 
-    this._began = minBegan;
-    this._ended = maxEnded;
-    this._took = calculateTook(minBegan, maxEnded);
+    this._began = maxBegan;
+    this._ended = andEnded;
+    this._took = calculateTook(maxBegan, andEnded);
 
     // Recursively do the same for each of this master task's sub-tasks
     for (let j = 0; j < this._subTasks.length; ++j) {

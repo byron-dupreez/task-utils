@@ -284,6 +284,15 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
     instead of only checking the top-level result for a Failure
 - Changes to `task-utils` module:
   - Added new `isAnyTaskNotFullyFinalised` function
+- Changes to `core` module:
+  - Added `compareStateTypes` function for sorting state types from "least advanced" to "most advanced"
+- Changes to `task-states` module:
+  - Added `compareStates` function for sorting states from "least advanced" to "most advanced"
+- More changes to `tasks` module & `Task` class:
+  - Changed behaviour of `setSlaveTasks` method to:
+    - Set the master task's began & ended date-times to those of its slave task with the most recent began date-time
+    - Set the master task's state to the "least advanced" state of all of its slave tasks (if its undefined or unstarted)
+  - Removed redundant dependency on `deep-equal` module
 - Updated `core-functions` dependency to version 3.0.3
 
 ### 6.0.0

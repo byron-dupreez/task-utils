@@ -1975,7 +1975,7 @@ test('createMasterTask & setSlaveTasks - check master state only changes if unst
 });
 
 
-test('createMasterTask & setSlaveTasks - check master state only changes if all slaves have same state', t => {
+test('createMasterTask & setSlaveTasks - check master state changes to least advanced slave state', t => {
   const factory = taskFactory2;
 
   // Create a complex master task from a complex task definition
@@ -1991,27 +1991,157 @@ test('createMasterTask & setSlaveTasks - check master state only changes if all 
   const slave2 = factory.createTask(taskDefB);
   const slave3 = factory.createTask(taskDefB);
   const slave4 = factory.createTask(taskDefB);
+  const slave5 = factory.createTask(taskDefB);
+  const slave6 = factory.createTask(taskDefB);
 
-  const slaves = [slave1, slave2, slave3, slave4];
-  slaves.forEach(s => s.failAs('Eek', new Error('Bob did it')));
-  slave3.reset();
-  slave3.failAs('Eek', new Error("Bob didn't do it"));
+  const slaves = [slave1, slave2, slave3, slave4, slave5, slave6];
 
   let master = factory.createTask(taskDefB);
 
   // Different slave states cannot change their master state
+  const err1 = new Error('Bob did it');
+  const err2 = new Error("Bob didn't do it");
+  let b = 1493693110317;
+
   let expectedState = states.instances.Unstarted;
   t.deepEqual(master.state, expectedState, `master state must be ${expectedState}`);
+
+  // All slaves unstarted => master unstarted
   master.setSlaveTasks(slaves);
-  // expectedState = new states.FailedState('Eek', new Error('Bob did it'));
   t.deepEqual(master.state, expectedState, `master state must still be ${expectedState}`);
 
-  // Switch slave3's state back to be same as other slaves
-  slave3.reset();
-  slave3.failAs('Eek', new Error("Bob did it"));
+  // One slave started => master still unstarted
+  slave6.start(new Date(b));
+  slave6.endedAt(new Date(b + 500));
+  b += 1000;
 
+  master._state = undefined;
   master.setSlaveTasks(slaves);
-  expectedState = new states.FailedState('Eek', new Error('Bob did it'));
+
+  t.deepEqual(master.state, expectedState, `master state must still be ${expectedState}`);
+  t.equal(master.began, slave6.began, `master began must be most recent slave's began`);
+  t.equal(master.ended, slave6.ended, `master ended must be most recent slave's ended`);
+  t.equal(master.took, slave6.took, `master took must be most recent slave's took`);
+
+  // All slaves started => master started
+  slaves.forEach(s => {
+    s.reset();
+    s.start(new Date(b));
+    s.endedAt(new Date(b + 500));
+    b += 1000;
+  });
+
+  master._state = undefined;
+  master.setSlaveTasks(slaves);
+
+  expectedState = states.instances.Started;
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+  t.equal(master.began, slave6.began, `master began must be most recent slave's began`);
+  t.equal(master.ended, slave6.ended, `master ended must be most recent slave's ended`);
+  t.equal(master.took, slave6.took, `master took must be most recent slave's took`);
+
+  // One slave failed => master still started
+  slave5.reset();
+  console.log(`##################### b = ${b} new Date(b) = ${new Date(b).toISOString()}`);
+  slave5.start(new Date(b));
+  t.equal(slave5.began, new Date(b).toISOString(), `slave5.began must be ${new Date(b).toISOString()}`);
+  slave5.fail(err1);
+  slave5.endedAt(new Date(b + 500));
+  b += 1000;
+
+  master._state = undefined;
+  master.setSlaveTasks(slaves);
+
+  t.deepEqual(master.state, expectedState, `master state must still be ${expectedState}`);
+
+  t.equal(master.began, slave5.began, `master began must be most recent slave's began`);
+  t.equal(master.ended, slave5.ended, `master ended must be most recent slave's ended`);
+  t.equal(master.took, slave5.took, `master took must be most recent slave's took`);
+
+  // All slaves failed => master failed
+  slaves.forEach((s, i) => {
+    s.reset();
+    s.start(new Date(b));
+    if (i % 2 === 0)
+      s.failAs('Eek1', err1);
+    else
+      s.failAs('Eek2', err2);
+    s.endedAt(new Date(b + 500));
+    b += 1000;
+  });
+
+  master._state = undefined;
+  master.setSlaveTasks(slaves);
+
+  expectedState = new states.FailedState('Eek1', err1);
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+  t.equal(master.began, slave6.began, `master began must be most recent slave's began`);
+  t.equal(master.ended, slave6.ended, `master ended must be most recent slave's ended`);
+  t.equal(master.took, slave6.took, `master took must be most recent slave's took`);
+
+  // Reset all slave tasks states
+  slaves.forEach(s => {
+    s.reset();
+    s.start(new Date(b));
+    s.endedAt(new Date(b + 500));
+    b += 1000;
+  });
+
+  // Set slave 1 to rejected
+  slave1.reject('Begone foul task', undefined, true);
+  expectedState = new states.Rejected('Begone foul task');
+
+  t.deepEqual(slave1.state, expectedState, `slave1.state must be ${expectedState}`);
+
+  // master = factory.createTask(taskDefB);
+  master._state = undefined;
+  master.setSlaveTasks([slave1]);
+
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+
+  // Set slave 2 to completed
+  slave2.complete('Finito');
+
+  master._state = undefined;
+  master.setSlaveTasks([slave1, slave2]);
+
+  expectedState = states.instances.Completed;
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+
+  // Set slave 3 to timed out
+  slave3.timeout();
+
+  master._state = undefined;
+  master.setSlaveTasks([slave1, slave2, slave3]);
+
+  expectedState = new states.TimedOut();
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+
+  // Set slave 4 to failed
+  slave4.fail(err2);
+
+  master._state = undefined;
+  master.setSlaveTasks([slave1, slave2, slave3, slave4]);
+
+  expectedState = new states.Failed(err2);
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+
+  // Set slave 5 to started
+  slave5.start();
+
+  master._state = undefined;
+  master.setSlaveTasks([slave1, slave2, slave3, slave4, slave5]);
+
+  expectedState = states.instances.Started;
+  t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
+
+  // Reset slave 6 to unstarted
+  slave6.reset();
+
+  master._state = undefined;
+  master.setSlaveTasks([slave1, slave2, slave3, slave4, slave5, slave6]);
+
+  expectedState = states.instances.Unstarted;
   t.deepEqual(master.state, expectedState, `master state must now be ${expectedState}`);
 
   t.end();
@@ -2481,7 +2611,7 @@ test('task rejectAs() with sub-tasks', t => {
   t.end();
 });
 
-test('task discardIfOverAttempted() with sub-tasks', t => {
+test('task discardIfOverAttempted() with sub-tasks & always discarding non-recursively from the targeted task', t => {
   const maxNumberOfAttempts = 2;
 
   function mustNotBeDiscarded(task, discarded) {
@@ -2561,6 +2691,43 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
   mustBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false), 1);
   mustBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false), 0);
 
+  t.end();
+});
+
+test('task discardIfOverAttempted() with sub-tasks & always discarding recursively from the root task with recursive attempt increments', t => {
+  const maxNumberOfAttempts = 2;
+
+  function mustNotBeDiscarded(task, discarded) {
+    if (discarded !== undefined) {
+      t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
+      t.equal(discarded, 0, `${task.name}.discardIfOverAttempted must return ${0}`);
+    }
+    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+    t.ok(task.incomplete, `${task.name} must be incomplete`);
+    t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+  }
+
+  function mustBeDiscarded(task, discarded, expected) {
+    if (discarded !== undefined) {
+      if (expected === 0) {
+        t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
+      } else {
+        t.ok(discarded, `${task.name}.discardIfOverAttempted must return "true"`);
+      }
+      if (expected) {
+        t.equal(discarded, expected, `${task.name}.discardIfOverAttempted must return ${expected}`);
+      }
+    }
+    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+    t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+    t.ok(task.rejected, `${task.name} must be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must be NOT Rejected`);
+    t.ok(task.isDiscarded(), `${task.name} must be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
 
   // Reject a new complex task recursively
   const taskC = createComplexTask('C', undefined, undefined);
@@ -2580,6 +2747,43 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
     subTask.subTasks.forEach(subSubTask => mustBeDiscarded(subSubTask));
   });
 
+  t.end();
+});
+
+test('task discardIfOverAttempted() with sub-tasks & always discarding recursively from the root task with non-recursive attempt increments', t => {
+  const maxNumberOfAttempts = 2;
+
+  function mustNotBeDiscarded(task, discarded) {
+    if (discarded !== undefined) {
+      t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
+      t.equal(discarded, 0, `${task.name}.discardIfOverAttempted must return ${0}`);
+    }
+    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.ok(task.unstarted, `${task.name} must be unstarted`);
+    t.ok(task.incomplete, `${task.name} must be incomplete`);
+    t.notOk(task.rejected, `${task.name} must NOT be rejected`);
+  }
+
+  function mustBeDiscarded(task, discarded, expected) {
+    if (discarded !== undefined) {
+      if (expected === 0) {
+        t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
+      } else {
+        t.ok(discarded, `${task.name}.discardIfOverAttempted must return "true"`);
+      }
+      if (expected) {
+        t.equal(discarded, expected, `${task.name}.discardIfOverAttempted must return ${expected}`);
+      }
+    }
+    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
+    t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
+    t.ok(task.rejected, `${task.name} must be rejected`);
+
+    t.notOk(task.isRejected(), `${task.name} must be NOT Rejected`);
+    t.ok(task.isDiscarded(), `${task.name} must be Discarded`);
+    t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
+  }
 
   // Reject a new complex task recursively (always discarding from the root task)
   const taskD = createComplexTask('D', undefined, undefined);
@@ -2594,10 +2798,13 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
   // Next discard each of its sub-sub-tasks (recursively)
   taskD.subTasks.forEach(subTask => {
     subTask.subTasks.forEach(subSubTask => {
+      t.equal(subSubTask.attempts, 0, `${subSubTask.name} attempts must be 0`);
       subSubTask.incrementAttempts();
+      t.equal(subSubTask.attempts, 1, `${subSubTask.name} attempts must be 1`);
       mustNotBeDiscarded(subSubTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
 
       subSubTask.incrementAttempts();
+      t.equal(subSubTask.attempts, 2, `${subSubTask.name} attempts must be 2`);
       mustBeDiscarded(subSubTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 1);
       mustBeDiscarded(subSubTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 0);
     });
@@ -2608,10 +2815,13 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
 
   // Next discard each of its sub-tasks (recursively)
   taskD.subTasks.forEach(subTask => {
+    t.equal(subTask.attempts, 0, `${subTask.name} attempts must be 0`);
     subTask.incrementAttempts();
+    t.equal(subTask.attempts, 1, `${subTask.name} attempts must be 1`);
     mustNotBeDiscarded(subTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
 
     subTask.incrementAttempts();
+    t.equal(subTask.attempts, 2, `${subTask.name} attempts must be 2`);
     mustBeDiscarded(subTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 1);
     mustBeDiscarded(subTask, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 0);
   });
@@ -2619,10 +2829,13 @@ test('task discardIfOverAttempted() with sub-tasks', t => {
   mustNotBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
 
   // Finally discard the root task too
+  t.equal(taskD.attempts, 0, `${taskD.name} attempts must be 0`);
   taskD.incrementAttempts(true);
+  t.equal(taskD.attempts, 1, `${taskD.name} attempts must be 1`);
   mustNotBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true));
 
   taskD.incrementAttempts(true);
+  t.equal(taskD.attempts, 2, `${taskD.name} attempts must be 2`);
   mustBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 1);
   mustBeDiscarded(taskD, taskD.discardIfOverAttempted(maxNumberOfAttempts, true), 0);
 
