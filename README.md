@@ -293,7 +293,8 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
     - Set the master task's began & ended date-times to those of its slave task with the most recent began date-time
     - Set the master task's state to the "least advanced" state of all of its slave tasks (if its undefined or unstarted)
   - Removed redundant dependency on `deep-equal` module
-- Updated `core-functions` dependency to version 3.0.3
+- Updated `core-functions` dependency to version 3.0.4
+- Upgraded to Node 6.10.3
 
 ### 6.0.0
 - Renamed `errors` module to `core` module:

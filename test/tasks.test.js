@@ -2691,6 +2691,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding non-recur
   mustBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false), 1);
   mustBeDiscarded(taskB, taskB.discardIfOverAttempted(maxNumberOfAttempts, false), 0);
 
+
   t.end();
 });
 
