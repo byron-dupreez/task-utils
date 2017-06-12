@@ -613,3 +613,43 @@ test('ensureAllTaskDefsDistinct', t => {
 
   t.end();
 });
+
+// // =====================================================================================================================
+// // detachSubTaskDef
+// // =====================================================================================================================
+//
+// test('detachSubTaskDef', t => {
+//
+//   const taskDef = TaskDef.defineTask('Task 1', execute1);
+//
+//   const subTaskName = 'SubTask 1A';
+//
+//   const subTask0 = taskDef.detachSubTaskDef(subTaskName);
+//   t.equal(subTask0, undefined, `taskDef.detachSubTaskDef(${subTaskName}) must be undefined`);
+//
+//   const subTask = taskDef.defineSubTask(subTaskName, execute2);
+//
+//   t.equal(subTask.parent, taskDef, `subTask.parent must be taskDef`);
+//   t.ok(taskDef.subTaskDefs.indexOf(subTask) !== -1, `taskDef.subTaskDefs contains subTask`);
+//
+//   const subTask1 = taskDef.detachSubTaskDef(subTaskName);
+//
+//   t.equal(subTask1, subTask, `taskDef.detachSubTaskDef(${subTaskName}) must be subTask`);
+//
+//   t.equal(subTask.parent, undefined, `subTask.parent must be undefined`);
+//   t.ok(taskDef.subTaskDefs.indexOf(subTask) === -1, `taskDef.subTaskDefs does NOT contain subTask`);
+//
+//   const subTask2 = taskDef.detachSubTaskDef(subTaskName);
+//   t.equal(subTask2, undefined, `taskDef.detachSubTaskDef(${subTaskName}) must be undefined`);
+//
+//   // Re-add same sub-task again
+//   const subTask3 = taskDef.defineSubTask(subTaskName, execute2);
+//
+//   t.notEqual(subTask3, subTask, `subTask3 must not be subTask`);
+//   t.notEqual(subTask3, subTask2, `subTask3 must not be subTask2`);
+//
+//   t.equal(subTask3.parent, taskDef, `subTask3.parent must be taskDef`);
+//   t.ok(taskDef.subTaskDefs.indexOf(subTask3) !== -1, `taskDef.subTaskDefs contains subTask3`);
+//
+//   t.end();
+// });

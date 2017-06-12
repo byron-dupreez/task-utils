@@ -525,7 +525,7 @@ test('getTasksAndSubTasks with tasks or task-likes returns them', t => {
 });
 
 //======================================================================================================================
-// getTasksAndSubTasks
+// replaceTasksWithNewTasksUpdatedFromOld
 //======================================================================================================================
 function checkReplaceTasks(t, tasksByName, activeTaskDefs, desc, origTaskLikes, expectedNames) {
   const expectedNamesSorted = expectedNames.sort();
@@ -760,7 +760,7 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 2: All old tasks are sti
   t.end();
 });
 
-test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 3: Active task definitions excludes task 1 & 4, so task 1 & 4 must become abandoned', t => {
+test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 3: Active task definitions excludes task 1 & 4, so task 1 & 4 must be marked as unusable', t => {
   const tasksByName = {arb1: 'Arbitrary 1'};
 
   // Create task definitions
@@ -824,18 +824,18 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 3: Active task definitio
   tasksByName[taskName4] = taskLike4;
 
   const desc = '4 old, 2 new';
-  const newTasksAndAbandoned = checkReplaceTasks(t, tasksByName, [taskDef2, taskDef3], desc, origTaskLikes, expectedNames);
+  const activeAndUnusableTasks = checkReplaceTasks(t, tasksByName, [taskDef2, taskDef3], desc, origTaskLikes, expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = activeAndUnusableTasks[0];
+  const unusableTasks = activeAndUnusableTasks[1];
   t.equal(newTasks.length, 2, `2 new tasks`);
-  t.equal(abandoned.length, 2, `2 abandoned`);
+  t.equal(unusableTasks.length, 2, `2 unusable tasks`);
 
   // Check states
-  const t1 = abandoned.find(t => t.name === 'Task 1');
-  t.ok(t1, `${t1.name} must be one of the abandoned`);
+  const t1 = unusableTasks.find(t => t.name === 'Task 1');
+  t.ok(t1, `${t1.name} must be one of the unusable`);
   t1.forEach(st => {
-    t.ok(st.isAbandoned(), `${st.name} must be abandoned`);
+    t.ok(st.unusable, `${st.name} must be unusable`);
   });
   const t2 = newTasks.find(t => t.name === 'Task 2');
   t.ok(t2, `${t2.name} must be one of the new tasks`);
@@ -847,10 +847,10 @@ test('replaceTasksWithNewTasksUpdatedFromOld - Scenario 3: Active task definitio
   t3.forEach(st => {
     t.ok(st.unstarted, `${st.name} must be unstarted`);
   });
-  const t4 = abandoned.find(t => t.name === 'Task 4');
-  t.ok(t4, `${t4.name} must be one of the abandoned`);
+  const t4 = unusableTasks.find(t => t.name === 'Task 4');
+  t.ok(t4, `${t4.name} must be one of the unusable`);
   t4.forEach(st => {
-    t.ok(st.isAbandoned(), `${st.name} must be abandoned`);
+    t.ok(st.unusable, `${st.name} must be unusable`);
   });
 
   t.end();

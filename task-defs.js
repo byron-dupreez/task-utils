@@ -70,9 +70,10 @@ class TaskDef {
    * @param {Function|undefined} [execute] - the optional function to be executed when a task created using this
    * definition is started
    * @param {TaskDef|undefined} [parent] - an optional parent task definition
+   * @param {{skipAddToParent: boolean}|undefined} [settings] - optional settings to use to configure this task definition
    * @throws {Error} an error if the requested task definition is invalid
    */
-  constructor(name, execute, parent) {
+  constructor(name, execute, parent, settings) {
     // Validate the given name
     // -----------------------------------------------------------------------------------------------------------------
     // Ensure name is a string and not blank
@@ -80,6 +81,7 @@ class TaskDef {
       throw new Error(`Cannot create a task definition with a ${!isString(name) ? "non-string" : "blank"} name (${stringify(name)})`);
     }
     const taskName = Strings.trim(Objects.valueOf(name));
+    const skipAddToParent = settings && settings.skipAddToParent;
 
     // Validate the given parent and the given execute function
     // -----------------------------------------------------------------------------------------------------------------
@@ -94,7 +96,7 @@ class TaskDef {
         throw new Error(`Cannot create an executable sub-task definition (${taskName}) with an invalid execute function`);
       }
       // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
-      if (!areSubTaskNamesDistinct(parent, taskName)) {
+      if (!skipAddToParent && !areSubTaskNamesDistinct(parent, taskName)) {
         throw new Error(`Cannot add a sub-task definition (${taskName}) with a duplicate name to parent (${parent.name}) with existing sub-task definitions ${Strings.stringify(parent.subTaskDefs.map(d => d.name))}`);
       }
 
@@ -109,6 +111,11 @@ class TaskDef {
       if (typeof execute !== 'function') {
         throw new Error(`Cannot create a top-level task definition (${taskName}) with an invalid execute function`);
       }
+
+      // // Ensure that execute (if defined) is actually executable (i.e. a valid function)
+      // if (execute !== undefined && typeof execute !== 'function') {
+      //   throw new Error(`Cannot create an executable task definition (${taskName}) with an invalid execute function`);
+      // }
     }
 
     // Finalise the new task definition's parent and execute
@@ -134,7 +141,8 @@ class TaskDef {
     // Link this new task definition to its parent (if any)
     // -----------------------------------------------------------------------------------------------------------------
     Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false});
-    if (taskParent) {
+    // Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false, writable: true, configurable: true});
+    if (taskParent && !skipAddToParent) {
       taskParent.subTaskDefs.push(this);
     }
   }
@@ -164,6 +172,24 @@ class TaskDef {
     return !this.executable;
   }
 
+
+  /**
+   * Marks this task definition as unusable (if true) or active (if false)
+   * @param {boolean} unusable - whether this task definition is to be considered unusable or not (default undefined, i.e. not)
+   */
+  set unusable(unusable) {
+    if (unusable)
+      Object.defineProperty(this, '_unusable', {value: unusable, enumerable: false, writable: true, configurable: true});
+    else
+      delete this._unusable;
+  }
+
+  /**
+   * Returns true if this task definition is marked as unusable or false if its not (i.e. if its active).
+   * @return {boolean} true if unusable; false otherwise
+   */
+  get unusable() { return !!this._unusable; }
+
   /**
    * Creates and adds an executable sub-task definition (if execute is defined) or a non-executable, internal sub-task
    * definition (if execute is undefined) with the given name to this task definition.
@@ -187,6 +213,21 @@ class TaskDef {
     // Create and add the new sub-task definition to this task definition's list of sub-task definitions
     return new TaskDef(newName, execute, this);
   }
+
+  // /**
+  //  * Detaches the named sub-task definition from this task definition and returns it (if it exists).
+  //  * @param {string} subTaskName - the name of the sub-task definition to detach
+  //  * @return {TaskDef|undefined} the detached sub-task definition
+  //  */
+  // detachSubTaskDef(subTaskName) {
+  //   const detached = this.subTaskDefs.find(d => d.name === subTaskName);
+  //   if (detached) {
+  //     detached.parent = undefined;
+  //     const pos = this.subTaskDefs.indexOf(detached);
+  //     if (pos !== -1) this.subTaskDefs.splice(pos, 1);
+  //   }
+  //   return detached
+  // }
 
   /**
    * Creates and adds multiple new non-executable, internal sub-task definitions with the given names to this task

@@ -170,27 +170,27 @@ function setTask(tasksByName, taskName, task) {
  * active task definitions and updates these new tasks with the status-related information of the old tasks or task-
  * like objects, which are the prior versions of the tasks from a previous attempt (if any). Any and all old tasks that
  * do NOT appear in the list of new active tasks are also recreated and added to the given tasksByName as abandoned
- * tasks. Finally, returns both the newly created and updated, active tasks and any no longer active, abandoned tasks
- * that were all added to the given tasksByName.
+ * tasks. Finally, returns both the newly created and updated, active tasks and any prior inactive unusable tasks
+ * that were all added to the given tasksByName "map".
  *
  * @param {Object|Map} tasksByName - the tasksByName "map" object (or Map) on which to replace its tasks
  * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
- * @returns {Array.<Task[]>} both the updated, newly created tasks and any abandoned tasks
+ * @returns {Array.<Task[]>} both the updated, newly created active tasks and any prior inactive unusable tasks
  */
 function replaceTasksWithNewTasksUpdatedFromOld(tasksByName, activeTaskDefs) {
   // Fetch any and all of the existing previous version tasks from the given tasksByName map
   const priorTasks = getTasks(tasksByName);
 
   // Create new tasks from the given active task definitions and update them with the info from the previous tasks
-  const newTasksAndAbandonedTasks = Task.createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorTasks);
-  const newTasks = newTasksAndAbandonedTasks[0];
-  const abandonedTasks = newTasksAndAbandonedTasks[1];
-  const allTasks = newTasks.concat(abandonedTasks);
+  const activeAndUnusableTasks = Task.createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorTasks);
+  const activeTasks = activeAndUnusableTasks[0];
+  const unusableTasks = activeAndUnusableTasks[1];
+  const allTasks = activeTasks.concat(unusableTasks);
 
   // Replace all of the existing tasks on the given tasksByName map with the new and abandoned tasks
   allTasks.forEach(task => setTask(tasksByName, task.name, task));
 
-  return newTasksAndAbandonedTasks;
+  return activeAndUnusableTasks;
 }
 
 // function setTask(target, taskName, task) {

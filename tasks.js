@@ -140,7 +140,7 @@ class Task {
 
     // Link this new task to its parent (if any)
     // -----------------------------------------------------------------------------------------------------------------
-    Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false});
+    Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false, writable: true, configurable: true});
     if (taskParent) {
       // Ensure that the parent task contains this new task as a subTask
       taskParent._subTasks.push(this);
@@ -249,8 +249,10 @@ class Task {
   }
 
   /**
-   * Returns the existing sub-task with the given name if it exists on this task; otherwise creates and adds a new
-   * sub-task with the given name and optional execute function to this task and returns it.
+   * Returns the existing usable sub-task with the given name (if it exists and its NOT unusable); otherwise recreates
+   * the existing unusable sub-task with the given name (if it exists and its unusable) by creating a new usable version
+   * of the sub-task with the given `execute` function and by copying the old sub-tasks' state to the new one; otherwise
+   * creates and adds a new sub-task with the given name and `execute` function to this task and returns it.
    * @param {string} subTaskName - the name of the sub-task to retrieve or add
    * @param {Function|undefined} [execute] - the optional function to be executed when the sub-task is executed
    * @returns {Task} the named sub-task if it exists; otherwise a new sub-task
@@ -258,10 +260,41 @@ class Task {
   getOrAddSubTask(subTaskName, execute) {
     const subTask = this._subTasksByName.get(subTaskName);
     if (subTask) {
-      return subTask;
+      // Return an existing, usable sub-task as is
+      if (!subTask.unusable) {
+        return subTask;
+      }
+
+      // Recreate an existing, unusable sub-task as a new sub-task
+      this.detachSubTask(subTaskName);
+      const newSubTaskDef = new TaskDef(subTaskName, execute, this.definition, {skipAddToParent: true});
+      const newSubTask = new Task(newSubTaskDef, this);
+
+      newSubTask.updateFromPriorVersion(subTask);
+
+      return newSubTask;
     }
-    const subTaskDef = this.definition.defineSubTask(subTaskName, execute);
+
+    // Create a brand new sub-task
+    // const subTaskDef = this.definition.defineSubTask(subTaskName, execute);
+    const subTaskDef = new TaskDef(subTaskName, execute, this.definition, {skipAddToParent: true});
     return new Task(subTaskDef, this);
+  }
+
+  /**
+   * Detaches the named sub-task from this task and returns it (if it exists).
+   * @param {string} subTaskName - the name of the sub-task to detach
+   * @return {Task|undefined} the detached sub-task
+   */
+  detachSubTask(subTaskName) {
+    const detached = this._subTasksByName.get(subTaskName);
+    if (detached) {
+      detached.parent = undefined;
+      const pos = this._subTasks.indexOf(detached);
+      if (pos !== -1) this._subTasks.splice(pos, 1);
+      this._subTasksByName.delete(subTaskName);
+    }
+    return detached
   }
 
   /**
@@ -354,6 +387,15 @@ class Task {
    */
   isFullyFinalised() {
     return this.finalised && this._subTasks.every(subTask => subTask.isFullyFinalised());
+  }
+
+  /**
+   * Returns true if this task and all of its subTasks recursively are either finalised (i.e. in a final state, either
+   * completed or rejected) or unusable; false otherwise
+   * @returns {boolean} true if totally finalised or unusable; false otherwise
+   */
+  isFullyFinalisedOrUnusable() {
+    return (this.finalised || this.unusable) && this._subTasks.every(subTask => subTask.isFullyFinalisedOrUnusable());
   }
 
   /**
@@ -788,13 +830,16 @@ class Task {
           // Found the corresponding subTask for the old subTask, so recursively update its details
           subTask.updateFromPriorVersion(oldSubTask);
         } else {
-          // SubTasks have changed and no longer include this old subTask!
-          const reason = `Abandoned prior sub-task (${oldSubTask.name}), since it is no longer an active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`;
-          console.warn(reason);
-          // Create a copy of the missing sub task, update it and then mark it as abandoned
+          // EITHER active sub-tasks have changed and no longer include this old sub-task OR the old sub-task was
+          // dynamically added, so create a new (also unusable) copy of the "missing" unusable sub-task & update its
+          // state from the old copy
           const newSubTask = new Task(oldSubTask.definition, this);
           newSubTask.updateFromPriorVersion(oldSubTask);
-          newSubTask.abandon(reason, undefined, true);
+          console.warn(`Added an ${newSubTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldSubTask.unusable ? 'unusable' : 'usable'} sub-task (${oldSubTask.name}), since it is not a predefined active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`);
+
+          // const reason = `Abandoned prior sub-task (${oldSubTask.name}), since it is no longer an active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`;
+          // console.warn(reason);
+          // newSubTask.abandon(reason, undefined, true);
         }
       }
     }
@@ -826,10 +871,10 @@ class Task {
     // Set this master task's last executed at date-time to the maximum of all of its slave task's last executed at date-times
     for (let i = 0; i < slaves.length; ++i) {
       const slaveTaskAttempts = slaves[i]._attempts;
-      this._attempts = i == 0 ? slaveTaskAttempts : Math.min(this._attempts, slaveTaskAttempts);
+      this._attempts = i === 0 ? slaveTaskAttempts : Math.min(this._attempts, slaveTaskAttempts);
 
       const slaveTaskLastExecutedAt = slaves[i]._lastExecutedAt;
-      this._lastExecutedAt = i == 0 ? slaveTaskLastExecutedAt :
+      this._lastExecutedAt = i === 0 ? slaveTaskLastExecutedAt :
         slaveTaskLastExecutedAt > this._lastExecutedAt ? slaveTaskLastExecutedAt : this._lastExecutedAt;
     }
 
@@ -869,6 +914,13 @@ class Task {
   isFrozen() {
     return this._frozen;
   }
+
+  /**
+   * Returns true if this task is unusable or false if its not. A task is considered to be unusable if its task
+   * definition is marked as unusable.
+   * @return {boolean} true if unusable; false otherwise
+   */
+  get unusable() { return !!this.definition && this.definition.unusable; }
 
 }
 
@@ -1087,16 +1139,18 @@ if (!Task.reconstructTasksFromRootTaskLike) {
 }
 
 /**
- * Creates a list of new tasks from the given list of active task definitions and then updates them with the relevant
+ * Creates a list of new active tasks from the given list of active task definitions and updates them with the relevant
  * information extracted from the given list of zero or more old task-like objects, which are the prior versions of the
- * tasks from the previous attempt (if any). Any and all old tasks that do NOT appear in the list of new active tasks
- * are recreated as abandoned tasks. Returns both the newly created and updated, active tasks and any no longer active,
- * abandoned tasks.
+ * tasks from the previous attempt (if any). Any and all old tasks that do NOT appear in the given list of active task
+ * definitions are recreated and partially restored as new unusable tasks, which do NOT have usable `execute` functions
+ * and which are EITHER old tasks that must be ignored and/or abandoned (e.g. a developer redefined the active task
+ * definitions) OR dynamic tasks that were created on the fly during a previous attempt and that will most likely need
+ * to be re-attempted again. Returns a list containing the list of active tasks and the list of inactive unusable tasks.
  *
  * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
  * @param {TaskLike[]|Task[]} priorVersions - a list of zero or more old task-like objects or tasks, which are the prior
  * versions of the active tasks from a previous attempt (if any)
- * @returns {Array.<Task[]>} both the updated, newly created tasks and any abandoned tasks
+ * @returns {Array.<Task[]>} a list of active tasks and an list of inactive unusable tasks
  */
 function createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions) {
   const activeTaskNames = activeTaskDefs.map(t => t.name);
@@ -1111,7 +1165,7 @@ function createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions) {
   // Update each of the newly created tasks with the relevant information from the prior version of each of these tasks
   const oldTasksByName = new Map(oldTasks.map(t => [t.name, t]));
 
-  const updatedNewTasks = newTasks.map(newTask => {
+  const activeTasks = newTasks.map(newTask => {
     // Update the new task with the old task's details (if any)
     const updatedTask = newTask.updateFromPriorVersion(oldTasksByName.get(newTask.name));
     // Reset the updated task to clear out any previous incomplete (i.e. failed and timed out) states inherited from the old task
@@ -1119,20 +1173,32 @@ function createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions) {
     return updatedTask;
   });
 
-  // Collect any and all old tasks, which no longer appear amongst the list of active new tasks, and create new abandoned task from them
-  const inactiveOldTasks = oldTasks.filter(oldTask => activeTaskNames.indexOf(oldTask.name) === -1);
+  // Collect any and all old tasks, which no longer appear amongst the list of active new tasks, and recreate then as
+  // unusable tasks that will have to be either recreated during or ignored after processing
+  const unusableOldTasks = oldTasks.filter(oldTask => activeTaskNames.indexOf(oldTask.name) === -1);
 
-  const abandonedTasks = inactiveOldTasks.map(oldTask => {
-    // Reconstruct a clean version of the old task, update it with the relevant details from the old task and then mark it as abandoned
-    const abandonedTask = Task.createTask(oldTask.definition);
-    abandonedTask.updateFromPriorVersion(oldTask);
-    const reason = `Abandoned prior task (${oldTask.name}), since it is no longer one of the active tasks ${stringify(activeTaskNames)}`;
-    abandonedTask.abandon(reason, undefined, true);
-    return abandonedTask;
+  const unusableTasks = unusableOldTasks.map(oldTask => {
+    // Reconstruct a clean version of the old task, update it with the relevant details from the old task and then mark
+    // it as an inactive task
+    const unusableTask = Task.createTask(oldTask.definition);
+    unusableTask.updateFromPriorVersion(oldTask);
+    console.warn(`Created an ${unusableTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldTask.unusable ? 'unusable' : 'usable'} task (${oldTask.name}), since it is not a predefined active task`);
+
+    // Reset the updated task to clear out any previous incomplete (i.e. failed and timed out) states inherited from the old task
+    unusableTask.reset();
+
+    // // Mark the task as inactive
+    // inactiveTask.inactive = true;
+    // console.warn(`Marked prior task (${oldTask.name}) as initially inactive, since it is not a predefined active task`);
+
+    // const reason = `Abandoned prior task (${oldTask.name}), since it is no longer one of the active tasks ${stringify(activeTaskNames)}`;
+    // abandonedTask.abandon(reason, undefined, true);
+
+    return unusableTask;
   });
 
-  // Return both the updated new tasks and the abandoned tasks
-  return [updatedNewTasks, abandonedTasks];
+  // Return both the updated active tasks and the updated inactive unusable tasks
+  return [activeTasks, unusableTasks];
 }
 
 // Add createNewTasksUpdatedFromPriorVersions function as a static method on Task (for convenience)
@@ -1191,12 +1257,20 @@ function reconstructTaskDefsFromRootTaskLike(taskLike) {
     throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a non-root, non-executable task-like object (${stringify(taskLike)})`);
   }
 
-  function doNotExecute() {
-    throw new Error(`Logic error - attempting to execute a placeholder execute method on a reconstructed, pseudo task (${name})`);
+  function generatePlaceholderFunction(name) {
+    function doNotExecute() {
+      throw new Error(`Logic error - attempting to execute a placeholder execute method on a reconstructed, pseudo task (${name})`);
+    }
+
+    // Mark the `doNotExecute` function as a placeholder!
+    Object.defineProperty(doNotExecute, 'placeholder', {value: true}); // NOT enumerable/writable/configurable
+
+    return doNotExecute;
   }
 
   // Make up a task definition for this root, executable task-like object
-  const taskDef = TaskDef.defineTask(name, doNotExecute);
+  const taskDef = TaskDef.defineTask(name, generatePlaceholderFunction(name));
+  taskDef.unusable = true;
 
   function defineSubTasks(taskLike, taskDef) {
     const subTasks = taskLike && taskLike.subTasks;
@@ -1206,8 +1280,9 @@ function reconstructTaskDefsFromRootTaskLike(taskLike) {
         if (!subTaskLike.name) {
           throw new Error(`Cannot reconstruct pseudo sub-task definitions from a nameless sub-task-like object (${stringify(subTaskLike)})`);
         }
-        const subTaskExecute = subTaskLike.executable ? doNotExecute : undefined;
+        const subTaskExecute = subTaskLike.executable ? generatePlaceholderFunction(subTaskLike.name) : undefined;
         const subTaskDef = taskDef.defineSubTask(subTaskLike.name, subTaskExecute);
+        subTaskDef.unusable = true;
         defineSubTasks(subTaskLike, subTaskDef);
       }
     }

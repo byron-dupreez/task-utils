@@ -164,6 +164,27 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
 
 ## Changes
 
+### 4.0.8
+- Changes to `task-defs` module:
+  - Added optional `settings` with `skipAddToParent` option as new 4th parameter to `TaskDef` `constructor`
+  - Changed constructor behaviour to NOT check for distinct sub-task names & to NOT add the sub-task to its parent's 
+    sub-tasks when the `settings.skipAddToParent` option is passed as true
+  - Added new `unusable` property with `get` & `set` accessors and an underlying `_unusable` property to `TaskDef` class
+- Changes to `tasks` module:
+  - Changed `parent` property of `Task` class to be writable & configurable
+  - Added new `detachSubTask` function to enable a sub-task to be detached from its parent task
+  - Changed `getOrAddSubTask` function to replace unusable an existing sub-task with a usable version & to create a new 
+    sub-task, both with new sub-task definitions created with `settings.skipAddToParent` option set to true
+  - Added new `isFullyFinalisedOrUnusable` function
+  - Changed `updateFromPriorVersion` function to NOT mark missing sub-tasks as `abandoned` and to instead rely on new 
+    `unusable` properties
+  - Added read-only `unusable` property with `get` accessor that delegates to its task definition's `unusable` property
+  - Changed `createNewTasksUpdatedFromPriorVersions` function to NOT mark missing sub-tasks as `abandoned` and to 
+    instead reset them and rely on new `unusable` properties
+  - Changed `reconstructTaskDefsFromRootTaskLike` function to properly generate placeholder `doNotExecute` functions 
+    (which are also now marked with `placeholder` properties set to true) using the new inner `generatePlaceholderFunction` 
+    function and to mark all reconstructed task definitions & sub-task definitions as `unusable`
+
 ### 4.0.7
 - Changes to `task-defs` and `tasks` modules:
   - Removed restrictions that prevented creation of executable sub-task definitions and sub-tasks
