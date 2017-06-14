@@ -1934,7 +1934,7 @@ test('isAnyTaskNotFullyFinalised', t => {
   taskA.getSubTask('A1').complete('A1 done', {}, false);
   t.equal(isAnyTaskNotFullyFinalised(tasksByName), false, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with A, A1 & B completed must be false`);
 
-  taskA.fail(new Error('Boom'), true);
+  taskA.fail(new Error('Boom1'), true);
   taskA.reset();
   t.equal(isAnyTaskNotFullyFinalised(tasksByName), true, `isAnyTaskNotFullyFinalised({a: taskA, b: taskB}) with A reset & only B completed again must be true again`);
 

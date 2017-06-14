@@ -311,7 +311,7 @@ test('Task execute returning a list of 3 promises', t => {
 test('Task execute returning 1 promise that rejects', t => {
   const ms = 10;
   const a = genFn('A', ms);
-  const error = new Error("Boom");
+  const error = new Error("Boom1");
   error.extra = 'Extra info';
 
   const executeFn = () => {
@@ -358,10 +358,10 @@ test('Task execute returning 1 promise that rejects', t => {
   );
 });
 
-test('Task execute throwing an error', t => {
+test('Task execute throwing an error (Boom2)', t => {
   const ms = 10;
   const a = genFnSync('A', ms);
-  const error = new Error("Boom");
+  const error = new Error("Boom2");
   error.extra = 'Extra info';
 
   const executeFn = () => {
@@ -532,8 +532,8 @@ test('Task execute returning 1 promise that fulfills, but self-managed to Succee
 test('Task execute returning 1 promise that rejects, but self managed to Rejected - rejection overrides new failure', t => {
   const ms = 10;
 
-  const error = new Error("Boom");
-  error.extra1 = 'Boom extra info';
+  const error = new Error("Boom3");
+  error.extra1 = 'Boom3 extra info';
 
   const internalError = new TypeError("Kaboom");
   error.extra2 = 'Kaboom extra info';
@@ -586,8 +586,8 @@ test('Task execute returning 1 promise that rejects, but self managed to Rejecte
 test('Task execute returning 1 promise that rejects, but self managed to Failed - later failure doe NOT override original failure', t => {
   const ms = 10;
 
-  const error = new Error("Boom");
-  error.extra1 = 'Boom extra info';
+  const error = new Error("Boom4");
+  error.extra1 = 'Boom4 extra info';
 
   const internalError = new TypeError("Kaboom");
   internalError.extra2 = 'Kaboom extra info';
@@ -640,8 +640,8 @@ test('Task execute returning 1 promise that rejects, but self managed to Failed 
 test('Task execute returning 1 promise that rejects, but self managed to Succeeded - later failure overrides original success', t => {
   const ms = 10;
 
-  const error = new Error("Boom");
-  error.extra1 = 'Boom extra info';
+  const error = new Error("Boom5");
+  error.extra1 = 'Boom5 extra info';
 
   const internalError = new TypeError("Kaboom");
   internalError.extra2 = 'Kaboom extra info';

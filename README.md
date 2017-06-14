@@ -1,4 +1,4 @@
-# task-utils v6.0.1
+# task-utils v6.0.2-alpha1
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -269,6 +269,9 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 6.0.2-alpha1
+- Started integrating unusable task definition changes from 4.0.8
 
 ### 6.0.1
 - Changes to `tasks` module & `Task` class:

@@ -511,7 +511,7 @@ test('task timeout() with overrideUnstarted', t => {
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
   // Time it out (with overrideUnstarted)
-  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom1'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -533,7 +533,7 @@ test('task timeout() without overrideUnstarted', t => {
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
   // Fail to time it out (since NOT overrideUnstarted)
-  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: false, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom2'), {overrideCompleted: true, overrideUnstarted: false, reverseAttempt: true}, false);
 
   t.ok(task.unstarted, `${task.name} must still be unstarted`);
   t.notOk(task.timedOut, `${task.name} must NOT be timedOut`);
@@ -544,7 +544,7 @@ test('task timeout() without overrideUnstarted', t => {
   t.ok(task.started, `${task.name} must now be started`);
 
   // Time it out (still without overrideUnstarted)
-  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: false, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom3'), {overrideCompleted: true, overrideUnstarted: false, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -565,7 +565,7 @@ test('task timeoutAs() with overrideUnstarted', t => {
   const task = createSimpleTask('A', undefined, undefined);
 
   // Fail it
-  task.timeoutAs('MyTimeoutState', new Error('Boom'), {
+  task.timeoutAs('MyTimeoutState', new Error('Boom4'), {
     overrideCompleted: true,
     overrideUnstarted: true,
     reverseAttempt: true
@@ -591,7 +591,7 @@ test('task timeoutAs() without overrideUnstarted', t => {
   t.ok(task.unstarted, `${task.name} must be unstarted`);
 
   // Fail to time it out (since NOT overrideUnstarted)
-  task.timeoutAs('MyTimeoutState', new Error('Boom'), {
+  task.timeoutAs('MyTimeoutState', new Error('Boom5'), {
     overrideCompleted: true,
     overrideUnstarted: false,
     reverseAttempt: true
@@ -607,7 +607,7 @@ test('task timeoutAs() without overrideUnstarted', t => {
   t.ok(task.started, `${task.name} must now be started`);
 
   // Time it out (still without overrideUnstarted)
-  task.timeoutAs('MyTimeoutState', new Error('Boom'), {
+  task.timeoutAs('MyTimeoutState', new Error('Boom6'), {
     overrideCompleted: true,
     overrideUnstarted: false,
     reverseAttempt: true
@@ -632,7 +632,7 @@ test('task fail()', t => {
   const task = createSimpleTask('A', undefined, undefined);
 
   // Fail it
-  task.fail(new Error('Boom'));
+  task.fail(new Error('Boom7'));
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -653,7 +653,7 @@ test('task failAs()', t => {
   const task = createSimpleTask('A', undefined, undefined);
 
   // Fail it
-  task.failAs('MyFailureState', new Error('Boom'));
+  task.failAs('MyFailureState', new Error('Boom8'));
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -800,7 +800,7 @@ test('task complete() and timeout() with and without overrideCompleted and overr
   t.ok(task.started, `${task.name} must be started`);
 
   // Time it out with overrideCompleted false
-  task.timeout(new Error('Boom'), {overrideCompleted: false, overrideUnstarted: true, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom9'), {overrideCompleted: false, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -826,13 +826,13 @@ test('task complete() and timeout() with and without overrideCompleted and overr
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Fail to time it out with overrideCompleted false
-  task.timeout(new Error('Boom'), {overrideCompleted: false, overrideUnstarted: true, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom10'), {overrideCompleted: false, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.ok(task.completed, `${task.name} must be completed`);
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Time it out with overrideCompleted true
-  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom11'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstartesd`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -872,7 +872,7 @@ test('task succeed() and timeoutAs() with and without overrideCompleted and over
   const stateName = 'MyTimedOutState';
 
   // Time it out with overrideCompleted false
-  task.timeoutAs(stateName, new Error('Boom'), {
+  task.timeoutAs(stateName, new Error('Boom12'), {
     overrideCompleted: false,
     overrideUnstarted: true,
     reverseAttempt: true
@@ -902,7 +902,7 @@ test('task succeed() and timeoutAs() with and without overrideCompleted and over
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Fail to time it out with overrideCompleted false
-  task.timeoutAs(stateName, new Error('Boom'), {
+  task.timeoutAs(stateName, new Error('Boom13'), {
     overrideCompleted: false,
     overrideUnstarted: true,
     reverseAttempt: true
@@ -912,7 +912,7 @@ test('task succeed() and timeoutAs() with and without overrideCompleted and over
   t.notOk(task.timedOut, `${task.name} must NOT be timed out`);
 
   // Time it out with overrideCompleted true
-  task.timeoutAs(stateName, new Error('Boom'), {
+  task.timeoutAs(stateName, new Error('Boom14'), {
     overrideCompleted: true,
     overrideUnstarted: true,
     reverseAttempt: true
@@ -966,7 +966,7 @@ test('task succeed() then fail() then succeed()', t => {
   t.ok(task.completed, `${task.name} must be completed`);
 
   // Fail it
-  task.fail(new Error('Boom'));
+  task.fail(new Error('Boom15'));
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.ok(task.incomplete, `${task.name} must be incomplete`);
@@ -1041,7 +1041,7 @@ test('task timeout() then succeed()', t => {
   t.ok(task.started, `${task.name} must be started`);
 
   // Time it out
-  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom16'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   // Complete it
   task.succeed(undefined, {overrideTimedOut: true}, false);
@@ -1072,7 +1072,7 @@ test('task timeout() then reject()', t => {
   t.ok(task.started, `${task.name} must be started`);
 
   // Time it out
-  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom17'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   // Reject it
   task.reject('Rotten', new Error('Yuck'), false);
@@ -1103,7 +1103,7 @@ test('task fail() then succeed()', t => {
   t.ok(task.started, `${task.name} must be started`);
 
   // Fail it
-  task.fail(new Error('Boom'));
+  task.fail(new Error('Boom18'));
 
   // Complete it
   task.succeed(undefined, {overrideTimedOut: true}, false);
@@ -1134,7 +1134,7 @@ test('task fail() then reject()', t => {
   t.ok(task.started, `${task.name} must be started`);
 
   // Fail it
-  task.fail(new Error('Boom'));
+  task.fail(new Error('Boom19'));
 
   // Reject it
   task.reject('Rotten', new Error('Yuck'), false);
@@ -1184,7 +1184,7 @@ test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t =
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot fail it
-  task.fail(new Error('Boom'));
+  task.fail(new Error('Boom20'));
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -1198,7 +1198,7 @@ test('task reject() then cannot succeed(), cannot fail(), cannot timeout()', t =
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot time it out
-  task.timeout(new Error('Boom'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
+  task.timeout(new Error('Boom21'), {overrideCompleted: true, overrideUnstarted: true, reverseAttempt: true}, false);
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
@@ -1231,7 +1231,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.ok(task.completed, `${task.name} must be completed`);
 
   // Fail it
-  task.fail(new Error('Boom'));
+  task.fail(new Error('Boom22'));
 
   t.ok(task.failed, `${task.name} must be failed`);
 
@@ -1264,7 +1264,7 @@ test('task succeed() then fail() then reject() then cannot succeed(), cannot fai
   t.notOk(task.isAbandoned(), `${task.name} must NOT be Abandoned`);
 
   // Cannot re-fail it
-  task.fail(new Error('Boom'));
+  task.fail(new Error('Boom23'));
 
   t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
   t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);

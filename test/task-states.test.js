@@ -72,7 +72,7 @@ function ensureImmutable(state, assert) {
     }
 
     try {
-      state.error = new Error("Boom");
+      state.error = new Error("Boom1");
       assert.fail(`${JSON.stringify(state)} error is supposed to be immutable`);
     } catch (err) {
       // Expect an error on attempted mutation of immutable property

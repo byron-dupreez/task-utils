@@ -205,12 +205,21 @@ class TaskFactory {
       throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a non-root, non-executable task-like object (${stringify(taskLike)})`);
     }
 
-    function doNotExecute() {
-      throw new Error(`Logic error - attempting to execute a placeholder execute method on a reconstructed, pseudo task (${name})`);
+
+    function generatePlaceholderFunction(name) {
+      function doNotExecute() {
+        throw new Error(`Logic error - attempting to execute a placeholder execute method on a reconstructed, pseudo task (${name})`);
+      }
+
+      // Mark the `doNotExecute` function as a placeholder!
+      Object.defineProperty(doNotExecute, 'placeholder', {value: true}); // NOT enumerable/writable/configurable
+
+      return doNotExecute;
     }
 
     // Make up a task definition for this root, executable task-like object
-    const taskDef = TaskDef.defineTask(name, doNotExecute);
+    const taskDef = TaskDef.defineTask(name, generatePlaceholderFunction(name));
+    taskDef.unusable = true;
 
     function defineSubTasks(taskLike, taskDef) {
       const subTasks = taskLike && taskLike.subTasks;
@@ -220,8 +229,9 @@ class TaskFactory {
           if (!subTaskLike.name) {
             throw new Error(`Cannot reconstruct pseudo sub-task definitions from a nameless sub-task-like object (${stringify(subTaskLike)})`);
           }
-          const subTaskExecute = subTaskLike.executable ? doNotExecute : undefined;
+          const subTaskExecute = subTaskLike.executable ? generatePlaceholderFunction(subTaskLike.name) : undefined;
           const subTaskDef = taskDef.defineSubTask(subTaskLike.name, subTaskExecute);
+          subTaskDef.unusable = true;
           defineSubTasks(subTaskLike, subTaskDef);
         }
       }
@@ -383,7 +393,6 @@ class TaskFactory {
                 if (error !== outcome.error) {
                   self.logger.error(`${describeItem()}${task.name} execution failed`, error.stack);
                 }
-                throw error;
               }
             );
 
@@ -472,6 +481,8 @@ class TaskFactory {
         throw err;
       }
     );
+
+    // Promises.avoidUnhandledPromiseRejectionWarning(donePromise);
 
     // Attach the execution outcome and done promise to the task, for subsequent use if needed
     task.executed(outcome, donePromise);
