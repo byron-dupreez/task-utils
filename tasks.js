@@ -140,7 +140,7 @@ class Task {
 
     // Link this new task to its parent (if any)
     // -----------------------------------------------------------------------------------------------------------------
-    Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false, writable: true, configurable: true});
+    Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false, writable: false, configurable: false});
     if (taskParent) {
       // Ensure that the parent task contains this new task as a subTask
       taskParent._subTasks.push(this);
@@ -199,6 +199,7 @@ class Task {
     return this._error;
   }
 
+  //noinspection JSUnusedGlobalSymbols
   /**
    * Customized toJSON method, which is used by {@linkcode JSON.stringify} to output the internal _state, _attempts and
    * _lastExecuteAt properties without their underscores.
@@ -289,7 +290,7 @@ class Task {
   detachSubTask(subTaskName) {
     const detached = this._subTasksByName.get(subTaskName);
     if (detached) {
-      detached.parent = undefined;
+      // Detached sub-task still remembers its parent, but parent will no longer remember it
       const pos = this._subTasks.indexOf(detached);
       if (pos !== -1) this._subTasks.splice(pos, 1);
       this._subTasksByName.delete(subTaskName);
@@ -297,6 +298,7 @@ class Task {
     return detached
   }
 
+  //noinspection JSUnusedGlobalSymbols
   /**
    * Returns true if this is an executable task; false otherwise
    * @returns {boolean} true if executable; false otherwise
@@ -305,6 +307,7 @@ class Task {
     return this.executable;
   }
 
+  //noinspection JSUnusedGlobalSymbols
   /**
    * Returns true if this is a non-executable (i.e. internal) task; false otherwise
    * @returns {boolean} true if non-executable; false otherwise
@@ -313,6 +316,7 @@ class Task {
     return !this.executable;
   }
 
+  //noinspection JSUnusedGlobalSymbols
   /**
    * Returns true if this is an internal (i.e. non-executable) task; false otherwise
    * @alias {@linkcode isNotExecutable}

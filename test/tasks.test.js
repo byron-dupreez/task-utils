@@ -1339,7 +1339,7 @@ test('getOrAddSubTask & detachSubTask', t => {
 
   t.notEqual(subTask2, subTask, `subTask2 must NOT be subTask`);
 
-  t.equal(subTask.parent, undefined, `subTask.parent must be undefined`);
+  t.equal(subTask.parent, task, `automatically detached subTask.parent must still be parent`);
   t.ok(task.subTasks.indexOf(subTask) === -1, `task.subTasks must NOT contain subTask`);
   // Task definitions must ONLY be partially connected
   t.equal(subTask.definition.parent, task.definition, `subTask.definition.parent must be task.definition`);
@@ -1356,7 +1356,7 @@ test('getOrAddSubTask & detachSubTask', t => {
 
   t.equal(detached, subTask2, `task.detachSubTask(${subTaskName}) must be subTask2`);
 
-  t.equal(subTask2.parent, undefined, `subTask2.parent must be undefined`);
+  t.equal(subTask2.parent, task, `detached subTask2.parent must still be task`);
   t.ok(task.subTasks.indexOf(subTask2) === -1, `task.subTasks must NOT contain subTask2`);
   // Task definitions must ONLY be partially connected
   t.equal(subTask2.definition.parent, task.definition, `subTask2.definition.parent must be task.definition`);
