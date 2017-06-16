@@ -1,4 +1,4 @@
-# task-utils v6.0.2-alpha1
+# task-utils v6.0.2
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -269,6 +269,33 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 6.0.2 
+- Merged in changes from 4.0.8
+- Changes to `task-defs` module:
+  - Added new optional `skipAddToParent` option to `settings` parameter of `TaskDef` `constructor`
+  - Changed constructor behaviour to NOT check for distinct sub-task names & to NOT add the sub-task to its parent's 
+    sub-tasks when the `settings.skipAddToParent` option is passed as true
+  - Added new `unusable` property with `get` & `set` accessors and an underlying `_unusable` property to `TaskDef` class
+- Changes to `tasks` module:
+  - Changed `parent` property of `Task` class to be writable & configurable
+  - Added new `detachSubTask` function to enable a sub-task to be detached from its parent task
+  - Changed `getOrCreateSubTask` function to replace an existing unusable sub-task with a usable version by detaching 
+    the old unusable sub-task, creating the new sub-task via `createSubTask` & updating the new from the old
+  - & to create a 
+    new sub-task, both with new sub-task definitions created with defaulted to true if 
+    not explicitly set
+  - Changed `createSubTask` function to default new `settings.skipAddToParent` option to true if not explicitly set
+  - Added new `isFullyFinalisedOrUnusable` function
+  - Changed `updateFromPriorVersion` function to NOT mark missing sub-tasks as `abandoned` and to instead rely on new 
+    `unusable` properties
+  - Added read-only `unusable` property with `get` accessor that delegates to its task definition's `unusable` property
+- Changes to `task-factory` module:  
+  - Changed `reincarnateTasks` function to NOT mark missing sub-tasks as `abandoned` and to instead recreate them as 
+    unusable tasks, first updated from their prior versions & then reset
+  - Changed `reconstructTaskDefsFromRootTaskLike` function to properly generate placeholder `doNotExecute` functions 
+    (which are also now marked with `placeholder` properties set to true) using the new inner `generatePlaceholderFunction` 
+    function and to mark all reconstructed task definitions & sub-task definitions as `unusable`
 
 ### 6.0.2-alpha1
 - Started integrating unusable task definition changes from 4.0.8

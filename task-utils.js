@@ -207,34 +207,34 @@ function isAnyTaskNotFullyFinalised(tasksByName) {
 }
 
 /**
- * Revives all of the tasks on the given tasksByName "map" object by replacing all of its old task-likes with new tasks
- * created from the given list of active task definitions and updates these new tasks with the status-related information
- * of the old tasks or task-like objects, which are the prior versions of the tasks from a previous attempt (if any).
- * Any and all old tasks that do NOT appear in the list of new active tasks are also recreated and added to the given
- * tasksByName as abandoned tasks. Finally, returns both the newly created and updated, active tasks and any no longer
- * active, abandoned tasks that were all added to the given tasksByName.
+ * Revives all of the tasks in the given tasksByName "map" object by replacing all of its old task-likes with new tasks
+ * created from the given list of active task definitions and updates these new tasks with the state of the old tasks or
+ * task-like objects, which are the prior versions of the tasks from a previous attempt (if any). Any and all old tasks
+ * that do NOT appear in the list of new active tasks are also recreated and added to the given tasksByName as unusable
+ * tasks. Finally, returns both the newly created and updated, active tasks and any inactive unusable tasks that were
+ * all added to the given tasksByName "map".
  *
  * @param {Object|Map} tasksByName - the tasksByName "map" object (or Map) on which to replace its old tasks or task-likes
  * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
  * @param {TaskFactory} taskFactory - the task factory to use to create the replacement tasks
  * @param {ReviveTasksOpts|undefined} [opts] - optional options to use to influence which tasks get created and how they get created during task revival/re-incarnation
  * @param {boolean|undefined} [opts.onlyRecreateExisting] - whether to only recreate existing old tasks or to create new tasks for every active task definition (regardless of whether the task existed before or not)
- * @returns {[Task[], Task[]]} both the updated, newly created tasks and any abandoned tasks
+ * @returns {[Task[], Task[]]} both the updated, newly created active tasks and any inactive unusable tasks
  */
 function reviveTasks(tasksByName, activeTaskDefs, taskFactory, opts) {
   // Fetch any and all of the existing previous version tasks from the given tasksByName map
   const priorTasks = getTasks(tasksByName);
 
   // Create new tasks from the given active task definitions and update them with the info from the previous tasks
-  const newTasksAndAbandonedTasks = taskFactory.reincarnateTasks(activeTaskDefs, priorTasks, opts);
-  const newTasks = newTasksAndAbandonedTasks[0];
-  const abandonedTasks = newTasksAndAbandonedTasks[1];
-  const allTasks = newTasks.concat(abandonedTasks);
+  const activeAndUnusableTasks = taskFactory.reincarnateTasks(activeTaskDefs, priorTasks, opts);
+  const activeTasks = activeAndUnusableTasks[0];
+  const unusableTasks = activeAndUnusableTasks[1];
+  const allTasks = activeTasks.concat(unusableTasks);
 
   // Replace all of the existing tasks on the given tasksByName map with the new and abandoned tasks
   allTasks.forEach(task => setTask(tasksByName, task.name, task));
 
-  return newTasksAndAbandonedTasks;
+  return activeAndUnusableTasks;
 }
 
 /**

@@ -157,7 +157,7 @@ class Task {
 
     // Link this new task to its parent (if any)
     // -----------------------------------------------------------------------------------------------------------------
-    Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false});
+    Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false, writable: true, configurable: true});
     if (taskParent) {
       // Ensure that the parent task contains this new task as a subTask
       taskParent._subTasks.push(this);
@@ -403,37 +403,82 @@ class Task {
     return this._subTasksByName.get(subTaskName);
   }
 
-  //noinspection JSUnusedGlobalSymbols
   /**
-   * Returns the existing sub-task with the given name if it exists on this task; otherwise creates and adds a new
-   * sub-task with the given name and optional execute function to this task and returns it.
+   * Returns the existing usable sub-task with the given name (if it exists and its NOT unusable); otherwise replaces
+   * the existing unusable sub-task with the given name (if it exists and its unusable) with a new usable version of
+   * itself that is created with the given `execute` function and a copy of the old sub-task's state; otherwise creates
+   * and adds a new sub-task with the given name and `execute` function to this task and returns it.
+   * NB: By default, skips adding any new sub-task definition to its parent (unless `taskDefSettings.skipAddToParent` is
+   * explicitly set to false) to avoid changing the original task definition hierarchy when adding a new "dynamic" sub-task.
    * @param {string} subTaskName - the name of the sub-task to retrieve or add
    * @param {Function|undefined} [execute] - the optional function to be executed when the sub-task is executed
    * @param {TaskDefSettings|undefined} [taskDefSettings] - optional settings to use to configure the task definition for the new sub-task
+   * @param {boolean|undefined} [taskDefSettings.skipAddToParent] - defaults to true (i.e. skips adding the new sub-task definition to its parent) if not explicitly defined
    * @param {TaskOpts|undefined} [opts] - optional options to use to alter the behaviour of the newly created sub-task (if applicable)
    * @returns {Task} the named sub-task if it exists; otherwise a new sub-task
    */
   getOrCreateSubTask(subTaskName, execute, taskDefSettings, opts) {
     const subTask = this._subTasksByName.get(subTaskName);
     if (subTask) {
-      return subTask;
+      // Return an existing, usable sub-task as is
+      if (!subTask.unusable) {
+        return subTask;
+      }
+
+      // Recreate an existing, unusable sub-task as a new sub-task
+      this.detachSubTask(subTaskName);
+
+      // const newSubTaskDef = new TaskDef(subTaskName, execute, this.definition, {skipAddToParent: true});
+      // const newSubTask = new Task(newSubTaskDef, this);
+      const newSubTask = this.createSubTask(subTaskName, execute, taskDefSettings, opts);
+
+      newSubTask.updateFromPriorVersion(subTask);
+
+      return newSubTask;
     }
+
+    // Create a brand new sub-task
     return this.createSubTask(subTaskName, execute, taskDefSettings, opts);
   }
 
   /**
-   * Shortcut that defines a new sub-task definition with the given name and optional execute function and then creates
-   * a new sub-task (for this task) using this new definition, this task's factory and the given opts.
+   * Shortcut that defines a new "dynamic" sub-task definition with the given name and `execute` function and then
+   * creates a new "dynamic" sub-task (for this task) using this new definition, this task's factory and the given opts.
+   * NB: By default, skips adding the new sub-task definition to its parent (unless `taskDefSettings.skipAddToParent` is
+   * explicitly set to false) to avoid changing the original task definition hierarchy when adding the new sub-task.
    * @param {string} subTaskName - the name of the sub-task to retrieve or add
    * @param {Function|undefined} [execute] - the optional function to be executed when the sub-task is executed
    * @param {TaskDefSettings|undefined} [taskDefSettings] - optional settings to use to configure the task definition for the new sub-task
+   * @param {boolean|undefined} [taskDefSettings.skipAddToParent] - defaults to true (i.e. skips adding the new sub-task definition to its parent) if not explicitly defined
    * @param {TaskOpts|undefined} [opts] - optional options to use to alter the behaviour of the newly created sub-task
    * @returns {Task} the newly created sub-task for this task
    * @throws {Error} an error if the given name is invalid or non-unique or the given `execute` function is invalid
    */
   createSubTask(subTaskName, execute, taskDefSettings, opts) {
-    const subTaskDef = this.definition.defineSubTask(subTaskName, execute, taskDefSettings);
+    const settings = taskDefSettings || {skipAddToParent: true};
+    if (taskDefSettings && !settings.hasOwnProperty('skipAddToParent')) {
+      settings.skipAddToParent = true; // default to skipping add to parent IF NOT explicitly set
+    }
+
+    const subTaskDef = this.definition.defineSubTask(subTaskName, execute, settings);
+
     return new Task(subTaskDef, this, this.factory, opts);
+  }
+
+  /**
+   * Detaches the named sub-task from this task and returns it (if it exists).
+   * @param {string} subTaskName - the name of the sub-task to detach
+   * @return {Task|undefined} the detached sub-task
+   */
+  detachSubTask(subTaskName) {
+    const detached = this._subTasksByName.get(subTaskName);
+    if (detached) {
+      detached.parent = undefined;
+      const pos = this._subTasks.indexOf(detached);
+      if (pos !== -1) this._subTasks.splice(pos, 1);
+      this._subTasksByName.delete(subTaskName);
+    }
+    return detached
   }
 
   /**
@@ -535,6 +580,15 @@ class Task {
    */
   isFullyFinalised() {
     return this.finalised && this._subTasks.every(subTask => subTask.isFullyFinalised());
+  }
+
+  /**
+   * Returns true if this task and all of its subTasks recursively are either finalised (i.e. in a final state, either
+   * completed or rejected) or unusable; false otherwise
+   * @returns {boolean} true if totally finalised or unusable; false otherwise
+   */
+  isFullyFinalisedOrUnusable() {
+    return (this.finalised || this.unusable) && this._subTasks.every(subTask => subTask.isFullyFinalisedOrUnusable());
   }
 
   /**
@@ -1090,14 +1144,12 @@ class Task {
           // Found the corresponding subTask for the old subTask, so recursively update its details
           subTask.updateFromPriorVersion(oldSubTask, opts);
         } else {
-          // SubTasks have changed and no longer include this old subTask!
-          const reason = `Abandoned prior sub-task (${oldSubTask.name}), since it is no longer an active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`;
-          console.warn(reason);
-          // Create a copy of the missing sub task, update it and then mark it as abandoned
-          // ... perhaps should not bother with opts ... since these new tasks are being abandoned anyway
+          // EITHER active sub-tasks have changed and no longer include this old sub-task OR the old sub-task was
+          // dynamically added, so create a new (also unusable) copy of the "missing" unusable sub-task & update its
+          // state from the old copy
           const newSubTask = new Task(oldSubTask.definition, this, this.factory, opts);
           newSubTask.updateFromPriorVersion(oldSubTask, opts);
-          newSubTask.abandon(reason, undefined, true);
+          console.warn(`Added an ${newSubTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldSubTask.unusable ? 'unusable' : 'usable'} sub-task (${oldSubTask.name}), since it is not a predefined active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`);
         }
       }
     }
@@ -1195,6 +1247,13 @@ class Task {
   isFrozen() {
     return this._frozen;
   }
+
+  /**
+   * Returns true if this task is unusable or false if its not. A task is considered to be unusable if its task
+   * definition is marked as unusable.
+   * @return {boolean} true if unusable; false otherwise
+   */
+  get unusable() { return !!this.definition && this.definition.unusable; }
 
   /**
    * Returns true if the given "task" object is either an instance of Task or is a Task-like object; false otherwise. An

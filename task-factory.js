@@ -205,7 +205,6 @@ class TaskFactory {
       throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a non-root, non-executable task-like object (${stringify(taskLike)})`);
     }
 
-
     function generatePlaceholderFunction(name) {
       function doNotExecute() {
         throw new Error(`Logic error - attempting to execute a placeholder execute method on a reconstructed, pseudo task (${name})`);
@@ -242,18 +241,20 @@ class TaskFactory {
   }
 
   /**
-   * Creates a list of new tasks from either the given list of active task definitions (if opts.onlyRecreateExisting is
-   * false) or from the list of task definitions that are active AND have prior versions (if opts.onlyRecreateExisting
-   * is true) and then updates these new tasks with the relevant information extracted from the given list of zero or
-   * more old task-like objects, which are the prior versions of the tasks from the previous attempt (if any). Any and
-   * all old tasks that do NOT appear in the list of new active tasks are recreated as abandoned tasks. Returns both the
-   * newly created and updated, active tasks and any no longer active, abandoned tasks.
-   *
+   * Creates a list of new active tasks from either the given list of active task definitions (if `opts.onlyRecreateExisting`
+   * is false) or from the list of active task definitions that have prior versions (if `opts.onlyRecreateExisting` is
+   * true) and then updates them with the relevant state information extracted from the given list of zero or more old
+   * task-like objects, which are the prior versions of the tasks from the previous attempt (if any). Any and all old
+   * tasks with definitions that do NOT appear in the given list of active task definitions are recreated and partially
+   * restored as new unusable tasks, which do NOT have usable `execute` functions and which are EITHER old tasks that
+   * must be ignored and/or abandoned (e.g. a developer redefined the active task definitions) OR "dynamic" tasks that
+   * were created on the fly during a previous attempt and that will most likely need to be re-attempted again. Returns
+   * a list containing the list of active tasks and the list of inactive unusable tasks.
    * @param {TaskDef[]} activeTaskDefs - a list of active task definitions from which to create the new tasks
    * @param {TaskLike[]|Task[]} priorVersions - a list of zero or more old task-like objects or tasks, which are the prior
    * versions of the active tasks from a previous attempt (if any)
    * @param {ReviveTasksOpts|undefined} [opts] - optional options to use to influence which tasks get created and how they get created during task revival/re-incarnation
-   * @returns {[Task[], Task[]]} both the updated, newly created tasks and any abandoned tasks
+   * @returns {[Task[], Task[]]} a list of active tasks and a list of inactive, unusable tasks
    */
   reincarnateTasks(activeTaskDefs, priorVersions, opts) {
     const onlyRecreateExisting = opts && opts.onlyRecreateExisting;
@@ -273,7 +274,7 @@ class TaskFactory {
     // Create a new list of tasks from the given active task definitions
     const newTasks = taskDefsToUse.map(taskDef => this.createTask(taskDef, opts));
 
-    const updatedNewTasks = newTasks.map(newTask => {
+    const activeTasks = newTasks.map(newTask => {
       // Update the new task with the old task's details (if any)
       const updatedTask = newTask.updateFromPriorVersion(oldTasksByName.get(newTask.name), opts);
       // Reset the updated task to clear out any previous incomplete (i.e. failed and timed out) states inherited from the old task
@@ -281,21 +282,24 @@ class TaskFactory {
       return updatedTask;
     });
 
-    // Collect any and all old tasks, which no longer appear amongst the list of active new tasks, and create new abandoned task from them
-    const inactiveOldTasks = oldTasks.filter(oldTask => activeTaskNames.indexOf(oldTask.name) === -1);
+    // Collect any and all old tasks, which no longer appear amongst the list of active new tasks, and recreate them as
+    // unusable tasks that will have to be either replaced with usable versions during or ignored after processing
+    const unusableOldTasks = oldTasks.filter(oldTask => activeTaskNames.indexOf(oldTask.name) === -1);
 
-    const abandonedTasks = inactiveOldTasks.map(oldTask => {
-      // Reconstruct a clean version of the old task, update it with the relevant details from the old task and then mark it as abandoned
-      // ... perhaps should not bother with opts ... since these new tasks are being abandoned anyway
-      const abandonedTask = this.createTask(oldTask.definition, opts);
-      abandonedTask.updateFromPriorVersion(oldTask, opts);
-      const reason = `Abandoned prior task (${oldTask.name}), since it is no longer one of the active tasks ${stringify(activeTaskNames)}`;
-      abandonedTask.abandon(reason, undefined, true);
-      return abandonedTask;
+    const unusableTasks = unusableOldTasks.map(oldTask => {
+      // Reconstruct a clean unusable version of the old task & update it with the relevant details from the old task
+      const unusableTask = this.createTask(oldTask.definition, opts);
+      unusableTask.updateFromPriorVersion(oldTask, opts);
+      console.warn(`Created an ${unusableTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldTask.unusable ? 'unusable' : 'usable'} task (${oldTask.name}), since it is not a predefined active task`);
+
+      // Reset the updated task to clear out any previous incomplete (i.e. failed and timed out) states inherited from the old task
+      unusableTask.reset();
+
+      return unusableTask;
     });
 
-    // Return both the updated new tasks and the abandoned tasks
-    return [updatedNewTasks, abandonedTasks];
+    // Return both the updated active tasks and the updated inactive, unusable tasks
+    return [activeTasks, unusableTasks];
   }
 
   /**

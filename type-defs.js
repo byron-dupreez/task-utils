@@ -49,6 +49,7 @@
 
 /**
  * @typedef {Object} TaskDefSettings - settings to use to configure a task definition (i.e. TaskDef instance)
+ * @property {boolean|undefined} [skipAddToParent] - whether to skip adding the sub-task definition to its parent's list of sub-task definitions (if true) or not (if false) - defaults to false, i.e. adds to parent
  * @property {DescribeItem|undefined} [describeItem] - an optional function to use to extract a short description of the current item/target/subject from the arguments passed to a task's execute function for logging purposes
  */
 

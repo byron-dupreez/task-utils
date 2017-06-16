@@ -71,6 +71,7 @@ class TaskDef {
       throw new Error(`Cannot create a task definition with a ${!isString(name) ? "non-string" : "blank"} name (${stringify(name)})`);
     }
     const taskName = name.trim();
+    const skipAddToParent = settings && settings.skipAddToParent;
 
     // Validate the given parent and the given execute function
     // -----------------------------------------------------------------------------------------------------------------
@@ -85,7 +86,7 @@ class TaskDef {
         throw new Error(`Cannot create an executable sub-task definition (${taskName}) with an invalid execute function`);
       }
       // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
-      if (!TaskDef.areSubTaskNamesDistinct(parent, taskName)) {
+      if (!skipAddToParent && !TaskDef.areSubTaskNamesDistinct(parent, taskName)) {
         throw new Error(`Cannot add a sub-task definition (${taskName}) with a duplicate name to parent (${parent.name}) with existing sub-task definitions ${Strings.stringify(parent.subTaskDefs.map(d => d.name))}`);
       }
 
@@ -129,7 +130,8 @@ class TaskDef {
     // Link this new task definition to its parent (if any)
     // -----------------------------------------------------------------------------------------------------------------
     Object.defineProperty(this, 'parent', {value: taskParent, enumerable: false});
-    if (taskParent) {
+
+    if (taskParent && !skipAddToParent) {
       taskParent.subTaskDefs.push(this);
     }
   }
@@ -158,6 +160,23 @@ class TaskDef {
   isInternal() {
     return !this.executable;
   }
+
+  /**
+   * Marks this task definition as unusable (if true) or active (if false)
+   * @param {boolean} unusable - whether this task definition is to be considered unusable or not (default undefined, i.e. not)
+   */
+  set unusable(unusable) {
+    if (unusable)
+      Object.defineProperty(this, '_unusable', {value: unusable, enumerable: false, writable: true, configurable: true});
+    else
+      delete this._unusable;
+  }
+
+  /**
+   * Returns true if this task definition is marked as unusable or false if its not (i.e. if its active).
+   * @return {boolean} true if unusable; false otherwise
+   */
+  get unusable() { return !!this._unusable; }
 
   /**
    * Sets this task definition's `describeItem` function to the given function (if it's a function) or sets it to
@@ -210,8 +229,9 @@ class TaskDef {
     if (execute !== undefined && typeof execute !== 'function') {
       throw new Error(`Cannot create an executable sub-task definition (${newName}) with an invalid execute function`);
     }
+    const skipAddToParent = settings && settings.skipAddToParent;
     // Ensure this task definition's sub-task names will still be distinct if we include the new sub-task's name
-    if (!TaskDef.areSubTaskNamesDistinct(this, newName)) {
+    if (!skipAddToParent && !TaskDef.areSubTaskNamesDistinct(this, newName)) {
       throw new Error(`Cannot add sub-task definition (${newName}) with a duplicate name to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
     }
     // Create and add the new sub-task definition to this task definition's list of sub-task definitions
