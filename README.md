@@ -278,7 +278,6 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
     sub-tasks when the `settings.skipAddToParent` option is passed as true
   - Added new `unusable` property with `get` & `set` accessors and an underlying `_unusable` property to `TaskDef` class
 - Changes to `tasks` module:
-  - Changed `parent` property of `Task` class to be writable & configurable
   - Added new `detachSubTask` function to enable a sub-task to be detached from its parent task
   - Changed `getOrCreateSubTask` function to replace an existing unusable sub-task with a usable version by detaching 
     the old unusable sub-task, creating the new sub-task via `createSubTask` & updating the new from the old

@@ -2854,7 +2854,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding recursive
 
 test('getOrAddSubTask & detachSubTask', t => {
 
-  const task = Task.createTask(TaskDef.defineTask('Task A', execute1));
+  const task = taskFactory1.createTask(TaskDef.defineTask('Task A', execute1));
 
   const subTaskName = 'SubTask A1';
 
@@ -2863,7 +2863,7 @@ test('getOrAddSubTask & detachSubTask', t => {
   t.equal(noDetached, undefined, `task.detachSubTask(${subTaskName}) must be undefined`);
 
   // Add a sub-task
-  const subTask = task.getOrAddSubTask(subTaskName, execute2);
+  const subTask = task.getOrCreateSubTask(subTaskName, execute2);
 
   t.equal(subTask.parent, task, `subTask.parent must be task`);
   t.ok(task.subTasks.indexOf(subTask) !== -1, `task.subTasks must contain subTask`);
@@ -2872,7 +2872,7 @@ test('getOrAddSubTask & detachSubTask', t => {
   t.ok(task.definition.subTaskDefs.indexOf(subTask.definition) === -1, `task.definition.subTaskDefs must NOT contain subTask.definition`);
 
   // Add "same" sub-task again
-  const subTask1 = task.getOrAddSubTask(subTaskName, execute1);
+  const subTask1 = task.getOrCreateSubTask(subTaskName, execute1);
 
   t.equal(subTask1, subTask, `subTask1 must be subTask`);
 
@@ -2880,11 +2880,11 @@ test('getOrAddSubTask & detachSubTask', t => {
   subTask.definition.unusable = true;
 
   // Add "same" named sub-task again, which MUST force replacement of unusable subTask
-  const subTask2 = task.getOrAddSubTask(subTaskName, execute1);
+  const subTask2 = task.getOrCreateSubTask(subTaskName, execute1);
 
   t.notEqual(subTask2, subTask, `subTask2 must NOT be subTask`);
 
-  t.equal(subTask.parent, undefined, `subTask.parent must be undefined`);
+  t.equal(subTask.parent, task, `automatically detached subTask.parent must still be parent`);
   t.ok(task.subTasks.indexOf(subTask) === -1, `task.subTasks must NOT contain subTask`);
   // Task definitions must ONLY be partially connected
   t.equal(subTask.definition.parent, task.definition, `subTask.definition.parent must be task.definition`);
@@ -2901,14 +2901,14 @@ test('getOrAddSubTask & detachSubTask', t => {
 
   t.equal(detached, subTask2, `task.detachSubTask(${subTaskName}) must be subTask2`);
 
-  t.equal(subTask2.parent, undefined, `subTask2.parent must be undefined`);
+  t.equal(subTask2.parent, task, `detached subTask2.parent must still be task`);
   t.ok(task.subTasks.indexOf(subTask2) === -1, `task.subTasks must NOT contain subTask2`);
   // Task definitions must ONLY be partially connected
   t.equal(subTask2.definition.parent, task.definition, `subTask2.definition.parent must be task.definition`);
   t.ok(task.definition.subTaskDefs.indexOf(subTask2.definition) === -1, `task.definition.subTaskDefs must NOT contain subTask2.definition`);
 
   // Add same named sub-task again
-  const subTask3 = task.getOrAddSubTask(subTaskName, execute2);
+  const subTask3 = task.getOrCreateSubTask(subTaskName, execute2);
   t.notEqual(subTask3, subTask, `subTask3 must NOT be subTask`);
 
   t.equal(subTask3.parent, task, `subTask3.parent must be task`);
