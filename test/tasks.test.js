@@ -2919,3 +2919,185 @@ test('getOrAddSubTask & detachSubTask', t => {
 
   t.end();
 });
+
+// =====================================================================================================================
+// revertAttempts with a simple task
+// =====================================================================================================================
+
+test('revertAttempts with a simple task', t => {
+
+  const task = createSimpleTask('Task A', execute1);
+  t.equal(task.attempts, 0, `after create: task.attempts must be 0`);
+
+  task.revertAttempts();
+  t.equal(task.attempts, 0, `after revert: task.attempts must be 0`);
+
+  // Start it for the first time
+  task.start();
+  t.equal(task.attempts, 1, `after start #1: task.attempts must be 1`);
+
+  task.revertAttempts();
+  t.equal(task.attempts, 0, `after revert: task.attempts must be 0`);
+
+  // "Start" it again wile still started
+  task.start();
+  t.equal(task.attempts, 0, `after "start" #2: task.attempts must be 0`);
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 1, `after inc: task.attempts must be 1`);
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 2, `after inc: task.attempts must be 2`);
+
+  task.incrementAttempts();
+  t.equal(task.attempts, 3, `after inc: task.attempts must be 3`);
+
+  task.revertAttempts();
+  t.equal(task.attempts, 0, `after revert: task.attempts must be 0`);
+
+  task.decrementAttempts();
+  task.decrementAttempts();
+  task.decrementAttempts();
+  t.equal(task.attempts, -3, `after dec x 3: task.attempts must be -3`);
+
+  task.revertAttempts();
+  t.equal(task.attempts, 0, `after revert: task.attempts must be 0`);
+
+  task.incrementAttempts();
+  task.incrementAttempts();
+  t.equal(task.attempts, 2, `after inc x 2: task.attempts must be 2`);
+
+  // Fail it
+  task.fail(new Error('Boom'));
+  t.equal(task.attempts, 2, `after fail: task.attempts must still be 2`);
+
+  // Reset it then start it for the second time
+  task.reset();
+  t.equal(task.attempts, 2, `after reset: task.attempts must still be 2`);
+
+  task.start();
+  t.equal(task.attempts, 3, `after start #3: task.attempts must now be 3`);
+
+  task.incrementAttempts();
+  task.incrementAttempts();
+  t.equal(task.attempts, 5, `after inc x 2: task.attempts must be 5`);
+
+  task.revertAttempts();
+  t.equal(task.attempts, 2, `after revert: task.attempts must be 2 again`);
+
+  task.incrementAttempts();
+  task.incrementAttempts();
+  task.incrementAttempts();
+  task.incrementAttempts();
+  t.equal(task.attempts, 6, `after inc x 4: task.attempts must be 6`);
+
+  task.reset();
+  t.equal(task.attempts, 6, `after rest: task.attempts must still be 6`);
+
+  task.revertAttempts();
+  t.equal(task.attempts, 6, `after revert: task.attempts must still be 6, since reset kills initial attempts cache`);
+
+  task.start();
+  t.equal(task.attempts, 7, `after start #4: task.attempts must now be 7`);
+
+  task.revertAttempts();
+  t.equal(task.attempts, 6, `after revert: task.attempts must be 6 again`);
+
+  t.end();
+});
+
+// =====================================================================================================================
+// revertAttempts with a complex task
+// =====================================================================================================================
+
+test('revertAttempts with a master task', t => {
+
+  const taskDef = TaskDef.defineTask('Task A', execute1);
+  const task1 = taskFactory1.createTask(taskDef);
+  const task2 = taskFactory1.createTask(taskDef);
+  const task = taskFactory1.createMasterTask(taskDef, [task1, task2]);
+
+  function check(after, expected) {
+    t.equal(task.attempts, expected, `after ${after}: master task.attempts must be ${expected}`);
+    t.equal(task1.attempts, expected, `after ${after}: slave task1.attempts must be ${expected}`);
+    t.equal(task2.attempts, expected, `after ${after}: slave task2.attempts must be ${expected}`);
+  }
+
+  check('create', 0);
+
+  task.revertAttempts();
+  check('revert #1', 0);
+
+  // Start it for the first time
+  task.start();
+  check('start #1', 1);
+
+  task.revertAttempts();
+  check('revert #2', 0);
+
+  // "Start" it again wile still started
+  task.start();
+  check('"start" #2', 0);
+
+  task.incrementAttempts();
+  check('inc', 1);
+
+  task.incrementAttempts();
+  check('inc', 2);
+
+  task.incrementAttempts();
+  check('inc', 3);
+
+  task.revertAttempts();
+  check('revert #3', 0);
+
+  task.decrementAttempts();
+  task.decrementAttempts();
+  task.decrementAttempts();
+  check('dec x 3', -3);
+
+  task.revertAttempts();
+  check('revert #4', 0);
+
+  task.incrementAttempts();
+  task.incrementAttempts();
+  check('inc x 2', 2);
+
+  // Fail it
+  task.fail(new Error('Boom'));
+  check('fail', 2);
+
+  // Reset it then start it for the second time
+  task.reset();
+  check('reset #1', 2);
+
+  task.start();
+  check('start #3', 3);
+
+  task.incrementAttempts();
+  task.incrementAttempts();
+  check('inc x 2', 5);
+
+  task.revertAttempts();
+  check('revert #5', 2);
+
+  task.incrementAttempts();
+  task.incrementAttempts();
+  task.incrementAttempts();
+  task.incrementAttempts();
+  check('inc x 4', 6);
+
+  task.reset();
+  check('reset #1', 6);
+
+  task.revertAttempts();
+  check('revert #6', 6);
+
+  task.start();
+  check('start #4', 7);
+
+  task.revertAttempts();
+  check('revert #7', 6);
+
+  t.end();
+});

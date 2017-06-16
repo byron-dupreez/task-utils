@@ -1,4 +1,4 @@
-# task-utils v6.0.2
+# task-utils v6.0.3
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -269,6 +269,12 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 6.0.3
+- Changes to `tasks` module:
+  - Added `revertAttempts` method to enable reversal of the current number of attempts back to the initial number of 
+    attempts that was cached just before the task was last started
+  - Changed `timeout` & `timeoutAs` methods to use new `revertAttempts` method instead of manual decrements
 
 ### 6.0.2 
 - Merged in changes from 4.0.8

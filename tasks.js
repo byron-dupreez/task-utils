@@ -167,6 +167,7 @@ class Task {
     // Set the task's initial state, attempts and result
     this._state = TaskState.instances.Unstarted;
     this._attempts = 0;
+    this._initialAttempts = undefined;
     this._totalAttempts = 0;
     this._began = undefined;
     this._took = undefined;
@@ -625,6 +626,7 @@ class Task {
   reset() {
     if (this.incomplete || (this.completed && this.isRootTask() && this.isSuperTask() && !this.isFullyFinalised())) {
       this._state = TaskState.instances.Unstarted;
+      this._initialAttempts = undefined;
       this._result = undefined;
       this._error = undefined;
       this._outcome = undefined;
@@ -652,6 +654,7 @@ class Task {
 
     if (this.unstarted) {
       this._state = TaskState.instances.Started;
+      this._initialAttempts = this._attempts; // cache the initial number of attempts to enable later reverts if needed
       this._attempts = this._attempts + 1;
       this._totalAttempts = this._totalAttempts + 1;
       this.beganAt(began);
@@ -665,6 +668,27 @@ class Task {
     // If this is a master task then ripple the start to each of its slave tasks
     if (this.isMasterTask()) {
       this._slaveTasks.forEach(slaveTask => slaveTask.start(began, recursively));
+    }
+  }
+
+  /**
+   * Reverses the current number of attempts back to the initial number of attempts that was cached just before this
+   * task was last started.
+   * @param {boolean|undefined} [recursively] - whether to recursively apply the revert attempts to this task's sub-tasks or not
+   */
+  revertAttempts(recursively) {
+    if (this._initialAttempts !== undefined) {
+      this._attempts = this._initialAttempts;
+    }
+
+    // If recursively, then also apply the revert attempts to each of this task's sub-tasks
+    if (recursively) {
+      this._subTasks.forEach(subTask => subTask.revertAttempts(recursively));
+    }
+
+    // If this is a master task then ripple the revert attempts to each of its slave tasks
+    if (this.isMasterTask()) {
+      this._slaveTasks.forEach(slaveTask => slaveTask.revertAttempts(recursively));
     }
   }
 
@@ -819,7 +843,7 @@ class Task {
       if (!this.unstarted && reverseAttempt) {
         // Reverse the increment of the number of attempts that happened when this task was started, since we don't
         // consider a timeout to be a real attempt
-        this._attempts = this._attempts - 1;
+        this.revertAttempts();
       }
       this._state = new states.TimedOut(error);
       this._result = undefined;
@@ -855,7 +879,7 @@ class Task {
       if (!this.unstarted && reverseAttempt) {
         // Reverse the increment of the number of attempts that happened when this task was started, since we don't
         // consider a timeout to be a real attempt
-        this._attempts = this._attempts - 1;
+        this.revertAttempts();
       }
       this._state = stateName === TaskState.names.TimedOut ? new states.TimedOut(error) :
         new states.TimedOutState(stateName, error);
