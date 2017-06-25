@@ -1,4 +1,4 @@
-# task-utils v6.0.3
+# task-utils v6.0.4
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -269,6 +269,10 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
+
+### 6.0.4
+- Changes to `task-utils.test.js` test module:
+  - Switched test examples back to using prior & shorter `ones` & `alls` properties instead of `processOneTasks` & `processAllTasks`
 
 ### 6.0.3
 - Changes to `tasks` module:

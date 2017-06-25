@@ -148,10 +148,10 @@ test('getTask with a real Task returns it', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processManyTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -165,13 +165,13 @@ test('getTask with a real Task returns it', t => {
   taskDef.defineSubTasks(['SubTask 1a', 'SubTask 1b']);
   const origTask = createTask(taskDef);
 
-  // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  // Set the named task on the "process one" tasks by name map
+  const processOneTasksByName = msg.myTasks.ones;
 
-  processOneTasks[taskName] = origTask;
+  processOneTasksByName[taskName] = origTask;
 
   // Get should return the task just registered
-  const task = getTask(processOneTasks, taskName);
+  const task = getTask(processOneTasksByName, taskName);
 
   t.ok(task, `${task.name} must be defined`);
   t.equal(task, origTask, `${task.name} ${stringify(task)} must be ${stringify(origTask)}`);
@@ -184,10 +184,10 @@ test('getTask with a Task-like returns it', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processManyTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -204,12 +204,12 @@ test('getTask with a Task-like returns it', t => {
   // Convert original task into a task-like
   const origTaskLike = JSON.parse(JSON.stringify(origTask));
 
-  // Set the named task-like on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
-  processOneTasks[taskName] = origTaskLike;
+  // Set the named task-like on the "process one" tasks by name map
+  const processOneTasksByName = msg.myTasks.ones;
+  processOneTasksByName[taskName] = origTaskLike;
 
   // Get should return the task just registered
-  const taskLike = getTask(processOneTasks, taskName);
+  const taskLike = getTask(processOneTasksByName, taskName);
 
   t.ok(taskLike, `Task-like ${taskLike.name} must be defined`);
   t.equal(taskLike, origTaskLike, `${taskLike.name} ${stringify(taskLike)} must be ${stringify(origTaskLike)}`);
@@ -272,10 +272,10 @@ test('getTasks with real tasks returns them', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processManyTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -288,15 +288,15 @@ test('getTasks with real tasks returns them', t => {
   });
   const task0 = createTask(taskDef);
 
-  // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
-  setTask(processOneTasks, taskName, task0);
+  // Set the named task on the "process one" tasks by name map
+  const processOneTasksByName = msg.myTasks.ones;
+  setTask(processOneTasksByName, taskName, task0);
 
   // Get should return the task just registered
-  const task = getTask(processOneTasks, taskName);
+  const task = getTask(processOneTasksByName, taskName);
 
   t.ok(task, `${task.name} must be defined`);
-  t.equal(task, processOneTasks[taskName], `${task.name} ${stringify(task)} must be ${stringify(processOneTasks[taskName])}`);
+  t.equal(task, processOneTasksByName[taskName], `${task.name} ${stringify(task)} must be ${stringify(processOneTasksByName[taskName])}`);
 
   t.end();
 });
@@ -411,10 +411,10 @@ test('getSubTask with real sub-Tasks and sub-sub-Tasks returns them', t => {
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processManyTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -433,40 +433,40 @@ test('getSubTask with real sub-Tasks and sub-sub-Tasks returns them', t => {
 
   const origTask = createTask(taskDef);
 
-  // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  // Set the named task on the "process one" tasks by name map
+  const processOneTasksByName = msg.myTasks.ones;
 
-  processOneTasks[taskName] = origTask;
+  processOneTasksByName[taskName] = origTask;
 
   // Get should return the sub-task registered
-  check(processOneTasks, taskName, 'SubTask 1', origTask.getSubTask('SubTask 1'));
-  check(processOneTasks, taskName, 'SubTask 2', origTask.getSubTask('SubTask 2'));
+  check(processOneTasksByName, taskName, 'SubTask 1', origTask.getSubTask('SubTask 1'));
+  check(processOneTasksByName, taskName, 'SubTask 2', origTask.getSubTask('SubTask 2'));
 
-  check(processOneTasks, taskName, ['SubTask 1'], origTask.getSubTask('SubTask 1'));
-  check(processOneTasks, taskName, ['SubTask 2'], origTask.getSubTask('SubTask 2'));
+  check(processOneTasksByName, taskName, ['SubTask 1'], origTask.getSubTask('SubTask 1'));
+  check(processOneTasksByName, taskName, ['SubTask 2'], origTask.getSubTask('SubTask 2'));
 
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 1.1'], origTask.getSubTask('SubTask 1').getSubTask('SubTask 1.1'));
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 1.2'], origTask.getSubTask('SubTask 1').getSubTask('SubTask 1.2'));
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 1.1'], origTask.getSubTask('SubTask 1').getSubTask('SubTask 1.1'));
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 1.2'], origTask.getSubTask('SubTask 1').getSubTask('SubTask 1.2'));
 
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.1'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.1'));
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.2'));
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.1'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.1'));
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.2'));
 
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.1'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.2').getSubTask('SubTask 2.2.1'));
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.2').getSubTask('SubTask 2.2.2'));
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.1'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.2').getSubTask('SubTask 2.2.1'));
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2'], origTask.getSubTask('SubTask 2').getSubTask('SubTask 2.2').getSubTask('SubTask 2.2.2'));
 
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.1'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.2'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.1'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.2'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 1.1'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 1.2'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.1'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.2'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.1'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.2'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 1.1'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 1.2'], undefined);
 
-  check(processOneTasks, 'Task 99', [], undefined);
-  check(processOneTasks, 'Task 99', ['SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.1', 'SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2', 'SubTask 99'], undefined);
+  check(processOneTasksByName, 'Task 99', [], undefined);
+  check(processOneTasksByName, 'Task 99', ['SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.1', 'SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2', 'SubTask 99'], undefined);
   t.end();
 });
 
@@ -480,10 +480,10 @@ test('getSubTask with sub-task-likes and sub-sub-task-likes returns them', t => 
     id: '123',
     message: 'Yo',
     myTasks: {
-      processOneTasks: {
+      ones: {
         arb1: 'Arbitrary 1'
       },
-      processManyTasks: {
+      alls: {
         arb2: 'Arbitrary 2'
       },
       arb: 'Arbitrary'
@@ -505,40 +505,40 @@ test('getSubTask with sub-task-likes and sub-sub-task-likes returns them', t => 
   // Convert original task into a task-like
   const origTaskLike = JSON.parse(JSON.stringify(origTask));
 
-  // Set the named task on the processOneTasks object
-  const processOneTasks = msg.myTasks.processOneTasks;
+  // Set the named task on the "process one" tasks by name map
+  const processOneTasksByName = msg.myTasks.ones;
 
-  processOneTasks[taskName] = origTaskLike;
+  processOneTasksByName[taskName] = origTaskLike;
 
   // Get should return the sub-task registered
-  check(processOneTasks, taskName, 'SubTask 1', origTaskLike.subTasks[0]);
-  check(processOneTasks, taskName, 'SubTask 2', origTaskLike.subTasks[1]);
+  check(processOneTasksByName, taskName, 'SubTask 1', origTaskLike.subTasks[0]);
+  check(processOneTasksByName, taskName, 'SubTask 2', origTaskLike.subTasks[1]);
 
-  check(processOneTasks, taskName, ['SubTask 1'], origTaskLike.subTasks[0]);
-  check(processOneTasks, taskName, ['SubTask 2'], origTaskLike.subTasks[1]);
+  check(processOneTasksByName, taskName, ['SubTask 1'], origTaskLike.subTasks[0]);
+  check(processOneTasksByName, taskName, ['SubTask 2'], origTaskLike.subTasks[1]);
 
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 1.1'], origTaskLike.subTasks[0].subTasks[0]);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 1.2'], origTaskLike.subTasks[0].subTasks[1]);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 1.1'], origTaskLike.subTasks[0].subTasks[0]);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 1.2'], origTaskLike.subTasks[0].subTasks[1]);
 
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.1'], origTaskLike.subTasks[1].subTasks[0]);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2'], origTaskLike.subTasks[1].subTasks[1]);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.1'], origTaskLike.subTasks[1].subTasks[0]);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2'], origTaskLike.subTasks[1].subTasks[1]);
 
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.1'], origTaskLike.subTasks[1].subTasks[1].subTasks[0]);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2'], origTaskLike.subTasks[1].subTasks[1].subTasks[1]);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.1'], origTaskLike.subTasks[1].subTasks[1].subTasks[0]);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2'], origTaskLike.subTasks[1].subTasks[1].subTasks[1]);
 
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.1'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.2'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.1'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.2'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 1.1'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 1.2'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.1'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.2'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.1'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 2.2', 'SubTask 2.2.2'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 1.1'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 1.2'], undefined);
 
-  check(processOneTasks, 'Task 99', [], undefined);
-  check(processOneTasks, 'Task 99', ['SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 1', 'SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.1', 'SubTask 99'], undefined);
-  check(processOneTasks, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2', 'SubTask 99'], undefined);
+  check(processOneTasksByName, 'Task 99', [], undefined);
+  check(processOneTasksByName, 'Task 99', ['SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 1', 'SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.1', 'SubTask 99'], undefined);
+  check(processOneTasksByName, taskName, ['SubTask 2', 'SubTask 2.2', 'SubTask 2.2.2', 'SubTask 99'], undefined);
   t.end();
 });
 
