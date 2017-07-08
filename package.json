@@ -1,6 +1,6 @@
 {
   "name": "task-utils",
-  "version": "4.0.11",
+  "version": "4.0.12",
 "description": "Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object. These modules provide a way to attach tasks to objects that can be executed and used to track the state and number of attempts at each task.",
   "author": "Byron du Preez",
   "license": "Apache-2.0",
@@ -13,6 +13,9 @@
   },
   "repository": "https://github.com/byron-dupreez/task-utils",
   "dependencies": {
-    "core-functions": "2.0.15"
+    "core-functions": "2.0.16"
+  },
+  "devDependencies": {
+    "tape": "^4.7.0"
   }
 }
