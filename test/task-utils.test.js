@@ -615,7 +615,7 @@ function checkReviveTasks(t, tasksByName, activeTaskDefs, opts, desc, origTaskLi
   t.deepEqual(beforeNamesSorted, origNamesSorted, `reviveTasks(${desc}) BEFORE all task names (${stringify(beforeNamesSorted)}) must be ${stringify(origNamesSorted)}`);
 
   // Replace old with new
-  const newTasksAndAbandonedTasks = taskUtils.reviveTasks(tasksByName, activeTaskDefs, taskFactory1, opts);
+  const newTasksAndUnusableTasks = taskUtils.reviveTasks(tasksByName, activeTaskDefs, taskFactory1, opts);
 
   const afterTaskNamesSorted = getTasks(tasksByName).map(t => t.name).sort();
 
@@ -641,10 +641,10 @@ function checkReviveTasks(t, tasksByName, activeTaskDefs, opts, desc, origTaskLi
   t.deepEqual(afterNamesSorted, expectedNamesSorted, `reviveTasks(${desc}) AFTER all names (${stringify(afterNamesSorted)}) must be ${stringify(expectedNamesSorted)}`);
   t.deepEqual(afterTaskNamesSorted, expectedTaskNames, `reviveTasks(${desc}) AFTER task names (${stringify(afterTaskNamesSorted)}) must be ${stringify(expectedTaskNames)}`);
 
-  //console.log(`****************** new tasks (${desc}) = ${stringify(newTasksAndAbandonedTasks[0])}`);
-  //console.log(`****************** abandoned (${desc}) = ${stringify(newTasksAndAbandonedTasks[1])}`);
+  //console.log(`****************** new tasks (${desc}) = ${stringify(newTasksAndUnusableTasks[0])}`);
+  //console.log(`****************** Unusable (${desc}) = ${stringify(newTasksAndUnusableTasks[1])}`);
 
-  return newTasksAndAbandonedTasks;
+  return newTasksAndUnusableTasks;
 }
 
 test('reviveTasks - Scenario 0: No old tasks and no new tasks', t => {
@@ -700,13 +700,13 @@ test('reviveTasks - Scenario 1: No old tasks', t => {
   // Scenario 1: No old tasks
   const desc = '0 old, 4 new';
   const opts = undefined;
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [], expectedNames);
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [], expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
 
   t.equal(newTasks.length, 4, '4 new tasks');
-  t.equal(abandoned.length, 0, '0 abandoned');
+  t.equal(unusable.length, 0, '0 unusable');
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -799,13 +799,13 @@ test('reviveTasks - Scenario 2.0: All old tasks are still active tasks (AND opts
 
   const desc = '4 old, 4 new';
   const opts = undefined;
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [taskLike1, taskLike2, taskLike3, taskLike4], expectedNames);
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [taskLike1, taskLike2, taskLike3, taskLike4], expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
 
   t.equal(newTasks.length, 4, '4 new tasks');
-  t.equal(abandoned.length, 0, '0 abandoned');
+  t.equal(unusable.length, 0, '0 unusable');
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -898,13 +898,13 @@ test('reviveTasks - Scenario 2.1: All old tasks are still active tasks (AND expl
 
   const desc = '4 old, 4 new';
   const opts = {onlyRecreateExisting: false};
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [taskLike1, taskLike2, taskLike3, taskLike4], expectedNames);
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [taskLike1, taskLike2, taskLike3, taskLike4], expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
 
   t.equal(newTasks.length, 4, '4 new tasks');
-  t.equal(abandoned.length, 0, '0 abandoned');
+  t.equal(unusable.length, 0, '0 unusable');
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -997,13 +997,13 @@ test('reviveTasks - Scenario 2.2: All old tasks are still active tasks (AND expl
 
   const desc = '4 old, 4 new';
   const opts = {onlyRecreateExisting: true}; // NB: opts.onlyRecreateExisting must be true in this case
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [taskLike1, taskLike2, taskLike3, taskLike4], expectedNames);
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, [taskLike1, taskLike2, taskLike3, taskLike4], expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
 
   t.equal(newTasks.length, 4, '4 new tasks');
-  t.equal(abandoned.length, 0, '0 abandoned');
+  t.equal(unusable.length, 0, '0 unusable');
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -1090,14 +1090,14 @@ test('reviveTasks - Scenario 2.4: Some (2 of 4) active tasks do NOT exist as old
 
   const desc = '2 old, 4 new';
   const opts = {onlyRecreateExisting: false}; // NB: opts.onlyRecreateExisting must be false in this case
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc,
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc,
     [taskLike1, taskLike3], expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
 
   t.equal(newTasks.length, 4, '4 new tasks');
-  t.equal(abandoned.length, 0, '0 abandoned');
+  t.equal(unusable.length, 0, '0 unusable');
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -1180,14 +1180,14 @@ test('reviveTasks - Scenario 2.5: Some (2 of 4) active tasks do NOT exist as old
 
   const desc = '2 old, 4 new';
   const opts = {onlyRecreateExisting: true}; // NB: opts.onlyRecreateExisting must be true in this case
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc,
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc,
     [taskLike2, taskLike4], expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
 
   t.equal(newTasks.length, 2, '2 new tasks');
-  t.equal(abandoned.length, 0, '0 abandoned');
+  t.equal(unusable.length, 0, '0 unusable');
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -1248,14 +1248,14 @@ test('reviveTasks - Scenario 2.6: All (4 of 4) active tasks do NOT exist as old 
 
   const desc = '0 old, 4 new';
   const opts = {onlyRecreateExisting: true}; // NB: opts.onlyRecreateExisting must be true in this case
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc,
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc,
     [], expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
 
   t.equal(newTasks.length, 0, '0 new tasks');
-  t.equal(abandoned.length, 0, '0 abandoned');
+  t.equal(unusable.length, 0, '0 unusable');
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -1330,7 +1330,7 @@ test('reviveTasks - Scenario 3: Active task definitions excludes task 1 & 4, so 
     'SubTask 4B', 'SubTask 4B-1', 'SubTask 4B-2', 'SubTask 4B-2a', 'SubTask 4B-2b'
   ];
 
-  // Scenario 3: Change active task definitions to exclude task 1, which should cause it to become abandoned
+  // Scenario 3: Change active task definitions to exclude task 1, which should cause it to become unusable
   tasksByName[taskName1] = taskLike1;
   tasksByName[taskName2] = taskLike2;
   tasksByName[taskName3] = taskLike3;
@@ -1490,12 +1490,12 @@ test('reviveTasks - Scenario 4: Old finalised tasks must not be reset to unstart
 
   const desc = '4 old (1 failed, 2 finalised, 1 timed out)';
   const opts = undefined;
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, origTaskLikes, expectedNames);
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, origTaskLikes, expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
   t.equal(newTasks.length, 4, `4 new tasks`);
-  t.equal(abandoned.length, 0, `0 abandoned`);
+  t.equal(unusable.length, 0, `0 unusable`);
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
@@ -1675,12 +1675,12 @@ test('reviveTasks - Scenario 5: Old finalised tasks with incomplete sub-tasks mu
 
   const desc = '4 old (1 C+Fs, 1 R+Fs, 1 R+Ts, 1 C+Ts)';
   const opts = undefined;
-  const newTasksAndAbandoned = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, origTaskLikes, expectedNames);
+  const newTasksAndUnusable = checkReviveTasks(t, tasksByName, [taskDef1, taskDef2, taskDef3, taskDef4], opts, desc, origTaskLikes, expectedNames);
 
-  const newTasks = newTasksAndAbandoned[0];
-  const abandoned = newTasksAndAbandoned[1];
+  const newTasks = newTasksAndUnusable[0];
+  const unusable = newTasksAndUnusable[1];
   t.equal(newTasks.length, 4, `4 new tasks`);
-  t.equal(abandoned.length, 0, `0 abandoned`);
+  t.equal(unusable.length, 0, `0 unusable`);
 
   // Check states
   const t1 = newTasks.find(t => t.name === 'Task 1');
