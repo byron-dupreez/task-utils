@@ -1,5 +1,8 @@
 ## Changes
 
+### 6.0.7
+- Updated `core-functions` dependency to 3.0.9
+
 ### 6.0.6
 - Updated `core-functions` dependency to 3.0.8
 
