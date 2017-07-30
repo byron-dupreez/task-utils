@@ -839,7 +839,7 @@ class Task {
           // state from the old copy
           const newSubTask = new Task(oldSubTask.definition, this);
           newSubTask.updateFromPriorVersion(oldSubTask);
-          console.warn(`Added an ${newSubTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldSubTask.unusable ? 'unusable' : 'usable'} sub-task (${oldSubTask.name}), since it is not a predefined active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`);
+          // console.warn(`Added an ${newSubTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldSubTask.unusable ? 'unusable' : 'usable'} sub-task (${oldSubTask.name}), since it is not a predefined active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`);
 
           // const reason = `Abandoned prior sub-task (${oldSubTask.name}), since it is no longer an active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`;
           // console.warn(reason);
@@ -1186,7 +1186,7 @@ function createNewTasksUpdatedFromPriorVersions(activeTaskDefs, priorVersions) {
     // it as an inactive task
     const unusableTask = Task.createTask(oldTask.definition);
     unusableTask.updateFromPriorVersion(oldTask);
-    console.warn(`Created an ${unusableTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldTask.unusable ? 'unusable' : 'usable'} task (${oldTask.name}), since it is not a predefined active task`);
+    // console.warn(`Created an ${unusableTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldTask.unusable ? 'unusable' : 'usable'} task (${oldTask.name}), since it is not a predefined active task`);
 
     // Reset the updated task to clear out any previous incomplete (i.e. failed and timed out) states inherited from the old task
     unusableTask.reset();

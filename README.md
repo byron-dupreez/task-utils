@@ -1,4 +1,4 @@
-# task-utils v4.0.12
+# task-utils v4.0.13
 
 Utilities for defining task states, creating task and sub-task definitions, creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
 
@@ -163,6 +163,13 @@ $ tape test/*.js
 See the [package source](https://github.com/byron-dupreez/task-utils) for more details.
 
 ## Changes
+
+### 4.0.13
+- Updated `core-functions` dependency to 2.0.17
+- Changes to `task-states` module:
+  - Deleted `TimeoutError` & replaced it with new `TimeoutError` in `core-functions/errors` module
+- Changes to `tasks` module:
+  - Removed some console logging
 
 ### 4.0.12
 - Moved test devDependencies to package.json & removed test/package.json

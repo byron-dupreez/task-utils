@@ -1,5 +1,7 @@
 'use strict';
 
+const errors = require(`core-functions/errors`);
+
 /**
  * A TaskState class and its subclasses with static utilities for defining the state of a task or operation.
  * @module task-utils/task-states
@@ -25,22 +27,6 @@ const FAILED_NAME = 'Failed';
 const REJECTED_NAME = 'Rejected';
 const DISCARDED_NAME = 'Discarded';
 const ABANDONED_NAME = 'Abandoned';
-
-/**
- * An Error subclass that indicates that a task or operation timed out.
- */
-class TimeoutError extends Error {
-  /**
-   * Constructs a new TimeoutError.
-   * @param {string} message - a message for this error.
-   */
-  constructor(message) {
-    super(message);
-    Object.defineProperty(this, 'message', {writable: false, enumerable: true, configurable: false});
-    // Set the name to the class name
-    Object.defineProperty(this, 'name', {value: this.constructor.name});
-  }
-}
 
 /**
  * The base class for a state of a task or operation.
@@ -490,7 +476,7 @@ if (!TaskState.toTaskStateFromStateLike) TaskState.toTaskStateFromStateLike = to
 
 module.exports = {
   // TimeoutError constructor
-  TimeoutError: TimeoutError,
+  TimeoutError: errors.TimeoutError, // re-exported for convenience
 
   // TaskState constructors
   TaskState: TaskState,

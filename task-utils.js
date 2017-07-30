@@ -1,5 +1,7 @@
 'use strict';
 
+const errors = require(`core-functions/errors`);
+
 const states = require('./task-states');
 
 const taskDefs = require('./task-defs');
@@ -22,10 +24,11 @@ module.exports = {
   replaceTasksWithNewTasksUpdatedFromOld: replaceTasksWithNewTasksUpdatedFromOld,
 
   // To simplify usage and reduce the number of explicit imports required
-  // 1. Re-export TaskState class and all of its subclasses and TimeoutError class from task-states.js module
+  // 1. Re-export TaskState class and all of its subclasses from task-states.js module
+  // 2. Re-export TimeoutError class from core-functions/errors.js module
 
   // TimeoutError constructor
-  TimeoutError: states.TimeoutError,
+  TimeoutError: errors.TimeoutError,
 
   // TaskState constructors
   TaskState: states.TaskState,

@@ -7,9 +7,11 @@
 
 const test = require("tape");
 
-const states = require('../task-states');
+const errors = require(`core-functions/errors`);
 // TimeoutError constructor
-const TimeoutError = states.TimeoutError;
+const TimeoutError = errors.TimeoutError;
+
+const states = require('../task-states');
 // TaskState constructors
 const TaskState = states.TaskState;
 // TaskState direct subclasses
@@ -197,7 +199,7 @@ test('Construct rejected TaskState instance with reason & error', t => {
 });
 
 test('Construct unstarted TaskState instance', t => {
-  var name = 'MyState3';
+  const name = 'MyState3';
   const state = new TaskState(name, false, false, undefined, false, undefined);
   t.ok(state, 'TaskState must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
