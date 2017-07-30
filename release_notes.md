@@ -1,5 +1,12 @@
 ## Changes
 
+### 6.0.8
+- Updated `core-functions` dependency to 3.0.10
+- Changes to `core` module:
+  - Deleted `TimeoutError` & replaced it with new `TimeoutError` in `core-functions/errors` module
+  - Changed `FrozenError` & `FinalisedError` to better match standard `Error` contract
+- Removed some console logging
+
 ### 6.0.7
 - Updated `core-functions` dependency to 3.0.9
 

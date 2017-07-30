@@ -290,7 +290,7 @@ class TaskFactory {
       // Reconstruct a clean unusable version of the old task & update it with the relevant details from the old task
       const unusableTask = this.createTask(oldTask.definition, opts);
       unusableTask.updateFromPriorVersion(oldTask, opts);
-      console.warn(`Created an ${unusableTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldTask.unusable ? 'unusable' : 'usable'} task (${oldTask.name}), since it is not a predefined active task`);
+      // console.warn(`Created an ${unusableTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldTask.unusable ? 'unusable' : 'usable'} task (${oldTask.name}), since it is not a predefined active task`);
 
       // Reset the updated task to clear out any previous incomplete (i.e. failed and timed out) states inherited from the old task
       unusableTask.reset();

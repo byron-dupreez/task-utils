@@ -8,6 +8,8 @@ const core = require('./core');
 const ReturnMode = core.ReturnMode;
 const states = require('./task-states');
 
+const errors = require('core-functions/errors');
+
 const copying = require('core-functions/copying');
 const copy = copying.copy;
 const merging = require('core-functions/merging');
@@ -47,14 +49,16 @@ module.exports = {
 
   // To simplify usage and reduce the number of explicit imports required
 
-  // 1. Re-export enums & errors for convenience
+  // 1. Re-export TimeoutError for convenience
+  TimeoutError: errors.TimeoutError,
+
+  // 2. Re-export enums & errors for convenience
   StateType: core.StateType,
   ReturnMode: core.ReturnMode,
-  TimeoutError: core.TimeoutError,
   FrozenError: core.FrozenError,
   FinalisedError: core.FinalisedError,
 
-  // 2. Re-export TaskState class and all of its subclasses and TimeoutError class from task-states.js module
+  // 3. Re-export TaskState class and all of its subclasses from task-states.js module
 
   // TaskState constructors
   TaskState: states.TaskState,

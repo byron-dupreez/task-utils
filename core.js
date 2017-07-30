@@ -1,5 +1,8 @@
 'use strict';
 
+const errors = require('core-functions/errors');
+const setTypeName = errors.setTypeName;
+
 /**
  * A core module containing enum objects, such as `StateType` and `ReturnMode`, and error subclasses for specific errors
  * that can be thrown when executing a Task.
@@ -68,28 +71,16 @@ ReturnMode.isValid = isReturnModeValid;
 Object.freeze(ReturnMode);
 
 /**
- * An Error subclass that indicates that a task or operation timed out.
- */
-class TimeoutError extends Error {
-  /**
-   * Constructs a new TimeoutError.
-   * @param {string} message - a message for this error.
-   */
-  constructor(message) {
-    super(message);
-    Object.defineProperty(this, 'message', {writable: false, enumerable: true, configurable: false});
-    Object.defineProperty(this, 'name', {value: this.constructor.name});
-  }
-}
-
-/**
  * Thrown if a task cannot be executed, because it has already been frozen and hence its state cannot be updated.
  */
 class FrozenError extends Error {
   constructor(message) {
     super(message);
-    Object.defineProperty(this, 'message', {writable: false, enumerable: true, configurable: false});
-    Object.defineProperty(this, 'name', {value: this.constructor.name});
+    setTypeName(this.constructor);
+  }
+
+  toJSON() {
+    return errors.toJSON(this);
   }
 }
 
@@ -99,8 +90,11 @@ class FrozenError extends Error {
 class FinalisedError extends Error {
   constructor(message) {
     super(message);
-    Object.defineProperty(this, 'message', {writable: false, enumerable: true, configurable: false});
-    Object.defineProperty(this, 'name', {value: this.constructor.name});
+    setTypeName(this.constructor);
+  }
+
+  toJSON() {
+    return errors.toJSON(this);
   }
 }
 
@@ -110,7 +104,7 @@ module.exports = {
   ReturnMode: ReturnMode,
 
   // Error subclasses
-  TimeoutError: TimeoutError,
+  TimeoutError: errors.TimeoutError, // re-exported for convenience
   FrozenError: FrozenError,
   FinalisedError: FinalisedError
 };

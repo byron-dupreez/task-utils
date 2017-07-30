@@ -9,9 +9,12 @@ const test = require("tape");
 
 const core = require('../core');
 // Error constructors
-const TimeoutError = core.TimeoutError;
 const FrozenError = core.FrozenError;
 const FinalisedError = core.FinalisedError;
+
+const errors = require('core-functions/errors');
+// TimeoutError constructor
+const TimeoutError = errors.TimeoutError;
 
 test(`TimeoutError constructor`, t => {
   const msg = 'Tick, tock, ..., BEEP';

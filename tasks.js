@@ -602,6 +602,7 @@ class Task {
     return this._state.isRejected();
   }
 
+  // noinspection JSUnusedGlobalSymbols
   /**
    * Returns true if this task is in an Abandoned state; false otherwise
    * @returns {boolean} true if in an Abandoned state; false otherwise
@@ -610,6 +611,7 @@ class Task {
     return this._state.isAbandoned();
   }
 
+  // noinspection JSUnusedGlobalSymbols
   /**
    * Returns true if this task is in a Discarded state; false otherwise
    * @returns {boolean} true if in a Discarded state; false otherwise
@@ -1175,7 +1177,7 @@ class Task {
           // state from the old copy
           const newSubTask = new Task(oldSubTask.definition, this, this.factory, opts);
           newSubTask.updateFromPriorVersion(oldSubTask, opts);
-          console.warn(`Added an ${newSubTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldSubTask.unusable ? 'unusable' : 'usable'} sub-task (${oldSubTask.name}), since it is not a predefined active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`);
+          // console.warn(`Added an ${newSubTask.unusable ? 'unusable' : 'usable'} copy of prior ${oldSubTask.unusable ? 'unusable' : 'usable'} sub-task (${oldSubTask.name}), since it is not a predefined active sub-task of task (${this.name}) with subTasks ${stringify(this._subTasks.map(t => t.name))}`);
         }
       }
     }
