@@ -1,5 +1,8 @@
 ## Changes
 
+### 6.0.9
+- Updated `core-functions` dependency to 3.0.11
+
 ### 6.0.8
 - Updated `core-functions` dependency to 3.0.10
 - Changes to `core` module:
