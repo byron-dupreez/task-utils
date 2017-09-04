@@ -1,5 +1,8 @@
 ## Changes
 
+### 6.0.11
+- Added dummy first exports (`exports._ = '_'; //IDE workaround`) to most modules as a temporary workaround for IDE issue
+
 ### 6.0.10
 - Changed almost all modules' exports to modifications of the default `exports` object instead of replacing the default `module.exports` object
 - Updated `core-functions` dependency to 3.0.13

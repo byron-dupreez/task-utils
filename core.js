@@ -9,6 +9,7 @@ const setTypeName = errors.setTypeName;
  * @module task-utils/core
  * @author Byron du Preez
  */
+exports._ = '_'; //IDE workaround
 
 // External Error subclasses re-exported for convenience
 exports.TimeoutError = errors.TimeoutError;

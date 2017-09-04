@@ -5,6 +5,7 @@
  * @module task-utils/task-states
  * @author Byron du Preez
  */
+exports._ = '_'; //IDE workaround
 
 const core = require('./core');
 const StateType = core.StateType;
