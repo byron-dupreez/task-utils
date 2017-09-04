@@ -5,7 +5,7 @@
  * @author Byron du Preez
  */
 
-const test = require("tape");
+const test = require('tape');
 
 const states = require('../task-states');
 // Standard state names

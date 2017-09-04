@@ -6,10 +6,10 @@
  * @author Byron du Preez
  */
 
-const test = require("tape");
+const test = require('tape');
 
 // The test subjects
-const Task = require('../tasks');
+// const Task = require('../tasks');
 const TaskFactory = require('../task-factory');
 
 const core = require('../core');
@@ -28,10 +28,6 @@ const taskFactory = new TaskFactory(taskFactorySettings, {returnMode: ReturnMode
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
 const isNotBlank = Strings.isNotBlank;
-
-const tries = require('core-functions/tries');
-const Success = tries.Success;
-const Failure = tries.Failure;
 
 const Action = {
   COMPLETE: 'COMPLETE',

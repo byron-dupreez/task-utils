@@ -6,10 +6,10 @@
  * @author Byron du Preez
  */
 
-const test = require("tape");
+const test = require('tape');
 
 // The test subjects
-const Task = require('../tasks');
+// const Task = require('../tasks');
 const TaskFactory = require('../task-factory');
 
 const core = require('../core');

@@ -8,6 +8,7 @@
 
 const core = require('./core');
 const StateType = core.StateType;
+exports.StateType = core.StateType; // Enum for the types of states supported - re-exported for convenience
 
 /**
  * The names of the task states that have fixed names.
@@ -30,6 +31,7 @@ const names = {
   LogicFlawed: 'LogicFlawed',
   FATAL: 'FATAL',
 };
+exports.names = names;
 
 /**
  * TaskState - The base class for a state of a task or operation.
@@ -54,7 +56,7 @@ class TaskState {
 
     // Convert the given error (if any) into a string (to facilitate serialization to and from JSON)
     const errorMessage = typeof error === 'string' ? error : error instanceof String ? error.valueOf() :
-        error ? error.toString() : undefined;
+      error ? error.toString() : undefined;
 
     Object.defineProperty(this, 'error', {value: errorMessage, enumerable: true});
     Object.defineProperty(this, 'reason', {value: reason, enumerable: true});
@@ -164,6 +166,10 @@ class TaskState {
   }
 }
 
+// TaskState superclass constructor
+exports.TaskState = TaskState;
+
+
 /**
  * A TaskState subclass for an initial unstarted state of a task or operation whose fate has not been decided yet.
  * @extends TaskState
@@ -174,6 +180,8 @@ class Unstarted extends TaskState {
     super(names.Unstarted, StateType.UNSTARTED, undefined, undefined);
   }
 }
+
+exports.Unstarted = Unstarted; // rather use instances.Unstarted singleton
 
 /**
  * A TaskState subclass for a "transient" started state of a task or operation whose execution has been started, but not
@@ -186,6 +194,8 @@ class Started extends TaskState {
     super(names.Started, StateType.STARTED, undefined, undefined);
   }
 }
+
+exports.Started = Started; // rather use instances.Started singleton
 
 /**
  * A TaskState subclass and superclass for all completed states of a task or operation. CompletedState states are all
@@ -201,6 +211,8 @@ class CompletedState extends TaskState {
     super(name, StateType.COMPLETED, undefined, undefined);
   }
 }
+
+exports.CompletedState = CompletedState;
 
 /**
  * A TaskState subclass and superclass for all timed out states of a task or operation. TimedOutState states are all
@@ -219,6 +231,8 @@ class TimedOutState extends TaskState {
   }
 }
 
+exports.TimedOutState = TimedOutState;
+
 /**
  * A TaskState subclass and superclass for all failed states of a task or operation. FailedState states are all marked
  * as NOT completed, NOT timed out and NOT rejected with the error encountered. They indicate that a task failed, that
@@ -235,6 +249,8 @@ class FailedState extends TaskState {
     super(name, StateType.FAILED, error, undefined);
   }
 }
+
+exports.FailedState = FailedState;
 
 /**
  * A TaskState subclass and superclass for all rejected states of a task or operation. RejectedState states are all
@@ -254,6 +270,8 @@ class RejectedState extends TaskState {
   }
 }
 
+exports.RejectedState = RejectedState;
+
 /**
  * A CompletedState subclass with a state and name of 'Completed'. Completed states are all marked as completed (and NOT
  * timed out and NOT rejected) with no errors and no rejection reasons.
@@ -266,6 +284,8 @@ class Completed extends CompletedState {
   }
 }
 
+exports.Completed = Completed; // rather use instances.Completed singleton
+
 /**
  * A CompletedState subclass with a state and name of 'Succeeded'. Succeeded states are all marked as completed (and NOT
  * timed out and NOT rejected) with no errors and no rejection reasons.
@@ -277,6 +297,8 @@ class Succeeded extends CompletedState {
     super(names.Succeeded);
   }
 }
+
+exports.Succeeded = Succeeded; // rather use instances.Succeeded singleton
 
 /**
  * A TimedOutState subclass with a state and name of 'TimedOut'. TimedOut states are all marked as timedOut (and NOT
@@ -295,6 +317,8 @@ class TimedOut extends TimedOutState {
   }
 }
 
+exports.TimedOut = TimedOut;
+
 /**
  * A FailedState subclass with a state and name of 'Failed'. Failed states are all marked as NOT completed, NOT timed
  * out and NOT rejected with the error that occurred. As with its FailedState super-state, this state indicates that a
@@ -310,6 +334,8 @@ class Failed extends FailedState {
     super(names.Failed, error);
   }
 }
+
+exports.Failed = Failed;
 
 /**
  * A RejectedState subclass with a state of 'Rejected'. Rejected states are all marked as rejected (and NOT completed
@@ -333,6 +359,8 @@ class Rejected extends RejectedState {
   }
 }
 
+exports.Rejected = Rejected;
+
 /**
  * A RejectedState subclass with a state & name of 'Discarded'. Discarded states are all marked as rejected (and NOT
  * completed and NOT timed out) with a reason and an optional error. This state indicates that a task had to be
@@ -353,6 +381,8 @@ class Discarded extends RejectedState {
     super(names.Discarded, reason, error);
   }
 }
+
+exports.Discarded = Discarded;
 
 /**
  * A RejectedState subclass with a state & name of 'Abandoned'. Abandoned states are all marked as rejected (and NOT
@@ -377,6 +407,8 @@ class Abandoned extends RejectedState {
   }
 }
 
+exports.Abandoned = Abandoned;
+
 /**
  * The singleton task state instances.
  * @namespace
@@ -392,6 +424,7 @@ const instances = {
   Succeeded: new Succeeded()
 };
 Object.freeze(instances);
+exports.instances = instances;
 
 // Install the names, instances constants & State enum as static properties on TaskState
 Object.defineProperty(TaskState, 'names', {value: names});
@@ -434,10 +467,11 @@ function fromLegacyStateLikeProperties(name, completed, timedOut, error, rejecte
   // Translate the given rejected, timedOut, error & completed arguments into an appropriate state to use
   //noinspection JSUnusedLocalSymbols
   const state = rejected ? StateType.REJECTED : timedOut ? StateType.TIMED_OUT : error ? StateType.FAILED :
-        completed ? StateType.COMPLETED : StateType.UNSTARTED;
+    completed ? StateType.COMPLETED : StateType.UNSTARTED;
 
   return new TaskState(name, state, error, reason);
 }
+
 // Install it as a static method too
 if (!TaskState.fromLegacyStateLikeProperties) TaskState.fromLegacyStateLikeProperties = fromLegacyStateLikeProperties;
 
@@ -501,6 +535,7 @@ function toTaskStateFromStateLike(stateLike) {
         undefined :
     undefined;
 }
+
 // Install it as a static method too
 if (!TaskState.toTaskStateFromStateLike) TaskState.toTaskStateFromStateLike = toTaskStateFromStateLike;
 
@@ -515,42 +550,6 @@ if (!TaskState.toTaskStateFromStateLike) TaskState.toTaskStateFromStateLike = to
 function compareStates(a, b) {
   return StateType.compareStateTypes(a ? a.kind : undefined, b ? b.kind : undefined);
 }
+
 // Install it as a static method too
 if (!TaskState.compareStates) TaskState.compareStates = compareStates;
-
-module.exports = {
-  // Enum for the types of states supported - re-exported for convenience
-  StateType: StateType,
-
-  // Task state names for task states with fixed names
-  names: names,
-
-  // Singleton task state instances
-  instances: instances,
-
-  // TaskState superclass constructor
-  TaskState: TaskState,
-
-  // TaskState direct subclasses
-  Unstarted: Unstarted, // rather use instances.Unstarted singleton
-  Started: Started, // rather use instances.Started singleton
-  CompletedState: CompletedState,
-  TimedOutState: TimedOutState,
-  FailedState: FailedState,
-  RejectedState: RejectedState,
-
-  // CompletedState subclasses
-  Completed: Completed, // rather use instances.Completed singleton
-  Succeeded: Succeeded, // rather use instances.Succeeded singleton
-
-  // TimedOutState subclasses
-  TimedOut: TimedOut,
-
-  // FailedState subclasses
-  Failed: Failed,
-
-  // RejectedState subclasses
-  Rejected: Rejected,
-  Discarded: Discarded,
-  Abandoned: Abandoned,
-};

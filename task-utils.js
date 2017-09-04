@@ -17,7 +17,7 @@ const merge = merging.merge;
 
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
-// const Booleans = require('core-functions/booleans');
+
 const tries = require('core-functions/tries');
 const Try = tries.Try;
 const Failure = tries.Failure;
@@ -28,73 +28,75 @@ const Failure = tries.Failure;
  * @module task-utils/task-utils
  * @author Byron du Preez
  */
-module.exports = {
-  // Functions to get tasks from and set tasks into tasks by name maps
-  getTask: getTask,
-  getSubTask: getSubTask,
-  getTasks: getTasks,
-  getTasksAndSubTasks: getTasksAndSubTasks,
-  setTask: setTask,
-  // Function to check if any of a tasks by name map's tasks is not fully finalised
-  isAnyTaskNotFullyFinalised: isAnyTaskNotFullyFinalised,
-  // Function to revive tasks by replacing task-likes in a tasks by name map with new tasks updated from the old task-likes
-  reviveTasks: reviveTasks,
-  /** @deprecated Synonym for reviveTasks */
-  replaceTasksWithNewTasksUpdatedFromOld: reviveTasks,
-  // Task factory configuration
-  isTaskFactoryConfigured: isTaskFactoryConfigured,
-  configureTaskFactory: configureTaskFactory,
-  constructTaskFactory: constructTaskFactory,
-  getDefaultTaskFactoryOpts: getDefaultTaskFactoryOpts,
 
-  // To simplify usage and reduce the number of explicit imports required
+// Functions to get tasks from and set tasks into tasks by name maps
+exports.getTask = getTask;
+exports.getSubTask = getSubTask;
+exports.getTasks = getTasks;
+exports.getTasksAndSubTasks = getTasksAndSubTasks;
+exports.setTask = setTask;
 
-  // 1. Re-export TimeoutError for convenience
-  TimeoutError: errors.TimeoutError,
+// Function to check if any of a tasks by name map's tasks is not fully finalised
+exports.isAnyTaskNotFullyFinalised = isAnyTaskNotFullyFinalised;
 
-  // 2. Re-export enums & errors for convenience
-  StateType: core.StateType,
-  ReturnMode: core.ReturnMode,
-  FrozenError: core.FrozenError,
-  FinalisedError: core.FinalisedError,
+// Function to revive tasks by replacing task-likes in a tasks by name map with new tasks updated from the old task-likes
+exports.reviveTasks = reviveTasks;
+/** @deprecated Synonym for reviveTasks */
+exports.replaceTasksWithNewTasksUpdatedFromOld = reviveTasks;
 
-  // 3. Re-export TaskState class and all of its subclasses from task-states.js module
+// Task factory configuration
+exports.isTaskFactoryConfigured = isTaskFactoryConfigured;
+exports.configureTaskFactory = configureTaskFactory;
+exports.constructTaskFactory = constructTaskFactory;
+exports.getDefaultTaskFactoryOpts = getDefaultTaskFactoryOpts;
 
-  // TaskState constructors
-  TaskState: states.TaskState,
+// To simplify usage and reduce the number of explicit imports required
 
-  // TaskState direct subclasses
-  Unstarted: states.Unstarted, // rather use instances.Unstarted singleton
-  Started: states.Started, // rather use instances.Started singleton
-  CompletedState: states.CompletedState,
-  TimedOutState: states.TimedOutState,
-  FailedState: states.FailedState,
-  RejectedState: states.RejectedState,
+// 1. Re-export TimeoutError for convenience
+exports.TimeoutError = errors.TimeoutError;
 
-  // CompletedState subclasses
-  Completed: states.Completed, // rather use instances.Completed singleton
-  Succeeded: states.Succeeded, // rather use instances.Succeeded singleton
+// 2. Re-export enums & errors for convenience
+exports.StateType = core.StateType;
+exports.ReturnMode = core.ReturnMode;
+exports.FrozenError = core.FrozenError;
+exports.FinalisedError = core.FinalisedError;
 
-  // TimedOutState subclasses
-  TimedOut: states.TimedOut,
+// 3. Re-export TaskState class and all of its subclasses from task-states.js module
 
-  // FailedState subclasses
-  Failed: states.Failed,
+// TaskState constructors
+exports.TaskState = states.TaskState;
 
-  // RejectedState subclasses
-  Rejected: states.Rejected,
-  Discarded: states.Discarded,
-  Abandoned: states.Abandoned,
+// TaskState direct subclasses
+exports.Unstarted = states.Unstarted; // rather use instances.Unstarted singleton
+exports.Started = states.Started; // rather use instances.Started singleton
+exports.CompletedState = states.CompletedState;
+exports.TimedOutState = states.TimedOutState;
+exports.FailedState = states.FailedState;
+exports.RejectedState = states.RejectedState;
 
-  // 3. Re-export TaskDef class from task-defs.js module
-  TaskDef: TaskDef,
+// CompletedState subclasses
+exports.Completed = states.Completed; // rather use instances.Completed singleton
+exports.Succeeded = states.Succeeded; // rather use instances.Succeeded singleton
 
-  // 4. Re-export TaskFactory class from task-factory.js module
-  TaskFactory: TaskFactory,
+// TimedOutState subclasses
+exports.TimedOut = states.TimedOut;
 
-  // 5. Re-export Task class from tasks.js module
-  Task: Task
-};
+// FailedState subclasses
+exports.Failed = states.Failed;
+
+// RejectedState subclasses
+exports.Rejected = states.Rejected;
+exports.Discarded = states.Discarded;
+exports.Abandoned = states.Abandoned;
+
+// 3. Re-export TaskDef class from task-defs.js module
+exports.TaskDef = TaskDef;
+
+// 4. Re-export TaskFactory class from task-factory.js module
+exports.TaskFactory = TaskFactory;
+
+// 5. Re-export Task class from tasks.js module
+exports.Task = Task;
 
 /**
  * Gets the named task from the given tasksByName "map" object (or Map); otherwise returns undefined.

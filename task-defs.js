@@ -11,7 +11,6 @@ const Strings = require('core-functions/strings');
 const isString = Strings.isString;
 const isBlank = Strings.isBlank;
 const isNotBlank = Strings.isNotBlank;
-const stringify = Strings.stringify;
 
 const Arrays = require('core-functions/arrays');
 const isDistinct = Arrays.isDistinct;
@@ -68,7 +67,7 @@ class TaskDef {
     // -----------------------------------------------------------------------------------------------------------------
     // Ensure name is a string and not blank
     if (!isString(name) || isBlank(name)) {
-      throw new Error(`Cannot create a task definition with a ${!isString(name) ? "non-string" : "blank"} name (${stringify(name)})`);
+      throw new Error(`Cannot create a task definition with a ${!isString(name) ? "non-string" : "blank"} name (${JSON.stringify(name)})`);
     }
     const taskName = name.trim();
     const skipAddToParent = settings && settings.skipAddToParent;
@@ -87,7 +86,7 @@ class TaskDef {
       }
       // Ensure the parent's sub-task names will still be distinct if we include this new sub-task's name
       if (!skipAddToParent && !TaskDef.areSubTaskNamesDistinct(parent, taskName)) {
-        throw new Error(`Cannot add a sub-task definition (${taskName}) with a duplicate name to parent (${parent.name}) with existing sub-task definitions ${Strings.stringify(parent.subTaskDefs.map(d => d.name))}`);
+        throw new Error(`Cannot add a sub-task definition (${taskName}) with a duplicate name to parent (${parent.name}) with existing sub-task definitions ${JSON.stringify(parent.subTaskDefs.map(d => d.name))}`);
       }
 
     } else {
@@ -222,7 +221,7 @@ class TaskDef {
    */
   defineSubTask(subTaskName, execute, settings) {
     if (!isString(subTaskName) || isBlank(subTaskName)) {
-      throw new Error(`Cannot create a sub-task definition with a ${!isString(subTaskName) ? "non-string" : "blank"} name (${stringify(subTaskName)})`);
+      throw new Error(`Cannot create a sub-task definition with a ${!isString(subTaskName) ? "non-string" : "blank"} name (${JSON.stringify(subTaskName)})`);
     }
     const newName = subTaskName.trim();
     // Ensure that execute (if defined) is actually executable (i.e. a valid function)
@@ -232,7 +231,7 @@ class TaskDef {
     const skipAddToParent = settings && settings.skipAddToParent;
     // Ensure this task definition's sub-task names will still be distinct if we include the new sub-task's name
     if (!skipAddToParent && !TaskDef.areSubTaskNamesDistinct(this, newName)) {
-      throw new Error(`Cannot add sub-task definition (${newName}) with a duplicate name to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
+      throw new Error(`Cannot add sub-task definition (${newName}) with a duplicate name to task definition (${this.name}) with existing sub-task definitions ${JSON.stringify(this.subTaskDefs.map(d => d.name))}`);
     }
     // Create and add the new sub-task definition to this task definition's list of sub-task definitions
     return new TaskDef(newName, execute, this, settings);
@@ -247,16 +246,16 @@ class TaskDef {
    */
   defineSubTasks(subTaskNames, settings) {
     if (!isArrayOfType(subTaskNames, "string")) {
-      throw new Error(`Cannot create sub-task definitions with non-string names ${stringify(subTaskNames)}`);
+      throw new Error(`Cannot create sub-task definitions with non-string names ${JSON.stringify(subTaskNames)}`);
     }
     if (subTaskNames.length > 0) {
       if (!subTaskNames.every(name => isNotBlank(name))) {
-        throw new Error(`Cannot create sub-task definitions with blank names ${stringify(subTaskNames)}`);
+        throw new Error(`Cannot create sub-task definitions with blank names ${JSON.stringify(subTaskNames)}`);
       }
       const newNames = subTaskNames.map(n => n.trim());
       // Ensure this task definition's sub-task names will still be distinct if we include the new sub-task names
       if (!TaskDef.areSubTaskNamesDistinct(this, newNames)) {
-        throw new Error(`Cannot add sub-task definitions ${stringify(newNames)} with duplicate names to task definition (${this.name}) with existing sub-task definitions ${Strings.stringify(this.subTaskDefs.map(d => d.name))}`);
+        throw new Error(`Cannot add sub-task definitions ${JSON.stringify(newNames)} with duplicate names to task definition (${this.name}) with existing sub-task definitions ${JSON.stringify(this.subTaskDefs.map(d => d.name))}`);
       }
       // Create and add the new sub-task definitions to this task definition's list of sub-task definitions
       return newNames.map(name => new TaskDef(name, undefined, this, settings));

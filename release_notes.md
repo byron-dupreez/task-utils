@@ -1,5 +1,9 @@
 ## Changes
 
+### 6.0.10
+- Changed almost all modules' exports to modifications of the default `exports` object instead of replacing the default `module.exports` object
+- Updated `core-functions` dependency to 3.0.13
+
 ### 6.0.9
 - Updated `core-functions` dependency to 3.0.11
 

@@ -22,7 +22,7 @@ const isDistinct = Arrays.isDistinct;
 const core = require('./core');
 const ReturnMode = core.ReturnMode;
 
-const strict = {strict: true};
+// const strict = {strict: true};
 
 //======================================================================================================================
 // Task "class"

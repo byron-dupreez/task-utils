@@ -6,10 +6,10 @@
  * @author Byron du Preez
  */
 
-const test = require("tape");
+const test = require('tape');
 
 // The test subjects
-const Task = require('../tasks');
+// const Task = require('../tasks');
 const TaskFactory = require('../task-factory');
 
 const core = require('../core');
@@ -461,7 +461,7 @@ test('Task execute returning a list of sync results', t => {
   t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
   t.deepEqual(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
 
-  const result = executeResult;
+  // const result = executeResult;
   const expected = ['A', 'B', 'C'];
   t.deepEqual(executeResult, expected, `${task.name} execute() result must be ${expected}`);
   t.ok(task.donePromise, `${task.name} has a done promise`);

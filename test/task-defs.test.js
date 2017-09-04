@@ -5,7 +5,7 @@
  * @author Byron du Preez
  */
 
-const test = require("tape");
+const test = require('tape');
 
 // The test subject
 const TaskDef = require('../task-defs');
@@ -15,7 +15,7 @@ const areSubTaskNamesDistinct = TaskDef.areSubTaskNamesDistinct;
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
 
-const states = require('../task-states');
+// const states = require('../task-states');
 
 function genDescribeItem(maxArgLength) {
   // An arbitrary describeItem function

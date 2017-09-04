@@ -5,7 +5,7 @@
  * @author Byron du Preez
  */
 
-const test = require("tape");
+const test = require('tape');
 
 // Test subject
 const taskUtils = require('../task-utils');
@@ -15,7 +15,7 @@ const getTasks = taskUtils.getTasks;
 const getTasksAndSubTasks = taskUtils.getTasksAndSubTasks;
 const setTask = taskUtils.setTask;
 const isAnyTaskNotFullyFinalised = taskUtils.isAnyTaskNotFullyFinalised;
-const reviveTasks = taskUtils.reviveTasks;
+// const reviveTasks = taskUtils.reviveTasks;
 const isTaskFactoryConfigured = taskUtils.isTaskFactoryConfigured;
 const configureTaskFactory = taskUtils.configureTaskFactory;
 const constructTaskFactory = taskUtils.constructTaskFactory;

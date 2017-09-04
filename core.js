@@ -10,6 +10,9 @@ const setTypeName = errors.setTypeName;
  * @author Byron du Preez
  */
 
+// External Error subclasses re-exported for convenience
+exports.TimeoutError = errors.TimeoutError;
+
 /**
  * An enum for all of the valid types/kinds of states.
  * @enum {string}
@@ -43,6 +46,7 @@ function compareStateTypes(a, b) {
 
 StateType.compareStateTypes = compareStateTypes;
 Object.freeze(StateType);
+exports.StateType = StateType;
 
 /**
  * ReturnMode - specifies how the value returned or error thrown by a task's `execute` function should be handled
@@ -69,6 +73,7 @@ function isReturnModeValid(returnMode) {
 
 ReturnMode.isValid = isReturnModeValid;
 Object.freeze(ReturnMode);
+exports.ReturnMode = ReturnMode;
 
 /**
  * Thrown if a task cannot be executed, because it has already been frozen and hence its state cannot be updated.
@@ -84,6 +89,8 @@ class FrozenError extends Error {
   }
 }
 
+exports.FrozenError = FrozenError;
+
 /**
  * Thrown if a task cannot be executed, because it is already fully finalised.
  */
@@ -98,14 +105,4 @@ class FinalisedError extends Error {
   }
 }
 
-module.exports = {
-  // Enums
-  StateType: StateType,
-  ReturnMode: ReturnMode,
-
-  // Error subclasses
-  TimeoutError: errors.TimeoutError, // re-exported for convenience
-  FrozenError: FrozenError,
-  FinalisedError: FinalisedError
-};
-
+exports.FinalisedError = FinalisedError;
