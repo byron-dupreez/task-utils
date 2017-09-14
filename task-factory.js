@@ -362,9 +362,10 @@ class TaskFactory {
        * @returns {string} a short, current description of the item or an empty string
        */
       function describeItem() {
-        const describe = task.definition && task.definition.describeItem ? task.definition.describeItem : self.describeItem;
+        const taskDef = task.definition;
+        const describe = taskDef && taskDef.describeItem ? taskDef.describeItem : self.describeItem;
         const itemDesc = describe ? Try.try(() => describe.apply(self, executeArguments)).recover(err => {
-          self.logger.error(`Failed to derive an item description using ${describe.name} from ${executeArguments.length} arguments during execution of task (${task.name})`, err.stack);
+          self.logger.error(`Failed to derive an item description using ${describe.name} from ${executeArguments.length} arguments during execution of task (${task.name})`, err);
           return '';
         }).get() : '';
         return itemDesc ? itemDesc + ' ' : '';
@@ -480,7 +481,7 @@ class TaskFactory {
 
         self.failTaskIfNecessary(task, err, describeItem);
 
-        self.logger.error(`${describeItem()}${task.name} is done - state (${task.state}) - failure took ${ms} ms`, err.stack);
+        self.logger.error(`${describeItem()}${task.name} is done - state (${task.state}) - failure took ${ms} ms`, err);
 
         throw err;
       }

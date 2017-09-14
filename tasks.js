@@ -1433,7 +1433,7 @@ function calculateEnded(began, took) {
   try {
     return began && typeof took === 'number' ? new Date(Date.parse(began) + took).toISOString() : undefined;
   } catch (err) {
-    console.error(`Failed to calculate ended time from began (${began}) & took (${took}) ms`, err.stack);
+    console.error(`Failed to calculate ended time from began (${began}) & took (${took}) ms`, err);
     return undefined;
   }
 }
@@ -1450,7 +1450,7 @@ function calculateTook(began, ended) {
   try {
     return began && ended ? Date.parse(ended) - Date.parse(began) : undefined;
   } catch (err) {
-    console.error(`Failed to calculate time taken from began (${began}) & ended (${ended})`, err.stack);
+    console.error(`Failed to calculate time taken from began (${began}) & ended (${ended})`, err);
     return undefined;
   }
 }

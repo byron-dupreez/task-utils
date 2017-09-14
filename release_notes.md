@@ -1,5 +1,9 @@
 ## Changes
 
+### 6.0.12
+- Replaced all logging of `error.stack` with logging of just the error
+- Updated `core-functions` dependency to version 3.0.15
+
 ### 6.0.11
 - Added dummy first exports (`exports._ = '_'; //IDE workaround`) to most modules as a temporary workaround for IDE issue
 

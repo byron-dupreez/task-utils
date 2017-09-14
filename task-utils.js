@@ -329,7 +329,7 @@ function constructTaskFactory(createTaskFactory, settings, options) {
       },
       err => {
         const errMsg = `Failed to construct a task factory, since ${stringify(createTaskFactory)} failed`;
-        logger.error(errMsg, err.stack);
+        logger.error(errMsg, err);
         return new Failure(err); // throw err;
       }
     );

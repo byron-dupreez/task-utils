@@ -83,9 +83,9 @@ function checkDefineSubTask(parent, name, execute, t, mustPass, mustBeExecutable
 
   } catch (err) {
     if (mustPass) {
-      t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+      t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`)
     } else {
-      t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+      t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
     }
     return undefined;
   }
@@ -127,9 +127,9 @@ function checkDefineSubTasks(t, names, parent, mustPass, mustBeExecutable) {
 
   } catch (err) {
     if (mustPass) {
-      t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+      t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`)
     } else {
-      t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+      t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
     }
     return undefined;
   }
@@ -156,9 +156,9 @@ function checkGetRoot(t, taskDef, expected, mustPass) {
 
   } catch (err) {
     if (mustPass) {
-      t.fail(`${prefix} must pass - (${err}) - ${err.stack}`)
+      t.fail(`${prefix} must pass - (${err}) - ${err}`)
     } else {
-      t.pass(`${prefix} must fail - (${err})`); // ${err.stack}`)
+      t.pass(`${prefix} must fail - (${err})`); // ${err}`)
     }
     return undefined;
   }
@@ -195,9 +195,9 @@ test('new TaskDef', t => {
 
     } catch (err) {
       if (mustPass) {
-        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`)
       } else {
-        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
       }
       return undefined;
     }
@@ -292,9 +292,9 @@ test('defineTask', t => {
 
     } catch (err) {
       if (mustPass) {
-        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`)
       } else {
-        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
       }
       return undefined;
     }
@@ -584,7 +584,7 @@ test('ensureAllTaskDefsDistinct', t => {
       }
     } catch (err) {
       if (mustPass) {
-        t.fail(`${prefix} must pass - ${err.stack}`);
+        t.fail(`${prefix} must pass - ${err}`);
       } else {
         t.pass(`${prefix} must fail - ${err}`);
       }

@@ -186,9 +186,9 @@ test('createTask', t => {
 
     } catch (err) {
       if (mustPass) {
-        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`)
       } else {
-        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
       }
       return undefined;
     }
@@ -268,9 +268,9 @@ test('new Task', t => {
 
     } catch (err) {
       if (mustPass) {
-        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`)
       } else {
-        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
       }
       return undefined;
     }
@@ -352,9 +352,9 @@ test('reconstructTasksFromRootTaskLike', t => {
 
     } catch (err) {
       if (mustPass) {
-        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`);
+        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`);
       } else {
-        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
       }
       return undefined;
     }
@@ -1689,9 +1689,9 @@ test('createMasterTask', t => {
 
     } catch (err) {
       if (mustPass) {
-        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err.stack}`)
+        t.fail(`${prefix} must pass - (${stringify(err)}) - ${err}`)
       } else {
-        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err.stack}`)
+        t.pass(`${prefix} must fail - (${stringify(err)})`); // ${err}`)
       }
       return undefined;
     }
