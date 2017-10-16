@@ -1,5 +1,22 @@
 ## Changes
 
+### 6.0.13
+- Changes to `tasks` module:
+  - Added optional boolean `recursively` and `skipSlaves` arguments to the `beganAt` & `endedAt` methods & changed them 
+    to also update the task's sub-tasks if `recursively` is true & its slave tasks if `skipSlaves` is false
+  - Changed `start` method to invoke `beganAt` with `recursively` false and `skipSlaves` true to avoid multiple updates
+  - Minor optimizations to `calculateEnded` & `calculateTook` functions    
+- Changes to `task-factory` module:
+  - Added an optional `donePromiseFlattenOpts` property to the `options` argument passed to `TaskFactory` constructor
+  - Added a `donePromiseFlattenOpts` property to `TaskFactory` instances
+  - Changed `executeAndUpdateTask` inner function to resolve `outcome.toPromise()` once & pass it to `updateTask` method
+  - Changed `updateTask` method to:
+    - Accept & `flatten` the passed `promise` to a `donePromise` using the factory's `logger` & `donePromiseFlattenOpts` properties
+    - Invoke `endedAt` with explicit `recursively` false and `skipSlaves` false
+    - Log state & time taken at a trace-level to facilitate suppression of this logging
+    - Replaced more instances of logging of `error.stack` with logging of just the error
+- Updated `core-functions` dependency to version 3.0.17
+
 ### 6.0.12
 - Replaced all logging of `error.stack` with logging of just the error
 - Updated `core-functions` dependency to version 3.0.15

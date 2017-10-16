@@ -24,10 +24,17 @@ const TaskState = states.TaskState;
 
 const taskFactorySettings = {logger: console, describeItem: genDescribeItem(10)};
 const taskFactory = new TaskFactory(taskFactorySettings, {returnMode: ReturnMode.NORMAL});
+const taskFactory2 = new TaskFactory(taskFactorySettings, {
+  returnMode: ReturnMode.NORMAL,
+  donePromiseFlattenOpts: {skipSimplifyOutcomes: true}
+});
 
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
 const isNotBlank = Strings.isNotBlank;
+
+const tries = require('core-functions/tries');
+const Success = tries.Success;
 
 const Action = {
   COMPLETE: 'COMPLETE',
@@ -289,13 +296,6 @@ test('Task execute returning a list of 3 promises', t => {
       task.donePromise.then(
         doneResult => {
           t.deepEqual(doneResult, expected, `${task.name} doneResult must be ${stringify(expected)}`);
-          // t.equal(doneResult.length, 3, `doneResult.length must be 3`);
-          // t.ok(doneResult[0].isSuccess(), `${task.name} doneResult[0].isSuccess() must be true`);
-          // t.ok(doneResult[1].isSuccess(), `${task.name} doneResult[1].isSuccess() must be true`);
-          // t.ok(doneResult[2].isSuccess(), `${task.name} doneResult[2].isSuccess() must be true`);
-          // t.equal(doneResult[0].value, expected[0], `${task.name} doneResult[0].value must be ${expected[0]}`);
-          // t.equal(doneResult[1].value, expected[1], `${task.name} doneResult[1].value must be ${expected[1]}`);
-          // t.equal(doneResult[2].value, expected[2], `${task.name} doneResult[2].value must be ${expected[2]}`);
           t.ok(task.completed, `${task.name} must be completed`);
           t.equal(task.state, TaskState.instances.Completed, `${task.name} state must be Completed`);
           t.equal(task.result, doneResult, `${task.name} result must be ${stringify(doneResult)}`);
@@ -808,4 +808,52 @@ test('Task execute returning 1 promise, but task was already finalised before st
   t.notOk(task.donePromise, `${task.name} donePromise must be undefined`);
 
   t.end();
+});
+
+test('Task execute returning a list of 3 promises - with donePromiseFlattenOpts using skipSimplifyOutcomes', t => {
+  const ms = 10;
+  const a = genFn('A', ms);
+  const b = genFn('B', ms);
+  const c = genFn('C', ms);
+
+  const executeFn = () => {
+    return [a(null, 'A'), b(null, 'B'), c(null, 'C')];
+  };
+  const task = createSimpleTask('ABC', executeFn, undefined, taskFactory2);
+
+  t.ok(task.unstarted, `${task.name} must be unstarted`);
+  t.equal(task.attempts, 0, `${task.name} attempts must be 0`);
+
+  const executeResult = task.execute();
+
+  t.ok(Array.isArray(executeResult), `executeResult must be an Array`);
+  t.equal(executeResult.length, 3, `executeResult.length must be 3`);
+
+  t.ok(task.started, `${task.name} must be started`);
+  t.equal(task.attempts, 1, `${task.name} attempts must be 1`);
+
+  t.ok(task.outcome.isSuccess(), `${task.name} outcome must be Success`);
+  t.equal(task.outcome.value, executeResult, `${task.name} outcome.value must be ${stringify(executeResult)}`);
+  t.ok(Array.isArray(task.outcome.value), `${task.name} outcome.value must be Array`);
+
+  Promise.all(executeResult).then(
+    result => {
+      const expected = ['A', 'B', 'C'];
+      t.deepEqual(result, expected, `${task.name} execute() result must be ${stringify(expected)}`);
+      t.ok(task.donePromise, `${task.name} has a done promise`);
+      task.donePromise.then(
+        doneResult => {
+          // Expecting no simplification of ALL Success values, since factory was configured with donePromiseFlattenOpts using skipSimplifyOutcomes
+          const expected = [new Success('A'), new Success('B'), new Success('C')];
+          t.deepEqual(doneResult, expected, `${task.name} doneResult must be ${stringify(expected)}`);
+          t.ok(task.completed, `${task.name} must be completed`);
+          t.equal(task.state, TaskState.instances.Completed, `${task.name} state must be Completed`);
+          t.equal(task.result, doneResult, `${task.name} result must be ${stringify(doneResult)}`);
+          t.end();
+        },
+        err => t.end(err)
+      );
+    },
+    err => t.end(err)
+  );
 });

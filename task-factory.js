@@ -57,6 +57,10 @@ class TaskFactory {
     }
     Object.defineProperty(this, 'returnMode', {value: returnMode, enumerable: true});
 
+    // Default to simplifying outcomes while flattening each `execute` result to a `donePromise` if donePromiseFlattenOpts is undefined
+    const flattenOpts = (options && options.donePromiseFlattenOpts) || Promises.defaultFlattenOpts.simplifyOutcomes;
+    Object.defineProperty(this, 'donePromiseFlattenOpts', {value: flattenOpts, enumerable: true});
+
     // Set the optional default describeItem function (if any provided)
     const describeItem = settings && typeof settings.describeItem === 'function' ? settings.describeItem : undefined;
     if (describeItem) Object.defineProperty(this, 'describeItem', {value: describeItem, enumerable: false});
@@ -383,24 +387,16 @@ class TaskFactory {
           const outcome = Try.try(() => execute.apply(task, arguments));
 
           if (outcome.isFailure()) {
-            self.logger.error(`${describeItem()}${task.name} execution failed`, outcome.error.stack);
+            self.logger.error(`${describeItem()}${task.name} execution failed (1)`, outcome.error);
           }
 
+          // Convert Success or Failure into a Promise
+          const promise = outcome.toPromise();
+
           // Asynchronously update the task if necessary when every one of the outcome's promise(s) resolve
-          self.updateTask(task, outcome, startTime.getTime(), describeItem);
+          self.updateTask(task, outcome, promise, startTime.getTime(), describeItem);
 
           if (returnPromise) {
-            // Convert Success or Failure into a Promise
-            const promise = outcome.toPromise();
-
-            promise.catch(
-              error => {
-                if (error !== outcome.error) {
-                  self.logger.error(`${describeItem()}${task.name} execution failed`, error.stack);
-                }
-              }
-            );
-
             return promise;
           }
 
@@ -438,21 +434,21 @@ class TaskFactory {
    * Precondition: !task.isFrozen()
    * @param {Task} task - the task to be updated
    * @param {Success|Failure} outcome - the success or failure outcome of the given task's execution
+   * @param {Promise} promise - the outcome converted to a promise
    * @param {number} startTimeInMs - the time in milliseconds (since epoch) at which the task was started
    * @param {function(): string} [describeItem] - a function to use to derive a short, current description of the item that was passed to the task's execute function for logging purposes
    */
-  updateTask(task, outcome, startTimeInMs, describeItem) {
+  updateTask(task, outcome, promise, startTimeInMs, describeItem) {
     const self = this;
     // Create a "done" promise that will only resolve after the synchronous or asynchronous outcome is fully resolved and ...
-    const executionDonePromise = Promises.flatten(outcome.toPromise());
+    const executionDonePromise = Promises.flatten(promise, undefined, self.donePromiseFlattenOpts, self.logger);
 
     // ... after the task's state is updated (if necessary)
     const donePromise = executionDonePromise.then(
       result => {
         // Set the ended at time
         const endTime = new Date();
-        const ms = endTime.getTime() - startTimeInMs;
-        task.endedAt(endTime);
+        task.endedAt(endTime, false, false);
 
         // Find the first Failure (if any) out of the promise's result(s)
         const firstFailure = Try.findFailure(result);
@@ -467,22 +463,28 @@ class TaskFactory {
           self.failTaskIfNecessary(task, firstFailure.error, describeItem);
         }
 
-        // Convert zero, single or multiple valued result into an appropriate array of results for logging purposes
-        const results = Array.isArray(result) ? result : result ? [result] : [];
-        self.logger.log('DEBUG', `${describeItem()}${task.name} is done - state (${task.state}) - ${results.length > 0 ? Try.describeSuccessAndFailureCounts(results) : 'success'} took ${ms} ms`);
+        if (self.logger.traceEnabled) {
+          // Convert zero, single or multiple valued result into an appropriate array of results for logging purposes
+          const results = Array.isArray(result) ? result : result ? [result] : [];
+          self.logger.log('TRACE', `${describeItem()}${task.name} is done - state (${task.state}) - ${results.length > 0 ? Try.describeSuccessAndFailureCounts(results) : 'success'} took ${endTime.getTime() - startTimeInMs} ms`);
+        }
 
         return result;
       },
       err => {
         // Set the ended at time
         const endTime = new Date();
-        const ms = endTime.getTime() - startTimeInMs;
-        task.endedAt(endTime);
+        task.endedAt(endTime, false, false);
+
+        if (err !== outcome.error) {
+          self.logger.error(`${describeItem()}${task.name} execution failed (2)`, err);
+        }
 
         self.failTaskIfNecessary(task, err, describeItem);
 
-        self.logger.error(`${describeItem()}${task.name} is done - state (${task.state}) - failure took ${ms} ms`, err);
-
+        if (self.logger.traceEnabled) {
+          self.logger.log('TRACE', `${describeItem()}${task.name} is done - state (${task.state}) - failure took ${endTime.getTime() - startTimeInMs} ms - ${err}`);
+        }
         throw err;
       }
     );
@@ -536,14 +538,14 @@ class TaskFactory {
         task.fail(error);
 
         if (wasCompleted) {
-          this.logger.log('WARN', `Failed ${describeItem()}completed ${task.name} in state (${stringify(beforeState.name)}) due to subsequent error (new state (${task.state}))`, error.stack);
+          this.logger.log('WARN', `Failed ${describeItem()}completed ${task.name} in state (${stringify(beforeState.name)}) due to subsequent error (new state (${task.state}))`, error);
         }
       } else {
-        this.logger.log('WARN', `${describeItem()}${task.name} is frozen in state (${task.state}) & cannot be updated to Failed with error:`, error.stack);
+        this.logger.log('WARN', `${describeItem()}${task.name} is frozen in state (${task.state}) & cannot be updated to Failed with error:`, error);
       }
     } else {
       if (task.rejected || task.timedOut || error !== task.error) {
-        this.logger.log('WARN', `Ignored attempt to fail ${describeItem()}${task.rejected ? 'rejected' : task.timedOut ? 'timed out' : 'previously failed'} ${task.name} in state (${task.state}) with error (${task.error}) - ignored new error`, error.stack);
+        this.logger.log('WARN', `Ignored attempt to fail ${describeItem()}${task.rejected ? 'rejected' : task.timedOut ? 'timed out' : 'previously failed'} ${task.name} in state (${task.state}) with error (${task.error}) - ignored new error`, error);
       }
     }
   }

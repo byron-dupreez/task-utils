@@ -73,6 +73,7 @@
  * @property {ReturnMode|undefined} [returnMode] - whether to generate task `execute` methods that only return a Promise
  * (if returnMode is PROMISE); or a `Success` or `Failure` outcome (if returnMode is SUCCESS_OR_FAILURE); or return or
  * throw normally (if returnMode is NORMAL or anything else)
+ * @property {FlattenOpts} [donePromiseFlattenOpts] - optional `flatten` options to be used by generated task `execute` methods to flatten a result into a `donePromise`
  */
 
 /**

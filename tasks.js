@@ -64,7 +64,7 @@ class Task {
     // Validate the given parent
     // -----------------------------------------------------------------------------------------------------------------
     if (parent) {
-      // Creating a non-executable, internal sub-task, so:
+      // Creating a sub-task, so:
       // Ensure that the parent task is a valid task
       if (!(parent instanceof Task)) {
         throw new Error(`Cannot create a sub-task with an invalid super-task (${stringify(parent)})`);
@@ -96,7 +96,7 @@ class Task {
     }
 
     // Resolve the opts to use - preferring the given opts (if any) over the parent's _opts (if any)
-    opts = opts ? opts : parent ? parent._opts : undefined;
+    opts = opts || (parent && parent._opts);
 
     // Finalise the new task's parent and execute function
     const taskParent = parent ? parent : undefined;
@@ -242,38 +242,64 @@ class Task {
 
   /**
    * Notifies this task that its last execution began at the given date-time (or now if undefined).
-   * @param {Date|string|undefined} [startTime] - the optional date-time at which this task's last execution began
-   * (defaults to now if undefined)
+   * @param {Date|string|undefined} [startTime] - the optional date-time at which this task's last execution began (defaults to now if undefined)
+   * @param {boolean|undefined} [recursively] - whether to also apply the began at time to this task's sub-tasks recursively or not (default false, i.e. don't recurse)
+   * @param {boolean|undefined} [skipSlaves] - whether to skip applying the began at time to this task's slave-tasks or not (default false, i.e. don't skip slaves)
    */
-  beganAt(startTime) {
-    if (!this._frozen && this.incomplete) {
+  beganAt(startTime, recursively, skipSlaves) {
+    if (!this._frozen) {
       const began = startTime instanceof Date ? startTime : startTime && typeof startTime === 'string' ?
         new Date(Date.parse(startTime)) : new Date();
 
-      this._began = began.toISOString();
+      if (this.incomplete) {
+        this._began = began.toISOString();
 
-      // Reset ended time if necessary
-      if (this._ended && this._ended < this._began) this._ended = undefined;
+        // Reset ended time if necessary
+        if (this._ended && this._ended < this._began) this._ended = undefined;
 
-      // Calculate or reset took ms if necessary
-      this._took = calculateTook(this._began, this._ended);
+        // Calculate or reset took ms if necessary
+        this._took = calculateTook(this._began, this._ended);
+      }
+
+      // If recursively, then also apply the began at time to each of this task's sub-tasks
+      if (recursively) {
+        this._subTasks.forEach(subTask => subTask.beganAt(began, recursively, skipSlaves));
+      }
+
+      // If not skipping slaves and this is a master task, then ripple the began at time to each of its slave tasks
+      if (!skipSlaves && this.isMasterTask()) {
+        this._slaveTasks.forEach(slaveTask => slaveTask.beganAt(began, recursively, skipSlaves));
+      }
     }
   }
 
   /**
    * Notifies this task that its last execution ended at the given date-time (or now if undefined).
-   * @param {Date|string|undefined} [endTime] - the optional date-time at which this task's last execution ended
-   * (defaults to now if undefined)
+   * @param {Date|string|undefined} [endTime] - the optional date-time at which this task's last execution ended (defaults to now if undefined)
+   * @param {boolean|undefined} [recursively] - whether to also apply the ended at time to this task's sub-tasks recursively or not (default false, i.e. don't recurse)
+   * @param {boolean|undefined} [skipSlaves] - whether to skip applying the ended at time to this task's slave-tasks or not (default false, i.e. don't skip slaves)
    */
-  endedAt(endTime) {
+  endedAt(endTime, recursively, skipSlaves) {
     if (!this._frozen) {
-      const endDateTime = endTime instanceof Date ? endTime :
+      const ended = endTime instanceof Date ? endTime :
         endTime && typeof endTime === 'string' ? new Date(Date.parse(endTime)) : new Date();
 
-      this._ended = endDateTime.toISOString();
+      if (!this._ended) {
+        this._ended = ended.toISOString();
 
-      // Calculate or reset took ms if necessary
-      this._took = calculateTook(this._began, this._ended);
+        // Calculate or reset took ms if necessary
+        this._took = calculateTook(this._began, this._ended);
+      }
+
+      // If recursively, then also apply the ended at time to each of this task's sub-tasks
+      if (recursively) {
+        this._subTasks.forEach(subTask => subTask.endedAt(ended, recursively, skipSlaves));
+      }
+
+      // If not skipping slaves and this is a master task, then ripple the ended at time to each of its slave tasks
+      if (!skipSlaves && this.isMasterTask()) {
+        this._slaveTasks.forEach(slaveTask => slaveTask.endedAt(ended, recursively, skipSlaves));
+      }
     }
   }
 
@@ -659,7 +685,7 @@ class Task {
       this._initialAttempts = this._attempts; // cache the initial number of attempts to enable later reverts if needed
       this._attempts = this._attempts + 1;
       this._totalAttempts = this._totalAttempts + 1;
-      this.beganAt(began);
+      this.beganAt(began, false, true);
     }
 
     // If recursively, then also apply the start to each of this task's sub-tasks
@@ -1281,7 +1307,9 @@ class Task {
    * definition is marked as unusable.
    * @return {boolean} true if unusable; false otherwise
    */
-  get unusable() { return !!this.definition && this.definition.unusable; }
+  get unusable() {
+    return !!this.definition && this.definition.unusable;
+  }
 
   /**
    * Returns true if the given "task" object is either an instance of Task or is a Task-like object; false otherwise. An
@@ -1431,12 +1459,13 @@ class Task {
 function calculateEnded(began, took) {
   if (!began || typeof took !== 'number') return undefined;
   try {
-    return began && typeof took === 'number' ? new Date(Date.parse(began) + took).toISOString() : undefined;
+    return new Date(Date.parse(began) + took).toISOString();
   } catch (err) {
     console.error(`Failed to calculate ended time from began (${began}) & took (${took}) ms`, err);
     return undefined;
   }
 }
+
 // Install as a static method for convenience
 if (!Task.calculateEnded) Task.calculateEnded = calculateEnded;
 
@@ -1447,13 +1476,15 @@ if (!Task.calculateEnded) Task.calculateEnded = calculateEnded;
  * @returns {number|undefined} the time taken in milliseconds; or undefined
  */
 function calculateTook(began, ended) {
+  if (!began || !ended) return undefined;
   try {
-    return began && ended ? Date.parse(ended) - Date.parse(began) : undefined;
+    return Date.parse(ended) - Date.parse(began);
   } catch (err) {
     console.error(`Failed to calculate time taken from began (${began}) & ended (${ended})`, err);
     return undefined;
   }
 }
+
 // Install as a static method for convenience
 if (!Task.calculateTook) Task.calculateTook = calculateTook;
 
