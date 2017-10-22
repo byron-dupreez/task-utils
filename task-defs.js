@@ -22,32 +22,33 @@ const isArrayOfType = Arrays.isArrayOfType;
 
 /**
  * A definition of a task or operation that defines a type of task to be executed and can be used to create tasks.
- * A task definition can be used to create either executable tasks (if parent is undefined and execute is defined); or
- * executable sub-tasks (if parent is defined and execute is defined) or non-executable, internal sub-tasks (if parent
- * is defined and execute is undefined).
+ * A task definition can be used to create either executable, self-managed tasks (if parent is undefined and execute is
+ * defined); or executable, self-managed sub-tasks (if parent is defined and execute is defined) or non-executable,
+ * externally managed sub-tasks (if parent is defined and execute is undefined).
  *
  * Rules:
- * - A top-level TaskDef, in a hierarchy of tasks and sub-tasks, must be an executable task definition.
+ * - A top-level TaskDef, in a hierarchy of tasks and sub-tasks, must be an executable, self-managed task definition.
  *
  * - A task definition (regardless of whether it is executable or non-executable) can have either executable or
- *   non-executable, internal sub-task definitions.
+ *   non-executable, externally managed sub-task definitions.
  *
  * - All tasks in a hierarchy of tasks and sub-tasks must be unique.
  *
  * - All of a task's direct sub-task names must be unique.
  *
- * An executable sub-task is a task that must be explicitly executed from within its parent task's execute function and
- * must partially or entirely manage its own state within its own execute function.
+ * An executable sub-task is a task that must be explicitly executed by calling its `execute` method from within its
+ * parent task's `execute` method and that must partially or entirely manage its own state within its `execute` method.
  *
- * A non-executable, internal sub-task is a task that must be manually executed and must have its state managed entirely
- * within its parent task's execute function and is ONLY used to enable tracking of its state.
+ * A non-executable, externally managed sub-task is a task that must be manually executed from and must have its state
+ * managed entirely by its parent task's `execute` method and that is ONLY used to enable tracking of its state.
+ *
  */
 class TaskDef {
   /**
    * Constructs an executable task definition, if the given parent is undefined and the given execute is a function;
    * or constructs an executable sub-task definition, if parent is defined and execute is a function; or constructs a
-   * non-executable, internal sub-task definition, if parent is defined and execute is undefined; otherwise throws an
-   * error.
+   * non-executable, externally managed sub-task definition, if parent is defined and execute is undefined; otherwise
+   * throws an error.
    *
    * If parent is not specified, then this new task definition is assumed to be a top-level, executable task definition
    * and the given execute function must be defined and a valid function.
@@ -56,8 +57,7 @@ class TaskDef {
    * task definition and the given execute function must be either undefined or a valid function.
    *
    * @param {string} name - the mandatory name of the task
-   * @param {Function|undefined} [execute] - the optional function to be executed when a task created using this
-   * definition is started
+   * @param {Function|undefined} [execute] - the optional function to be executed when a task created using this definition is started
    * @param {TaskDef|undefined} [parent] - an optional parent task definition
    * @param {TaskDefSettings|undefined} [settings] - optional settings to use to configure this task definition
    * @throws {Error} an error if the requested task definition is invalid
@@ -75,7 +75,7 @@ class TaskDef {
     // Validate the given parent and the given execute function
     // -----------------------------------------------------------------------------------------------------------------
     if (parent) {
-      // Creating a non-executable, internal sub-task definition, so:
+      // Creating a sub-task definition, so:
       // Ensure that the parent is a TaskDef itself
       if (!(parent instanceof TaskDef)) {
         throw new Error(`Cannot create a sub-task definition (${taskName}) with a parent that is not a task (or sub-task) definition`);
@@ -91,8 +91,7 @@ class TaskDef {
 
     } else {
       // Creating an executable, top-level task definition, so:
-      // Ensure that a top-level task definition (without a parent) does have an execute function, since a non-executable, top-
-      // level task would be useless
+      // Ensure that a top-level task definition does have an execute function, since a non-executable, top-level task would be useless
       if (!execute) {
         throw new Error(`Cannot create a top-level task definition (${taskName}) without an execute function)`);
       }
@@ -104,13 +103,13 @@ class TaskDef {
 
     // Finalise the new task definition's parent and execute
     const taskParent = parent ? parent : undefined; // or null?
-    const executable = !!execute;
-    const taskExecute = executable ? execute : undefined;
+    const managed = !execute || undefined;
+    const taskExecute = execute || undefined;
 
     // Finally create each property as read-only (writable: false and configurable: false are defaults)
     // -----------------------------------------------------------------------------------------------------------------
     Object.defineProperty(this, 'name', {value: taskName, enumerable: true});
-    Object.defineProperty(this, 'executable', {value: executable, enumerable: true});
+    Object.defineProperty(this, 'managed', {value: managed, enumerable: true});
     Object.defineProperty(this, 'execute', {value: taskExecute, enumerable: false});
     Object.defineProperty(this, 'subTaskDefs', {value: [], enumerable: true});
 
@@ -139,25 +138,8 @@ class TaskDef {
    * Returns true if this defines executable tasks; false otherwise
    * @returns {boolean} true if executable; false otherwise
    */
-  isExecutable() {
-    return this.executable;
-  }
-
-  /**
-   * Returns true if this defines non-executable (i.e. internal) tasks; false otherwise
-   * @returns {boolean} true if non-executable; false otherwise
-   */
-  isNotExecutable() {
-    return !this.executable;
-  }
-
-  /**
-   * Returns true if this defines internal (i.e. non-executable) tasks; false otherwise
-   * @alias {@linkcode isNotExecutable}
-   * @returns {boolean} true if internal; false otherwise
-   */
-  isInternal() {
-    return !this.executable;
+  get executable() {
+    return !this.managed;
   }
 
   /**
@@ -212,7 +194,7 @@ class TaskDef {
   }
 
   /**
-   * Creates and adds an executable sub-task definition (if execute is defined) or a non-executable, internal sub-task
+   * Creates and adds an executable sub-task definition (if execute is defined) or a non-executable, managed sub-task
    * definition (if execute is undefined) with the given name to this task definition.
    * @param {string} subTaskName - the name of the new sub-task definition
    * @param {Function|undefined} [execute] - the optional function to be executed when a sub-task created using this definition is executed
@@ -238,9 +220,9 @@ class TaskDef {
   }
 
   /**
-   * Creates and adds multiple new non-executable, internal sub-task definitions with the given names to this task
+   * Creates and adds multiple new non-executable, managed sub-task definitions with the given names to this task
    * definition.
-   * @param {string[]} subTaskNames - the names of the new non-executable, internal sub-task definitions
+   * @param {string[]} subTaskNames - the names of the new non-executable, managed sub-task definitions
    * @param {TaskDefSettings|undefined} [settings] - optional settings to use to configure these task definitions
    * @returns {TaskDef[]} an array of new sub-task definitions (one for each of the given names)
    */

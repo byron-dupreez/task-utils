@@ -45,9 +45,8 @@ function execute2() {
 
 function checkExecutable(t, taskDef, expectedExecutable) {
   t.equal(taskDef.executable, expectedExecutable, `${taskDef.name}.executable must be ${expectedExecutable}`);
-  t.equal(taskDef.isExecutable(), expectedExecutable, `${taskDef.name}.isExecutable must be ${expectedExecutable}`);
-  t.equal(taskDef.isNotExecutable(), !expectedExecutable, `${taskDef.name}.isNotExecutable must be ${!expectedExecutable}`);
-  t.equal(taskDef.isInternal(), !expectedExecutable, `${taskDef.name}.isInternal must be ${!expectedExecutable}`);
+  const expectedManaged = expectedExecutable ? undefined : true;
+  t.equal(taskDef.managed, expectedManaged, `${taskDef.name}.managed must be ${expectedManaged}`);
 }
 
 function checkDefineSubTask(parent, name, execute, t, mustPass, mustBeExecutable) {
@@ -323,7 +322,7 @@ test('defineTask', t => {
 })
 ;
 
-test('defineSubTask - define non-executable, internal sub-tasks', t => {
+test('defineSubTask - define non-executable, managed sub-tasks', t => {
   const taskDef = TaskDef.defineTask('Task 1', execute1);
   t.equal(taskDef.subTaskDefs.length, 0, `TaskDef (${taskDef.name}) subTaskDefs length must be 0`);
 
@@ -411,7 +410,7 @@ test('defineSubTask - define executable sub-tasks', t => {
   t.end();
 });
 
-test('defineSubTasks - define multiple non-executable, internal sub-tasks', t => {
+test('defineSubTasks - define multiple non-executable, managed sub-tasks', t => {
   const taskDef = TaskDef.defineTask('Task 1', execute1);
   t.equal(taskDef.subTaskDefs.length, 0, `TaskDef (${taskDef.name}) subTaskDefs length `);
 

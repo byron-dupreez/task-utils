@@ -19,6 +19,9 @@ const isNotBlank = Strings.isNotBlank;
 const Arrays = require('core-functions/arrays');
 const isDistinct = Arrays.isDistinct;
 
+const copying = require('core-functions/copying');
+const copy = copying.copy;
+
 const core = require('./core');
 const ReturnMode = core.ReturnMode;
 
@@ -29,21 +32,21 @@ const ReturnMode = core.ReturnMode;
 //======================================================================================================================
 
 /**
- * A task or operation, which can be either an executable task, an executable sub-task or a non-executable, internal
- * sub-task based on the task definition from which it is constructed.
+ * A task or operation, which can be either an executable, self-managed task/sub-task or a non-executable, externally
+ * managed sub-task based on the task definition from which it is constructed.
  *
- * An executable sub-task is a task that must be explicitly executed from within its parent task's execute function and
- * must partially or entirely manage its own state within its own execute function.
+ * An executable sub-task is a task that must be explicitly executed by calling its `execute` method from within its
+ * parent task's `execute` method and that must partially or entirely manage its own state within its `execute` method.
  *
- * A non-executable, internal sub-task is a task that must be manually executed and must have its state managed entirely
- * within its parent task's execute function and is ONLY used to enable tracking of its state.
+ * A non-executable, externally managed sub-task is a task that must be manually executed from and must have its state
+ * managed entirely by its parent task's `execute` method and that is ONLY used to enable tracking of its state.
  */
 class Task {
 
   /**
-   * Constructs a task, which can be either an executable task or a non-executable, internal sub-task based on the
-   * given task definition and optional parent task. If parent is specified then this new task is assumed to be a
-   * sub-task of the given parent task and the given taskDef must be a non-executable, internal sub-task definition
+   * Constructs a task, which can be either an executable, self-managed task/sub-task or a non-executable, externally
+   * managed sub-task based on the given task definition and optional parent task. If parent is specified then this new
+   * task is assumed to be a sub-task of the given parent task and the given taskDef should be a sub-task definition.
    *
    * @param {TaskDef} taskDef - the definition of this task
    * @param {Task|null|undefined} [parent] - an optional parent task
@@ -79,10 +82,10 @@ class Task {
       }
     } else {
       // Creating an executable, top-level task, so:
-      // Ensure that a top-level task (without a parent) does have an execute function, since a non-executable, top-
-      // level task would be useless
-      if (!taskDef.isExecutable()) {
-        throw new Error(`Cannot create a top-level task (${taskName}) from a definition that is NOT executable`);
+      // Ensure that a top-level task (without a parent) does have an execute function, since a non-executable,
+      // externally managed top-level task would be useless
+      if (taskDef.managed) {
+        throw new Error(`Cannot create a top-level task (${taskName}) from a definition that defines managed, non-executable tasks`);
       }
       // Ensure that task definition's execute function (if defined) is actually executable (i.e. a valid function)
       if (typeof taskDef.execute !== 'function') {
@@ -100,8 +103,7 @@ class Task {
 
     // Finalise the new task's parent and execute function
     const taskParent = parent ? parent : undefined;
-    const originalExecute = taskDef.execute;
-    const executable = !!originalExecute;
+    const managed = taskDef.managed;
     const self = this;
 
     // Finally create each property (other than subTasks & subTasksByName) as read-only (writable: false and
@@ -109,7 +111,7 @@ class Task {
     // -----------------------------------------------------------------------------------------------------------------
     Object.defineProperty(this, 'name', {value: taskName, enumerable: true});
     Object.defineProperty(this, 'definition', {value: taskDef, enumerable: false});
-    Object.defineProperty(this, 'executable', {value: executable, enumerable: true});
+    Object.defineProperty(this, 'managed', {value: managed, enumerable: true});
     Object.defineProperty(this, 'factory', {value: factory, enumerable: false});
 
     // Set the returnMode property to opts.returnMode if it is defined; otherwise to undefined
@@ -122,8 +124,8 @@ class Task {
 
     // Create a new task execute function from the task and its execute function using the configured factory function
     // NB: `execute` MUST be set after setting `returnMode`!
-    const newExecute = executable ? factory.generateExecute(self, taskDef.execute) : undefined;
-    Object.defineProperty(this, 'execute', {value: newExecute, enumerable: false});
+    const executeAndUpdate = !managed && taskDef.execute ? factory.generateExecute(self, taskDef.execute) : undefined;
+    Object.defineProperty(this, 'execute', {value: executeAndUpdate, enumerable: false});
 
     // Keep a reference to the opts used, but ONLY to pass on to any new sub-tasks added later via `getOrCreateSubTask` if needed
     Object.defineProperty(this, '_opts', {value: opts, enumerable: false});
@@ -191,6 +193,14 @@ class Task {
   }
 
   /**
+   * Returns true if this task is an executable task; otherwise false if it's a non-executable, externally managed task
+   * @return {boolean} true if executable; false otherwise
+   */
+  get executable() {
+    return !this.managed;
+  }
+
+  /**
    * The sub-tasks of this task (if any)
    * @type Task[]
    */
@@ -198,6 +208,7 @@ class Task {
     return this._subTasks;
   }
 
+  // noinspection JSUnusedGlobalSymbols
   /**
    * The slave tasks of this task, which if present classify this task as a "master" task.
    * @type Task[]
@@ -215,11 +226,11 @@ class Task {
   }
 
   /**
-   * The type/kind of the state of this task.
+   * The type of the state of this task.
    * @type StateType
    */
   get stateType() {
-    return this._state ? this._state.kind : undefined;
+    return this._state ? this._state.type : undefined;
   }
 
   /**
@@ -231,12 +242,21 @@ class Task {
     return this._attempts;
   }
 
+  // noinspection JSUnusedGlobalSymbols
   /**
    * The total number of attempts at this task, which is never decremented by {@linkcode decrementAttempts} and is purely
-   * informational.
+   * informational. Synonym for `total`.
    * @type number
    */
   get totalAttempts() {
+    return this._totalAttempts;
+  }
+
+  /**
+   * Synonym for `totalAttempts`.
+   * @type number
+   */
+  get total() {
     return this._totalAttempts;
   }
 
@@ -368,17 +388,17 @@ class Task {
 
   //noinspection JSUnusedGlobalSymbols
   /**
-   * Customized toJSON method, which is used by {@linkcode JSON.stringify} to output the internal _state, _attempts,
-   * _totalAttempts, _began, _took, _ended and _subTasks properties without their underscores.
+   * Customized toJSON method, which is used by {@linkcode JSON.stringify}.
    */
   toJSON() {
-    const json = {
-      name: this.name,
-      executable: this.executable,
-      state: this._state,
-      attempts: this._attempts,
-      totalAttempts: this._totalAttempts
-    };
+    const json = {name: this.name};
+    if (this.managed) {
+      json.managed = this.managed;
+    }
+    json.state = this._state;
+    json.attempts = this._attempts;
+    json.total = this._totalAttempts;
+
     if (this._began) {
       json.began = this._began;
     }
@@ -481,7 +501,7 @@ class Task {
    * @throws {Error} an error if the given name is invalid or non-unique or the given `execute` function is invalid
    */
   createSubTask(subTaskName, execute, taskDefSettings, opts) {
-    const settings = taskDefSettings || {skipAddToParent: true};
+    const settings = taskDefSettings ? copy(taskDefSettings) : {skipAddToParent: true}; // copy to avoid mutating given
     if (taskDefSettings && !settings.hasOwnProperty('skipAddToParent')) {
       settings.skipAddToParent = true; // default to skipping add to parent IF NOT explicitly set
     }
@@ -505,34 +525,6 @@ class Task {
       this._subTasksByName.delete(subTaskName);
     }
     return detached
-  }
-
-  //noinspection JSUnusedGlobalSymbols
-  /**
-   * Returns true if this is an executable task; false otherwise
-   * @returns {boolean} true if executable; false otherwise
-   */
-  isExecutable() {
-    return this.executable;
-  }
-
-  //noinspection JSUnusedGlobalSymbols
-  /**
-   * Returns true if this is a non-executable (i.e. internal) task; false otherwise
-   * @returns {boolean} true if non-executable; false otherwise
-   */
-  isNotExecutable() {
-    return !this.executable;
-  }
-
-  //noinspection JSUnusedGlobalSymbols
-  /**
-   * Returns true if this is an internal (i.e. non-executable) task; false otherwise
-   * @alias {@linkcode isNotExecutable}
-   * @returns {boolean} true if internal; false otherwise
-   */
-  isInternal() {
-    return !this.executable;
   }
 
   /**
@@ -1090,6 +1082,7 @@ class Task {
     return count;
   }
 
+  // noinspection JSUnusedGlobalSymbols
   /**
    * If recursively is true, first attempts to recursively discard any and all of this task's over-attempted sub-tasks,
    * and then, if this task is incomplete, over-attempted AND every one of its sub-tasks are fully finalised, rejects
@@ -1313,8 +1306,9 @@ class Task {
 
   /**
    * Returns true if the given "task" object is either an instance of Task or is a Task-like object; false otherwise. An
-   * object is deemed to be Task-like if it has a non-blank name property; a boolean executable property; and an array
-   * subTasks property; and additionally, if taskName is specified, its name matches the given taskName.
+   * object is deemed to be Task-like if it has a non-blank name (or type or kind) property; a boolean managed (or
+   * executable) property; and either no sub-tasks or an array of sub-tasks; and additionally, if taskName is specified,
+   * its name or its type (if it has no name) matches the given taskName.
    *
    * @param {*} task - the "task" object to check
    * @param {string|undefined} [taskName] - an optional task name to match against the "task" object's name - if omitted,
@@ -1322,8 +1316,11 @@ class Task {
    * @returns {*|boolean}
    */
   static isTaskLike(task, taskName) {
-    return task instanceof Task || (task && typeof task === 'object' && isNotBlank(task.name) && (task.executable === true
-      || task.executable === false) && (!task.subTasks || Array.isArray(task.subTasks)) && (!taskName || task.name === taskName));
+    return task instanceof Task || (task && typeof task === 'object' &&
+      (isNotBlank(task.name) || isNotBlank(task.type)) &&
+      (task.managed === true || task.executable === true || task.executable === false || !task.managed) &&
+      (!task.subTasks || Array.isArray(task.subTasks)) &&
+      (!taskName || (task.name === taskName || (!task.name && task.type === taskName))));
   }
 
   /**

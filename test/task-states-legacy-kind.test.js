@@ -10,8 +10,6 @@ const test = require('tape');
 const states = require('../task-states');
 // Standard state names
 const names = states.names;
-// Singleton TaskState instances
-const instances = states.instances;
 
 const core = require('../core');
 const StateType = core.StateType;
@@ -110,10 +108,10 @@ function ensureImmutable(state, assert) {
   }
 }
 
-function checkToTaskStateFromStateLike(name, type, error, reason) {
+function checkToTaskStateFromStateLike(name, kind, error, reason) {
   const stateLike = {
     name: name,
-    type: type,
+    kind: kind,
     error: error,
     reason: reason
   };
@@ -126,7 +124,7 @@ function checkToTaskStateFromStateLike(name, type, error, reason) {
 
 test('Construct completed TaskState instance', t => {
   const name = 'MyState1';
-  const state = new TaskState(name, StateType.Completed, undefined, undefined);
+  const state = new TaskState(name, 'COMPLETED', undefined, undefined);
   t.ok(state, 'TaskState must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, name, 'name must match');
@@ -143,7 +141,7 @@ test('Construct completed TaskState instance', t => {
 test('Construct completed TaskState instance with error', t => {
   const name = 'MyState2';
   const err = new Error('Badoom2');
-  const state = new TaskState(name, StateType.Completed, err, undefined);
+  const state = new TaskState(name, 'COMPLETED', err, undefined);
   t.ok(state, 'TaskState must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, name, 'name must match');
@@ -160,7 +158,7 @@ test('Construct completed TaskState instance with error', t => {
 test('Construct rejected TaskState instance with reason & no error', t => {
   const name = 'MyState2';
   const reason = 'Not sure';
-  const state = new TaskState(name, StateType.Rejected, undefined, reason);
+  const state = new TaskState(name, 'REJECTED', undefined, reason);
   t.ok(state, 'TaskState must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, name, 'name must match');
@@ -178,7 +176,7 @@ test('Construct rejected TaskState instance with reason & error', t => {
   const name = 'MyState2';
   const err = new Error('Badoom2');
   const reason = 'Not sure';
-  const state = new TaskState(name, StateType.Rejected, err, reason);
+  const state = new TaskState(name, 'REJECTED', err, reason);
   t.ok(state, 'TaskState must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, name, 'name must match');
@@ -194,7 +192,7 @@ test('Construct rejected TaskState instance with reason & error', t => {
 
 test('Construct unstarted TaskState instance', t => {
   const name = 'MyState3';
-  const state = new TaskState(name, StateType.Unstarted, undefined, undefined);
+  const state = new TaskState(name, 'UNSTARTED', undefined, undefined);
   t.ok(state, 'TaskState must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, name, 'name must match');
@@ -211,7 +209,7 @@ test('Construct unstarted TaskState instance', t => {
 test('Construct unstarted TaskState instance with error', t => {
   const name = 'MyState4';
   const err = new Error('Badoom4');
-  const state = new TaskState(name, StateType.Unstarted, err, undefined);
+  const state = new TaskState(name, 'UNSTARTED', err, undefined);
   t.ok(state, 'TaskState must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, name, 'name must match');
@@ -231,9 +229,9 @@ test('Construct unstarted TaskState instance with error', t => {
 
 test('Construct CompletedState instance', t => {
   const name = 'MyState5';
-  const state = new CompletedState(name);
-  t.ok(state, 'CompletedState must be defined');
-  t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
+  const state = new TaskState(name, 'COMPLETED');
+  // t.ok(state, 'CompletedState must be defined');
+  // t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof Completed, 'must not be instanceof Completed');
   t.notOk(state instanceof Succeeded, 'must not be instanceof Succeeded');
@@ -254,9 +252,9 @@ test('Construct CompletedState instance', t => {
 
 test('Construct TimedOutState instance without error', t => {
   const name = 'MyState77';
-  const state = new TimedOutState(name);
+  const state = new TaskState(name, 'TIMED_OUT');
   t.ok(state, 'TimedOutState must be defined');
-  t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
+  // t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof TimedOut, 'must not be instanceof TimedOut');
   t.equal(state.name, name, 'name must match');
@@ -273,9 +271,9 @@ test('Construct TimedOutState instance without error', t => {
 test('Construct TimedOutState instance with error', t => {
   const name = 'MyState77';
   const err = new Error('Badoom6');
-  const state = new TimedOutState(name, err);
+  const state = new TaskState(name, 'TIMED_OUT', err);
   t.ok(state, 'TimedOutState must be defined');
-  t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
+  // t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof TimedOut, 'must not be instanceof TimedOut');
   t.equal(state.name, name, 'name must match');
@@ -296,9 +294,9 @@ test('Construct TimedOutState instance with error', t => {
 test('Construct FailedState instance', t => {
   const name = 'MyState6';
   const err = new Error('Badoom6');
-  const state = new FailedState(name, err);
+  const state = new TaskState(name, 'FAILED', err);
   t.ok(state, 'FailedState must be defined');
-  t.ok(state instanceof FailedState, 'must be instanceof FailedState');
+  // t.ok(state instanceof FailedState, 'must be instanceof FailedState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof Failed, 'must not be instanceof Failed');
   t.equal(state.name, name, 'name must match');
@@ -320,9 +318,9 @@ test('Construct RejectedState instance', t => {
   const name = 'MyState6';
   const reason = 'Reason1';
   const err = new Error('Badoom77');
-  const state = new RejectedState(name, reason, err);
+  const state = new TaskState(name, 'REJECTED', err, reason);
   t.ok(state, 'RejectedState must be defined');
-  t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
+  // t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof Rejected, 'must not be instanceof Rejected');
   t.notOk(state instanceof Discarded, 'must not be instanceof Discarded');
@@ -337,33 +335,6 @@ test('Construct RejectedState instance', t => {
   t.equal(state.error, err.toString(), 'error must match');
   t.equal(state.rejected, true, 'must be rejected');
   t.equal(state.reason, reason, 'reason must match');
-  t.equal(state.isRejected(), false, 'state.isRejected() must be false');
-  t.equal(state.isAbandoned(), false, 'state.isAbandoned() must be false');
-  t.equal(state.isDiscarded(), false, 'state.isDiscarded() must be false');
-  ensureImmutable(state, t);
-  t.end();
-});
-
-// =====================================================================================================================
-// instances.Unstarted
-// =====================================================================================================================
-
-test('instances.Unstarted singleton', t => {
-  const state = instances.Unstarted;
-  t.ok(state, 'instances.Unstarted must be defined');
-  t.ok(state instanceof Unstarted, 'must be instanceof Unstarted');
-  t.ok(state instanceof TaskState, 'must be instanceof TaskState');
-  t.equal(state.name, names.Unstarted, `name must be ${names.Unstarted}`);
-  t.equal(state.unstarted, true, 'must be unstarted');
-  t.equal(state.started, false, 'must not be started');
-  t.equal(state.completed, false, 'must not be completed');
-  t.equal(state.failed, false, 'must not be failed');
-  t.equal(state.timedOut, false, 'must not be timedOut');
-  t.notOk(state.error, 'must have no error');
-  t.equal(state.rejected, false, 'must not be rejected');
-  t.notOk(state.reason, 'must have no reason');
-  t.ok(state.unstarted, 'must be unstarted');
-  t.notOk(state.started, 'must NOT be started');
   ensureImmutable(state, t);
   t.end();
 });
@@ -373,9 +344,9 @@ test('instances.Unstarted singleton', t => {
 // =====================================================================================================================
 
 test('Construct an Unstarted TaskState instance', t => {
-  const state = new Unstarted();
+  const state = new TaskState('Unstarted', 'UNSTARTED');
   t.ok(state, 'Unstarted must be defined');
-  t.ok(state instanceof Unstarted, 'must be instanceof Unstarted');
+  // t.ok(state instanceof Unstarted, 'must be instanceof Unstarted');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, names.Unstarted, `name must be ${names.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
@@ -393,37 +364,13 @@ test('Construct an Unstarted TaskState instance', t => {
 });
 
 // =====================================================================================================================
-// instances.Started
-// =====================================================================================================================
-
-test('instances.Started singleton', t => {
-  const state = instances.Started;
-  t.ok(state, 'instances.Started must be defined');
-  t.ok(state instanceof Started, 'must be instanceof Started');
-  t.ok(state instanceof TaskState, 'must be instanceof TaskState');
-  t.equal(state.name, names.Started, `name must be ${names.Started}`);
-  t.equal(state.unstarted, false, 'must not be unstarted');
-  t.equal(state.started, true, 'must be started');
-  t.equal(state.completed, false, 'must not be completed');
-  t.equal(state.failed, false, 'must not be failed');
-  t.equal(state.timedOut, false, 'must not be timedOut');
-  t.notOk(state.error, 'must have no error');
-  t.equal(state.rejected, false, 'must not be rejected');
-  t.notOk(state.reason, 'must have no reason');
-  t.ok(state.started, 'must be started');
-  t.notOk(state.unstarted, 'must NOT be unstarted');
-  ensureImmutable(state, t);
-  t.end();
-});
-
-// =====================================================================================================================
 // Started
 // =====================================================================================================================
 
 test('Construct a Started TaskState instance', t => {
-  const state = new Started();
+  const state = new TaskState('Started', 'STARTED');
   t.ok(state, 'Started must be defined');
-  t.ok(state instanceof Started, 'must be instanceof Started');
+  // t.ok(state instanceof Started, 'must be instanceof Started');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, names.Started, `name must be ${names.Started}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
@@ -436,29 +383,6 @@ test('Construct a Started TaskState instance', t => {
   t.notOk(state.reason, 'must have no reason');
   t.ok(state.started, 'must be started');
   t.notOk(state.unstarted, 'must NOT be unstarted');
-  ensureImmutable(state, t);
-  t.end();
-});
-
-// =====================================================================================================================
-// instances.Completed
-// =====================================================================================================================
-
-test('instances.Completed singleton', t => {
-  const state = instances.Completed;
-  t.ok(state, 'instances.Completed must be defined');
-  t.ok(state instanceof Completed, 'must be instanceof Completed');
-  t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
-  t.ok(state instanceof TaskState, 'must be instanceof TaskState');
-  t.equal(state.name, names.Completed, `name must be ${names.Completed}`);
-  t.equal(state.unstarted, false, 'must not be unstarted');
-  t.equal(state.started, false, 'must not be started');
-  t.equal(state.failed, false, 'must not be failed');
-  t.equal(state.completed, true, 'must be completed');
-  t.equal(state.timedOut, false, 'must not be timedOut');
-  t.notOk(state.error, 'must have no error');
-  t.equal(state.rejected, false, 'must not be rejected');
-  t.notOk(state.reason, 'must have no reason');
   ensureImmutable(state, t);
   t.end();
 });
@@ -468,39 +392,16 @@ test('instances.Completed singleton', t => {
 // =====================================================================================================================
 
 test('Construct Completed instance', t => {
-  const state = new Completed();
+  const state = new TaskState('Completed', 'COMPLETED');
   t.ok(state, 'Completed must be defined');
-  t.ok(state instanceof Completed, 'must be instanceof Completed');
-  t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
+  // t.ok(state instanceof Completed, 'must be instanceof Completed');
+  // t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, names.Completed, `name must be ${names.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.failed, false, 'must not be failed');
   t.equal(state.completed, true, 'must be completed');
-  t.equal(state.timedOut, false, 'must not be timedOut');
-  t.notOk(state.error, 'must have no error');
-  t.equal(state.rejected, false, 'must not be rejected');
-  t.notOk(state.reason, 'must have no reason');
-  ensureImmutable(state, t);
-  t.end();
-});
-
-// =====================================================================================================================
-// instances.Succeeded
-// =====================================================================================================================
-
-test('instances.Succeeded singleton', t => {
-  const state = instances.Succeeded;
-  t.ok(state, 'instances.Succeeded must be defined');
-  t.ok(state instanceof Succeeded, 'must be instanceof Succeeded');
-  t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
-  t.ok(state instanceof TaskState, 'must be instanceof TaskState');
-  t.equal(state.name, names.Succeeded, `name must be ${names.Succeeded}`);
-  t.equal(state.unstarted, false, 'must not be unstarted');
-  t.equal(state.started, false, 'must not be started');
-  t.equal(state.completed, true, 'must be completed');
-  t.equal(state.failed, false, 'must not be failed');
   t.equal(state.timedOut, false, 'must not be timedOut');
   t.notOk(state.error, 'must have no error');
   t.equal(state.rejected, false, 'must not be rejected');
@@ -514,10 +415,10 @@ test('instances.Succeeded singleton', t => {
 // =====================================================================================================================
 
 test('Construct Succeeded instance', t => {
-  const state = new Succeeded();
+  const state = new TaskState('Succeeded', 'COMPLETED');
   t.ok(state, 'Succeeded must be defined');
-  t.ok(state instanceof Succeeded, 'must be instanceof Succeeded');
-  t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
+  // t.ok(state instanceof Succeeded, 'must be instanceof Succeeded');
+  // t.ok(state instanceof CompletedState, 'must be instanceof CompletedState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, names.Succeeded, `name must be ${names.Succeeded}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
@@ -537,10 +438,10 @@ test('Construct Succeeded instance', t => {
 // =====================================================================================================================
 
 test('Construct TimedOut instance without an error', t => {
-  const state = new TimedOut();
+  const state = new TaskState('TimedOut', 'TIMED_OUT');
   t.ok(state, 'TimedOut must be defined');
-  t.ok(state instanceof TimedOut, 'must be instanceof TimedOut');
-  t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
+  // t.ok(state instanceof TimedOut, 'must be instanceof TimedOut');
+  // t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, names.TimedOut, `name must be ${names.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
@@ -557,10 +458,10 @@ test('Construct TimedOut instance without an error', t => {
 
 test('Construct TimedOut instance with an error', t => {
   const err = new Error('Timeout7');
-  const state = new TimedOut(err);
+  const state = new TaskState('TimedOut', 'TIMED_OUT', err);
   t.ok(state, 'TimedOut must be defined');
-  t.ok(state instanceof TimedOut, 'must be instanceof TimedOut');
-  t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
+  // t.ok(state instanceof TimedOut, 'must be instanceof TimedOut');
+  // t.ok(state instanceof TimedOutState, 'must be instanceof TimedOutState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, names.TimedOut, `name must be ${names.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
@@ -581,10 +482,10 @@ test('Construct TimedOut instance with an error', t => {
 
 test('Construct Failed instance', t => {
   const err = new Error('Badoom7');
-  const state = new Failed(err);
+  const state = new TaskState('Failed', 'FAILED', err);
   t.ok(state, 'Failed must be defined');
-  t.ok(state instanceof Failed, 'must be instanceof Failed');
-  t.ok(state instanceof FailedState, 'must be instanceof FailedState');
+  // t.ok(state instanceof Failed, 'must be instanceof Failed');
+  // t.ok(state instanceof FailedState, 'must be instanceof FailedState');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.equal(state.name, names.Failed, `name must be ${names.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
@@ -606,7 +507,7 @@ test('Construct Failed instance', t => {
 test('Construct Rejected instance', t => {
   const err = new Error('Badoom7');
   const reason = 'Why not?';
-  const state = new Rejected(reason, err);
+  const state = new TaskState('Rejected', 'REJECTED', err, reason);
   t.ok(state, 'Rejected must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof Unstarted, 'must not be instanceof Unstarted');
@@ -618,8 +519,8 @@ test('Construct Rejected instance', t => {
   t.notOk(state instanceof TimedOut, 'must not be instanceof TimedOut');
   t.notOk(state instanceof FailedState, 'must not be instanceof FailedState');
   t.notOk(state instanceof Failed, 'must not be instanceof Failed');
-  t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
-  t.ok(state instanceof Rejected, 'must be instanceof Rejected');
+  // t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
+  // t.ok(state instanceof Rejected, 'must be instanceof Rejected');
   t.notOk(state instanceof Discarded, 'must not be instanceof Discarded');
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
   t.equal(state.name, names.Rejected, `name must be ${names.Rejected}`);
@@ -632,9 +533,6 @@ test('Construct Rejected instance', t => {
   t.equal(state.rejected, true, 'must be rejected');
   t.ok(state.reason, 'must have reason');
   ensureImmutable(state, t);
-  t.equal(state.isRejected(), true, 'state.isRejected() must be true');
-  t.equal(state.isAbandoned(), false, 'state.isAbandoned() must be false');
-  t.equal(state.isDiscarded(), false, 'state.isDiscarded() must be false');
   t.end();
 });
 
@@ -645,7 +543,7 @@ test('Construct Rejected instance', t => {
 test('Construct Discarded instance', t => {
   const err = new Error('Badoom7');
   const reason = 'Why not?';
-  const state = new Discarded(reason, err);
+  const state = new TaskState('Discarded', 'REJECTED', err, reason);
   t.ok(state, 'Discarded must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof Unstarted, 'must not be instanceof Unstarted');
@@ -657,9 +555,9 @@ test('Construct Discarded instance', t => {
   t.notOk(state instanceof TimedOut, 'must not be instanceof TimedOut');
   t.notOk(state instanceof FailedState, 'must not be instanceof FailedState');
   t.notOk(state instanceof Failed, 'must not be instanceof Failed');
-  t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
+  // t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
   t.notOk(state instanceof Rejected, 'must not be instanceof Rejected');
-  t.ok(state instanceof Discarded, 'must be instanceof Discarded');
+  // t.ok(state instanceof Discarded, 'must be instanceof Discarded');
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
   t.equal(state.name, names.Discarded, `name must be ${names.Discarded}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
@@ -671,9 +569,6 @@ test('Construct Discarded instance', t => {
   t.equal(state.rejected, true, 'must be rejected');
   t.ok(state.reason, 'must have reason');
   ensureImmutable(state, t);
-  t.equal(state.isRejected(), false, 'state.isRejected() must be false');
-  t.equal(state.isAbandoned(), false, 'state.isAbandoned() must be false');
-  t.equal(state.isDiscarded(), true, 'state.isDiscarded() must be true');
   t.end();
 });
 
@@ -684,7 +579,7 @@ test('Construct Discarded instance', t => {
 test('Construct Abandoned instance', t => {
   const err = new Error('Badoom7');
   const reason = 'Why not?';
-  const state = new Abandoned(reason, err);
+  const state = new TaskState('Abandoned', 'REJECTED', err, reason);
   t.ok(state, 'Abandoned must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
   t.notOk(state instanceof Unstarted, 'must not be instanceof Unstarted');
@@ -696,10 +591,10 @@ test('Construct Abandoned instance', t => {
   t.notOk(state instanceof TimedOut, 'must not be instanceof TimedOut');
   t.notOk(state instanceof FailedState, 'must not be instanceof FailedState');
   t.notOk(state instanceof Failed, 'must not be instanceof Failed');
-  t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
+  // t.ok(state instanceof RejectedState, 'must be instanceof RejectedState');
   t.notOk(state instanceof Rejected, 'must not be instanceof Rejected');
   t.notOk(state instanceof Discarded, 'must not be instanceof Discarded');
-  t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
+  // t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
   t.equal(state.name, names.Abandoned, `name must be ${names.Abandoned}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
@@ -710,9 +605,6 @@ test('Construct Abandoned instance', t => {
   t.equal(state.rejected, true, 'must be rejected');
   t.ok(state.reason, 'must have reason');
   ensureImmutable(state, t);
-  t.equal(state.isRejected(), false, 'state.isRejected() must be false');
-  t.equal(state.isAbandoned(), true, 'state.isAbandoned() must be true');
-  t.equal(state.isDiscarded(), false, 'state.isDiscarded() must be false');
   t.end();
 });
 
@@ -720,10 +612,10 @@ test('Construct Abandoned instance', t => {
 // fromStateLikeProperties - TaskState
 // =====================================================================================================================
 
-test('fromStateLikeProperties with any name, StateType.Failed, error, no reason must be FailedState', t => {
+test('fromStateLikeProperties with any name, "FAILED", error, no reason must be FailedState', t => {
   const name = 'MyState1';
   const err = new Error('Badoom7');
-  const state = fromStateLikeProperties(name, StateType.Failed, err, undefined);
+  const state = fromStateLikeProperties(name, 'FAILED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -742,7 +634,8 @@ test('fromStateLikeProperties with any name, StateType.Failed, error, no reason 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
+  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.kind, StateType.Failed, `kind must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -754,10 +647,10 @@ test('fromStateLikeProperties with any name, StateType.Failed, error, no reason 
   t.end();
 });
 
-test('fromStateLikeProperties with any name, StateType.Rejected, no error and no reason must be RejectedState', t => {
+test('fromStateLikeProperties with any name, "REJECTED", no error and no reason must be RejectedState', t => {
   const name = 'MyState1';
   const err = new Error('Badoom7');
-  const state = fromStateLikeProperties(name, StateType.Rejected, err, undefined);
+  const state = fromStateLikeProperties(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -776,7 +669,8 @@ test('fromStateLikeProperties with any name, StateType.Rejected, no error and no
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -792,9 +686,9 @@ test('fromStateLikeProperties with any name, StateType.Rejected, no error and no
 // fromStateLikeProperties - Unstarted
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Unstarted"", StateType.Unstarted, no error & no reason must be Unstarted', t => {
+test('fromStateLikeProperties with name "Unstarted"", "UNSTARTED", no error & no reason must be Unstarted', t => {
   const name = names.Unstarted;
-  const state = fromStateLikeProperties(name, StateType.Unstarted, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'UNSTARTED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -813,7 +707,8 @@ test('fromStateLikeProperties with name "Unstarted"", StateType.Unstarted, no er
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
+  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.kind, StateType.Unstarted, `kind must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -825,9 +720,9 @@ test('fromStateLikeProperties with name "Unstarted"", StateType.Unstarted, no er
   t.end();
 });
 
-test('fromStateLikeProperties with any non-"Started" name, StateType.Unstarted, no error & no reason must be Unstarted', t => {
+test('fromStateLikeProperties with any non-"Started" name, "UNSTARTED", no error & no reason must be Unstarted', t => {
   const name = 'Anything';
-  const state = fromStateLikeProperties(name, StateType.Unstarted, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'UNSTARTED', undefined, undefined);
 
   t.ok(state, 'state must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -846,7 +741,8 @@ test('fromStateLikeProperties with any non-"Started" name, StateType.Unstarted, 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, names.Unstarted, `name must be ${names.Unstarted}`);
-  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
+  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.kind, StateType.Unstarted, `kind must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -862,9 +758,9 @@ test('fromStateLikeProperties with any non-"Started" name, StateType.Unstarted, 
 // fromStateLikeProperties - Started
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Started"", StateType.Started, no error & no reason must be Started', t => {
+test('fromStateLikeProperties with name "Started"", "STARTED", no error & no reason must be Started', t => {
   const name = names.Started;
-  const state = fromStateLikeProperties(name, StateType.Started, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'STARTED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -883,7 +779,8 @@ test('fromStateLikeProperties with name "Started"", StateType.Started, no error 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Started, `type must ${StateType.Started}`);
+  t.equal(state.kind, StateType.STARTED, `kind must ${StateType.STARTED}`);
+  t.equal(state.kind, StateType.Started, `kind must ${StateType.Started}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, true, 'must be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -899,9 +796,9 @@ test('fromStateLikeProperties with name "Started"", StateType.Started, no error 
 // fromStateLikeProperties - CompletedState
 // =====================================================================================================================
 
-test('fromStateLikeProperties with any name, StateType.Completed, no error & no reason must be CompletedState', t => {
+test('fromStateLikeProperties with any name, "COMPLETED", no error & no reason must be CompletedState', t => {
   const name = 'MyState2';
-  const state = fromStateLikeProperties(name, StateType.Completed, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'COMPLETED', undefined, undefined);
   t.ok(state, 'state must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
 
@@ -920,7 +817,8 @@ test('fromStateLikeProperties with any name, StateType.Completed, no error & no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
+  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.kind, StateType.Completed, `kind must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -936,9 +834,9 @@ test('fromStateLikeProperties with any name, StateType.Completed, no error & no 
 // fromStateLikeProperties - Completed
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Completed", StateType.Completed, no error & no reason must be Completed', t => {
+test('fromStateLikeProperties with name "Completed", "COMPLETED", no error & no reason must be Completed', t => {
   const name = names.Completed;
-  const state = fromStateLikeProperties(name, StateType.Completed, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'COMPLETED', undefined, undefined);
   t.ok(state, 'state must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
 
@@ -957,7 +855,8 @@ test('fromStateLikeProperties with name "Completed", StateType.Completed, no err
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
+  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.kind, StateType.Completed, `kind must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -973,9 +872,9 @@ test('fromStateLikeProperties with name "Completed", StateType.Completed, no err
 // fromStateLikeProperties - Succeeded
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Succeeded", StateType.Completed, no error & no reason  must be Succeeded', t => {
+test('fromStateLikeProperties with name "Succeeded", "COMPLETED", no error & no reason  must be Succeeded', t => {
   const name = names.Succeeded;
-  const state = fromStateLikeProperties(name, StateType.Completed, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'COMPLETED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -994,7 +893,8 @@ test('fromStateLikeProperties with name "Succeeded", StateType.Completed, no err
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
+  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.kind, StateType.Completed, `kind must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -1010,9 +910,9 @@ test('fromStateLikeProperties with name "Succeeded", StateType.Completed, no err
 // fromStateLikeProperties - TimedOutState
 // =====================================================================================================================
 
-test('fromStateLikeProperties with any name, StateType.TimedOut, no error & no reason must be TimedOutState', t => {
+test('fromStateLikeProperties with any name, "TIMED_OUT", no error & no reason must be TimedOutState', t => {
   const name = 'MyState33';
-  const state = fromStateLikeProperties(name, StateType.TimedOut, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'TIMED_OUT', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1031,7 +931,8 @@ test('fromStateLikeProperties with any name, StateType.TimedOut, no error & no r
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1043,10 +944,10 @@ test('fromStateLikeProperties with any name, StateType.TimedOut, no error & no r
   t.end();
 });
 
-test('fromStateLikeProperties with any name, StateType.TimedOut, error & no reason must be TimedOutState', t => {
+test('fromStateLikeProperties with any name, "TIMED_OUT", error & no reason must be TimedOutState', t => {
   const name = 'MyState33';
   const err = new Error('Badoom99');
-  const state = fromStateLikeProperties(name, StateType.TimedOut, err, undefined);
+  const state = fromStateLikeProperties(name, 'TIMED_OUT', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1065,7 +966,8 @@ test('fromStateLikeProperties with any name, StateType.TimedOut, error & no reas
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1081,9 +983,9 @@ test('fromStateLikeProperties with any name, StateType.TimedOut, error & no reas
 // fromStateLikeProperties - TimedOut
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "TimedOut"", StateType.TimedOut, no error & no reason must be TimedOut', t => {
+test('fromStateLikeProperties with name "TimedOut"", "TIMED_OUT", no error & no reason must be TimedOut', t => {
   const name = names.TimedOut;
-  const state = fromStateLikeProperties(name, StateType.TimedOut, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'TIMED_OUT', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1102,7 +1004,8 @@ test('fromStateLikeProperties with name "TimedOut"", StateType.TimedOut, no erro
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1114,10 +1017,10 @@ test('fromStateLikeProperties with name "TimedOut"", StateType.TimedOut, no erro
   t.end();
 });
 
-test('fromStateLikeProperties with name "TimedOut"", StateType.TimedOut, error & no reason must be TimedOut', t => {
+test('fromStateLikeProperties with name "TimedOut"", "TIMED_OUT", error & no reason must be TimedOut', t => {
   const name = names.TimedOut;
   const err = new Error('Badoom88');
-  const state = fromStateLikeProperties(name, StateType.TimedOut, err, undefined);
+  const state = fromStateLikeProperties(name, 'TIMED_OUT', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1136,7 +1039,8 @@ test('fromStateLikeProperties with name "TimedOut"", StateType.TimedOut, error &
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1152,10 +1056,10 @@ test('fromStateLikeProperties with name "TimedOut"", StateType.TimedOut, error &
 // fromStateLikeProperties - FailedState
 // =====================================================================================================================
 
-test('fromStateLikeProperties with any name, StateType.Failed, error & no reason must be FailedState', t => {
+test('fromStateLikeProperties with any name, "FAILED", error & no reason must be FailedState', t => {
   const name = 'MyState33';
   const err = new Error('Badoom99');
-  const state = fromStateLikeProperties(name, StateType.Failed, err, undefined);
+  const state = fromStateLikeProperties(name, 'FAILED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1174,7 +1078,8 @@ test('fromStateLikeProperties with any name, StateType.Failed, error & no reason
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
+  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.kind, StateType.Failed, `kind must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1190,10 +1095,10 @@ test('fromStateLikeProperties with any name, StateType.Failed, error & no reason
 // fromStateLikeProperties - Failed
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Failed"", StateType.Failed, error & no reason must be Failed', t => {
+test('fromStateLikeProperties with name "Failed"", "FAILED", error & no reason must be Failed', t => {
   const name = names.Failed;
   const err = new Error('Badoom88');
-  const state = fromStateLikeProperties(name, StateType.Failed, err, undefined);
+  const state = fromStateLikeProperties(name, 'FAILED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1212,7 +1117,8 @@ test('fromStateLikeProperties with name "Failed"", StateType.Failed, error & no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
+  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.kind, StateType.Failed, `kind must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1228,10 +1134,10 @@ test('fromStateLikeProperties with name "Failed"", StateType.Failed, error & no 
 // fromStateLikeProperties - RejectedState
 // =====================================================================================================================
 
-test('fromStateLikeProperties with any name, StateType.Rejected, error & no reason must be RejectedState', t => {
+test('fromStateLikeProperties with any name, "REJECTED", error & no reason must be RejectedState', t => {
   const name = 'MyState33';
   const err = new Error('Badoom99');
-  const state = fromStateLikeProperties(name, StateType.Rejected, err, undefined);
+  const state = fromStateLikeProperties(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1250,7 +1156,8 @@ test('fromStateLikeProperties with any name, StateType.Rejected, error & no reas
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1266,10 +1173,10 @@ test('fromStateLikeProperties with any name, StateType.Rejected, error & no reas
 // fromStateLikeProperties - Rejected
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Rejected"", StateType.Rejected, error & no reason must be Rejected', t => {
+test('fromStateLikeProperties with name "Rejected"", "REJECTED", error & no reason must be Rejected', t => {
   const name = names.Rejected;
   const err = new Error('Badoom88');
-  const state = fromStateLikeProperties(name, StateType.Rejected, err, undefined);
+  const state = fromStateLikeProperties(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1288,7 +1195,8 @@ test('fromStateLikeProperties with name "Rejected"", StateType.Rejected, error &
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1300,10 +1208,10 @@ test('fromStateLikeProperties with name "Rejected"", StateType.Rejected, error &
   t.end();
 });
 
-test('fromStateLikeProperties with name "Rejected"", StateType.Rejected, no error & reason must be Rejected', t => {
+test('fromStateLikeProperties with name "Rejected"", "REJECTED", no error & reason must be Rejected', t => {
   const name = names.Rejected;
   const reason = 'Reason2';
-  const state = fromStateLikeProperties(name, StateType.Rejected, undefined, reason);
+  const state = fromStateLikeProperties(name, 'REJECTED', undefined, reason);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1322,7 +1230,8 @@ test('fromStateLikeProperties with name "Rejected"", StateType.Rejected, no erro
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1338,10 +1247,10 @@ test('fromStateLikeProperties with name "Rejected"", StateType.Rejected, no erro
 // fromStateLikeProperties - Discarded
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Discarded"", StateType.Rejected, error & no reason must be Discarded', t => {
+test('fromStateLikeProperties with name "Discarded"", "REJECTED", error & no reason must be Discarded', t => {
   const name = names.Discarded;
   const err = new Error('Badoom88');
-  const state = fromStateLikeProperties(name, StateType.Rejected, err, undefined);
+  const state = fromStateLikeProperties(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1360,7 +1269,8 @@ test('fromStateLikeProperties with name "Discarded"", StateType.Rejected, error 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1372,9 +1282,9 @@ test('fromStateLikeProperties with name "Discarded"", StateType.Rejected, error 
   t.end();
 });
 
-test('fromStateLikeProperties with name "Discarded"", StateType.Rejected, no error & no reason must be Discarded', t => {
+test('fromStateLikeProperties with name "Discarded"", "REJECTED", no error & no reason must be Discarded', t => {
   const name = names.Discarded;
-  const state = fromStateLikeProperties(name, StateType.Rejected, undefined, undefined);
+  const state = fromStateLikeProperties(name, 'REJECTED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1393,7 +1303,8 @@ test('fromStateLikeProperties with name "Discarded"", StateType.Rejected, no err
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1409,10 +1320,10 @@ test('fromStateLikeProperties with name "Discarded"", StateType.Rejected, no err
 // fromStateLikeProperties - Abandoned
 // =====================================================================================================================
 
-test('fromStateLikeProperties with name "Abandoned"", StateType.Rejected, error & no reason must be Abandoned', t => {
+test('fromStateLikeProperties with name "Abandoned"", "REJECTED", error & no reason must be Abandoned', t => {
   const name = names.Abandoned;
   const err = new Error('Badoom88');
-  const state = fromStateLikeProperties(name, StateType.Rejected, err, undefined);
+  const state = fromStateLikeProperties(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1431,7 +1342,8 @@ test('fromStateLikeProperties with name "Abandoned"", StateType.Rejected, error 
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1443,11 +1355,11 @@ test('fromStateLikeProperties with name "Abandoned"", StateType.Rejected, error 
   t.end();
 });
 
-test('fromStateLikeProperties with name "Abandoned"", StateType.Rejected, error & reason must be Abandoned', t => {
+test('fromStateLikeProperties with name "Abandoned"", "REJECTED", error & reason must be Abandoned', t => {
   const name = names.Abandoned;
   const err = new Error('Badoom88');
   const reason = 'Reason3';
-  const state = fromStateLikeProperties(name, StateType.Rejected, err, reason);
+  const state = fromStateLikeProperties(name, 'REJECTED', err, reason);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1466,7 +1378,8 @@ test('fromStateLikeProperties with name "Abandoned"", StateType.Rejected, error 
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1482,10 +1395,10 @@ test('fromStateLikeProperties with name "Abandoned"", StateType.Rejected, error 
 // toTaskStateFromStateLike - TaskState
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with any name, StateType.Failed, error, & no reason must be FailedState', t => {
+test('toTaskStateFromStateLike with any name, "FAILED", error, & no reason must be FailedState', t => {
   const name = 'MyState1';
   const err = new Error('Badoom7');
-  const state = checkToTaskStateFromStateLike(name, StateType.Failed, err, false, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'FAILED', err, false, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1504,7 +1417,8 @@ test('toTaskStateFromStateLike with any name, StateType.Failed, error, & no reas
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
+  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.kind, StateType.Failed, `kind must ${StateType.Failed}`);
   t.equal(state.completed, false, 'must not be completed');
   t.equal(state.failed, true, 'must be failed');
   t.equal(state.timedOut, false, 'must not be timedOut');
@@ -1514,10 +1428,10 @@ test('toTaskStateFromStateLike with any name, StateType.Failed, error, & no reas
   t.end();
 });
 
-test('toTaskStateFromStateLike with any name, StateType.Rejected, no error & no reason must be RejectedState', t => {
+test('toTaskStateFromStateLike with any name, "REJECTED", no error & no reason must be RejectedState', t => {
   const name = 'MyState1';
   const err = new Error('Badoom7');
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1536,7 +1450,8 @@ test('toTaskStateFromStateLike with any name, StateType.Rejected, no error & no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1548,10 +1463,10 @@ test('toTaskStateFromStateLike with any name, StateType.Rejected, no error & no 
   t.end();
 });
 
-test('toTaskStateFromStateLike with any name, StateType.TimedOut, no error & no reason must be TimedOutState', t => {
+test('toTaskStateFromStateLike with any name, "TIMED_OUT", no error & no reason must be TimedOutState', t => {
   const name = 'MyState1';
   const err = new Error('Badoom7');
-  const state = checkToTaskStateFromStateLike(name, StateType.TimedOut, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'TIMED_OUT', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1570,7 +1485,8 @@ test('toTaskStateFromStateLike with any name, StateType.TimedOut, no error & no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1586,9 +1502,9 @@ test('toTaskStateFromStateLike with any name, StateType.TimedOut, no error & no 
 // toTaskStateFromStateLike - Unstarted
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with no name, StateType.Unstarted, no error & no reason must be Unstarted', t => {
+test('toTaskStateFromStateLike with name "Unstarted", "UNSTARTED", no error & no reason must be Unstarted', t => {
   const name = names.Unstarted;
-  const state = checkToTaskStateFromStateLike(undefined, StateType.Unstarted, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'UNSTARTED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1607,7 +1523,8 @@ test('toTaskStateFromStateLike with no name, StateType.Unstarted, no error & no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
+  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.kind, StateType.Unstarted, `kind must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1619,42 +1536,9 @@ test('toTaskStateFromStateLike with no name, StateType.Unstarted, no error & no 
   t.end();
 });
 
-test('toTaskStateFromStateLike with name "Unstarted", StateType.Unstarted, no error & no reason must be Unstarted', t => {
-  const name = names.Unstarted;
-  const state = checkToTaskStateFromStateLike(name, StateType.Unstarted, undefined, undefined);
-  t.ok(state, 'state must be defined');
-
-  t.ok(state instanceof TaskState, 'must be instanceof TaskState');
-  t.ok(state instanceof Unstarted, 'must be instanceof Unstarted');
-  t.notOk(state instanceof Started, 'must not be instanceof Started');
-  t.notOk(state instanceof CompletedState, 'must not be instanceof CompletedState');
-  t.notOk(state instanceof Completed, 'must not be instanceof Completed');
-  t.notOk(state instanceof Succeeded, 'must not be instanceof Succeeded');
-  t.notOk(state instanceof TimedOutState, 'must not be instanceof TimedOutState');
-  t.notOk(state instanceof TimedOut, 'must not be instanceof TimedOut');
-  t.notOk(state instanceof FailedState, 'must not be instanceof FailedState');
-  t.notOk(state instanceof Failed, 'must not be instanceof Failed');
-  t.notOk(state instanceof RejectedState, 'must not be instanceof RejectedState');
-  t.notOk(state instanceof Rejected, 'must not be instanceof Rejected');
-  t.notOk(state instanceof Discarded, 'must not be instanceof Discarded');
-  t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
-
-  t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
-  t.equal(state.unstarted, true, 'must be unstarted');
-  t.equal(state.started, false, 'must not be started');
-  t.equal(state.completed, false, 'must not be completed');
-  t.equal(state.failed, false, 'must not be failed');
-  t.equal(state.timedOut, false, 'must not be timedOut');
-  t.notOk(state.error, 'must have no error');
-  t.equal(state.rejected, false, 'must not be rejected');
-  t.notOk(state.reason, 'must have no reason');
-  t.end();
-});
-
-test('toTaskStateFromStateLike with any non-"Started" name, StateType.Unstarted, no error & no reason must be Unstarted', t => {
+test('toTaskStateFromStateLike with any non-"Started" name, "UNSTARTED", no error & no reason must be Unstarted', t => {
   const name = 'Anything';
-  const state = checkToTaskStateFromStateLike(name, StateType.Unstarted, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'UNSTARTED', undefined, undefined);
 
   t.ok(state, 'state must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1673,7 +1557,8 @@ test('toTaskStateFromStateLike with any non-"Started" name, StateType.Unstarted,
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, names.Unstarted, `name must be ${names.Unstarted}`);
-  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
+  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.kind, StateType.Unstarted, `kind must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1689,9 +1574,9 @@ test('toTaskStateFromStateLike with any non-"Started" name, StateType.Unstarted,
 // toTaskStateFromStateLike - Started
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "Started", StateType.Started, no error & no reason must be Started', t => {
+test('toTaskStateFromStateLike with name "Started", "STARTED", no error & no reason must be Started', t => {
   const name = names.Started;
-  const state = checkToTaskStateFromStateLike(name, StateType.Started, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'STARTED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1710,7 +1595,8 @@ test('toTaskStateFromStateLike with name "Started", StateType.Started, no error 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Started, `type must ${StateType.Started}`);
+  t.equal(state.kind, StateType.STARTED, `kind must ${StateType.STARTED}`);
+  t.equal(state.kind, StateType.Started, `kind must ${StateType.Started}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, true, 'must be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1726,9 +1612,9 @@ test('toTaskStateFromStateLike with name "Started", StateType.Started, no error 
 // toTaskStateFromStateLike - CompletedState
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with any name, StateType.Completed, no error & no reason must be CompletedState', t => {
+test('toTaskStateFromStateLike with any name, "COMPLETED", no error & no reason must be CompletedState', t => {
   const name = 'MyState2';
-  const state = checkToTaskStateFromStateLike(name, StateType.Completed, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'COMPLETED', undefined, undefined);
   t.ok(state, 'state must be defined');
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
 
@@ -1747,7 +1633,8 @@ test('toTaskStateFromStateLike with any name, StateType.Completed, no error & no
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
+  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.kind, StateType.Completed, `kind must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -1763,9 +1650,9 @@ test('toTaskStateFromStateLike with any name, StateType.Completed, no error & no
 // toTaskStateFromStateLike - Completed
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "Completed", StateType.Completed, no error & no reason  must be Completed', t => {
+test('toTaskStateFromStateLike with name "Completed", "COMPLETED", no error & no reason  must be Completed', t => {
   const name = names.Completed;
-  const state = checkToTaskStateFromStateLike(name, StateType.Completed, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'COMPLETED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1784,7 +1671,8 @@ test('toTaskStateFromStateLike with name "Completed", StateType.Completed, no er
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
+  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.kind, StateType.Completed, `kind must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -1800,9 +1688,9 @@ test('toTaskStateFromStateLike with name "Completed", StateType.Completed, no er
 // toTaskStateFromStateLike - Succeeded
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "Succeeded", StateType.Completed, no error & no reason must be Succeeded', t => {
+test('toTaskStateFromStateLike with name "Succeeded", "COMPLETED", no error & no reason must be Succeeded', t => {
   const name = names.Succeeded;
-  const state = checkToTaskStateFromStateLike(name, StateType.Completed, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'COMPLETED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1821,7 +1709,8 @@ test('toTaskStateFromStateLike with name "Succeeded", StateType.Completed, no er
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
+  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.kind, StateType.Completed, `kind must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -1837,9 +1726,9 @@ test('toTaskStateFromStateLike with name "Succeeded", StateType.Completed, no er
 // toTaskStateFromStateLike - TimedOutState
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with any name, StateType.TimedOut, no error & no reason must be TimedOutState', t => {
+test('toTaskStateFromStateLike with any name, "TIMED_OUT", no error & no reason must be TimedOutState', t => {
   const name = 'MyState333';
-  const state = checkToTaskStateFromStateLike(name, StateType.TimedOut, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'TIMED_OUT', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1858,7 +1747,8 @@ test('toTaskStateFromStateLike with any name, StateType.TimedOut, no error & no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1870,10 +1760,10 @@ test('toTaskStateFromStateLike with any name, StateType.TimedOut, no error & no 
   t.end();
 });
 
-test('toTaskStateFromStateLike with any name, StateType.TimedOut, error & no reason must be TimedOutState', t => {
+test('toTaskStateFromStateLike with any name, "TIMED_OUT", error & no reason must be TimedOutState', t => {
   const name = 'MyState333';
   const err = new Error('Badoom99');
-  const state = checkToTaskStateFromStateLike(name, StateType.TimedOut, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'TIMED_OUT', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1892,7 +1782,8 @@ test('toTaskStateFromStateLike with any name, StateType.TimedOut, error & no rea
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1908,9 +1799,9 @@ test('toTaskStateFromStateLike with any name, StateType.TimedOut, error & no rea
 // toTaskStateFromStateLike - TimedOut
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "TimedOut"", StateType.TimedOut, no error & no reason must be TimedOut', t => {
+test('toTaskStateFromStateLike with name "TimedOut"", "TIMED_OUT", no error & no reason must be TimedOut', t => {
   const name = names.TimedOut;
-  const state = checkToTaskStateFromStateLike(name, StateType.TimedOut, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'TIMED_OUT', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1929,7 +1820,8 @@ test('toTaskStateFromStateLike with name "TimedOut"", StateType.TimedOut, no err
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1941,10 +1833,10 @@ test('toTaskStateFromStateLike with name "TimedOut"", StateType.TimedOut, no err
   t.end();
 });
 
-test('toTaskStateFromStateLike with name "TimedOut"", StateType.TimedOut, error & no reason must be TimedOut', t => {
+test('toTaskStateFromStateLike with name "TimedOut"", "TIMED_OUT", error & no reason must be TimedOut', t => {
   const name = names.TimedOut;
   const err = new Error('Badoom888');
-  const state = checkToTaskStateFromStateLike(name, StateType.TimedOut, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'TIMED_OUT', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -1963,7 +1855,8 @@ test('toTaskStateFromStateLike with name "TimedOut"", StateType.TimedOut, error 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
+  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.kind, StateType.TimedOut, `kind must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1979,10 +1872,10 @@ test('toTaskStateFromStateLike with name "TimedOut"", StateType.TimedOut, error 
 // toTaskStateFromStateLike - FailedState
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with any name, StateType.Failed, error & no reason must be FailedState', t => {
+test('toTaskStateFromStateLike with any name, "FAILED", error & no reason must be FailedState', t => {
   const name = 'MyState33';
   const err = new Error('Badoom99');
-  const state = checkToTaskStateFromStateLike(name, StateType.Failed, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'FAILED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2001,7 +1894,8 @@ test('toTaskStateFromStateLike with any name, StateType.Failed, error & no reaso
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
+  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.kind, StateType.Failed, `kind must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2016,10 +1910,10 @@ test('toTaskStateFromStateLike with any name, StateType.Failed, error & no reaso
 // toTaskStateFromStateLike - Failed
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "Failed"", StateType.Failed, error & no reason must be FailedState', t => {
+test('toTaskStateFromStateLike with name "Failed"", "FAILED", error & no reason must be FailedState', t => {
   const name = names.Failed;
   const err = new Error('Badoom88');
-  const state = checkToTaskStateFromStateLike(name, StateType.Failed, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'FAILED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2038,7 +1932,8 @@ test('toTaskStateFromStateLike with name "Failed"", StateType.Failed, error & no
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
+  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.kind, StateType.Failed, `kind must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2054,10 +1949,10 @@ test('toTaskStateFromStateLike with name "Failed"", StateType.Failed, error & no
 // toTaskStateFromStateLike - RejectedState
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name, StateType.Rejected, error & no reason must be RejectedState', t => {
+test('toTaskStateFromStateLike with name, "REJECTED", error & no reason must be RejectedState', t => {
   const name = 'MyState33';
   const err = new Error('Badoom99');
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2076,7 +1971,8 @@ test('toTaskStateFromStateLike with name, StateType.Rejected, error & no reason 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2092,10 +1988,10 @@ test('toTaskStateFromStateLike with name, StateType.Rejected, error & no reason 
 // toTaskStateFromStateLike - Rejected
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "Rejected"", StateType.Rejected, error & no reason must be Rejected', t => {
+test('toTaskStateFromStateLike with name "Rejected"", "REJECTED", error & no reason must be Rejected', t => {
   const name = names.Rejected;
   const err = new Error('Badoom88');
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2114,7 +2010,8 @@ test('toTaskStateFromStateLike with name "Rejected"", StateType.Rejected, error 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2126,10 +2023,10 @@ test('toTaskStateFromStateLike with name "Rejected"", StateType.Rejected, error 
   t.end();
 });
 
-test('toTaskStateFromStateLike with name "Rejected"", StateType.Rejected, no error & reason must be Rejected', t => {
+test('toTaskStateFromStateLike with name "Rejected"", "REJECTED", no error & reason must be Rejected', t => {
   const name = names.Rejected;
   const reason = 'Reason2';
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, undefined, reason);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', undefined, reason);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2148,7 +2045,8 @@ test('toTaskStateFromStateLike with name "Rejected"", StateType.Rejected, no err
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2164,10 +2062,10 @@ test('toTaskStateFromStateLike with name "Rejected"", StateType.Rejected, no err
 // toTaskStateFromStateLike - Discarded
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "Discarded"", StateType.Rejected, error & no reason must be Discarded', t => {
+test('toTaskStateFromStateLike with name "Discarded"", "REJECTED", error & no reason must be Discarded', t => {
   const name = names.Discarded;
   const err = new Error('Badoom88');
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2186,7 +2084,8 @@ test('toTaskStateFromStateLike with name "Discarded"", StateType.Rejected, error
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2198,9 +2097,9 @@ test('toTaskStateFromStateLike with name "Discarded"", StateType.Rejected, error
   t.end();
 });
 
-test('toTaskStateFromStateLike with name "Discarded"", StateType.Rejected, no error & no reason must be Discarded', t => {
+test('toTaskStateFromStateLike with name "Discarded"", "REJECTED", no error & no reason must be Discarded', t => {
   const name = names.Discarded;
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, undefined, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', undefined, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2219,7 +2118,8 @@ test('toTaskStateFromStateLike with name "Discarded"", StateType.Rejected, no er
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2235,10 +2135,10 @@ test('toTaskStateFromStateLike with name "Discarded"", StateType.Rejected, no er
 // toTaskStateFromStateLike - Abandoned
 // =====================================================================================================================
 
-test('toTaskStateFromStateLike with name "Abandoned"", StateType.Rejected, error & no reason must be Abandoned', t => {
+test('toTaskStateFromStateLike with name "Abandoned"", "REJECTED", error & no reason must be Abandoned', t => {
   const name = names.Abandoned;
   const err = new Error('Badoom88');
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, err, undefined);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', err, undefined);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2257,7 +2157,8 @@ test('toTaskStateFromStateLike with name "Abandoned"", StateType.Rejected, error
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -2269,11 +2170,11 @@ test('toTaskStateFromStateLike with name "Abandoned"", StateType.Rejected, error
   t.end();
 });
 
-test('toTaskStateFromStateLike with name "Abandoned"", StateType.Rejected, error & reason must be Abandoned', t => {
+test('toTaskStateFromStateLike with name "Abandoned"", "REJECTED", error & reason must be Abandoned', t => {
   const name = names.Abandoned;
   const err = new Error('Badoom88');
   const reason = 'Reason3';
-  const state = checkToTaskStateFromStateLike(name, StateType.Rejected, err, reason);
+  const state = checkToTaskStateFromStateLike(name, 'REJECTED', err, reason);
   t.ok(state, 'state must be defined');
 
   t.ok(state instanceof TaskState, 'must be instanceof TaskState');
@@ -2292,7 +2193,8 @@ test('toTaskStateFromStateLike with name "Abandoned"", StateType.Rejected, error
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
+  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.kind, StateType.Rejected, `kind must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');

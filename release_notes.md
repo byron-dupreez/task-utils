@@ -1,5 +1,43 @@
 ## Changes
 
+### 7.0.0
+- Changes to `core` module & `StateType` enum:
+  - Renamed `UNSTARTED`, `STARTED`, `COMPLETED`, `TIMED_OUT`, `FAILED` & `REJECTED` properties to corresponding new
+    `Unstarted`, `Started`, `Completed`, `TimedOut`, `Failed` & `Rejected` properties with values that match their 
+    corresponding `TaskState` names
+  - Replaced all usages of the original `StateType` properties with their corresponding new `StateType` properties, e.g. 
+    replaced all usages of `StateType.TIMED_OUT` property with `StateType.TimedOut`
+  - For backward compatibility: Re-added deprecated versions of the original `StateType` property names with changed 
+    values that now also match their corresponding `TaskState` names
+  - Added a `cleanType` function as a static method to `StateType` enum
+- Changes to `task-states` module & `TaskState` class:
+  - Renamed `kind` property to `type`
+  - For backward compatibility: Re-added a `kind` getter
+  - Added a more compact `toJSON` method that omits the task's "redundant" `name` if it's the same as its `type`
+  - Replaced all usages of the original `StateType` properties with their corresponding new `StateType` properties, e.g. 
+    replaced all usages of `StateType.TIMED_OUT` property with `StateType.TimedOut`
+  - Changed `TaskState` constructor to use the new `StateType.cleanType` function
+  - Changed `fromStateLikeProperties` function to use the new `StateType.cleanType` function & to treat a missing or 
+    blank `name` argument as if it was set to the cleaned `type` argument (to handle changes to `StateType` values & 
+    output from the new `toJSON` method)
+  - Changed `toTaskStateFromStateLike` function to handle new `type` property & still survive a legacy `kind` property
+- Changes to `task-defs` module & `TaskDef` class:
+  - Replaced the `executable` property with an optional `managed` property, which is ONLY set when `true`
+  - Added an `executable` getter for backward compatibility
+  - Removed unused `isExecutable`, `isNotExecutable` & `isInternal` methods
+  - Cleaned up comments to use 'managed' terminology instead of 'internal'
+- Changes to `tasks` module & `Task` class:
+  - Replaced `executable` property with an optional `managed` property, which is ONLY set when `true`
+  - Added an `executable` getter for backward compatibility
+  - Removed unused `isExecutable`, `isNotExecutable` & `isInternal` methods
+  - Changed the `toJSON` method to create more compact strings that: exclude the `executable` property; ONLY include the 
+    new `managed` property if it's true; and replace the `totalAttempts` property with `total`
+  - Patched `createSubTask` method to copy the given `taskDefSettings` to avoid mutating them
+  - Cleaned up comments to use 'managed' terminology instead of 'internal'
+- Changes to `task-factory` module & `TaskFactory` class:
+  - Added `isTaskLikeManaged` static method to handle a new optional `managed` property & still survive a legacy 
+    `executable` property
+
 ### 6.0.13
 - Changes to `tasks` module:
   - Added optional boolean `recursively` and `skipSlaves` arguments to the `beganAt` & `endedAt` methods & changed them 

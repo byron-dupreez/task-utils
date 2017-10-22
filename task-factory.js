@@ -132,10 +132,8 @@ class TaskFactory {
       throw new Error(`Cannot reconstruct all pseudo task and subTasks from a non-task-like object (${stringify(taskLike)})`);
     }
 
-    const executable = !!taskLike.executable;
-
-    if (!executable) {
-      throw new Error(`Cannot reconstruct all pseudo task and subTasks from a non-root, non-executable task-like object (${stringify(taskLike)})`);
+    if (TaskFactory.isTaskLikeManaged(taskLike)) {
+      throw new Error(`Cannot reconstruct all pseudo task and subTasks from a non-root, non-executable, managed task-like object (${stringify(taskLike)})`);
     }
 
     // Reconstruct all of the pseudo task and subTask definitions for the root task-like object
@@ -155,7 +153,7 @@ class TaskFactory {
       task._state = taskLike.state instanceof TaskState ? taskLike.state :
         TaskState.toTaskStateFromStateLike(taskLike.state);
       task._attempts = taskLike.attempts;
-      task._totalAttempts = taskLike.totalAttempts;
+      task._totalAttempts = taskLike.total || taskLike.totalAttempts || 0;
       task._began = taskLike.began;
       task._took = taskLike.took;
       task._ended = taskLike.ended ? taskLike.ended : Task.calculateEnded(task._began, task._took);
@@ -202,11 +200,10 @@ class TaskFactory {
       throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a nameless task-like object (${stringify(taskLike)})`);
     }
     const name = taskLike.name;
-    const executable = !!taskLike.executable;
 
     // Ensure that the reconstructed, top-level executable task has no parent
-    if (!executable) {
-      throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a non-root, non-executable task-like object (${stringify(taskLike)})`);
+    if (TaskFactory.isTaskLikeManaged(taskLike)) {
+      throw new Error(`Cannot reconstruct all pseudo task and sub-task definitions from a non-root, non-executable, managed task-like object (${stringify(taskLike)})`);
     }
 
     function generatePlaceholderFunction(name) {
@@ -232,7 +229,8 @@ class TaskFactory {
           if (!subTaskLike.name) {
             throw new Error(`Cannot reconstruct pseudo sub-task definitions from a nameless sub-task-like object (${stringify(subTaskLike)})`);
           }
-          const subTaskExecute = subTaskLike.executable ? generatePlaceholderFunction(subTaskLike.name) : undefined;
+          const subTaskExecute = !TaskFactory.isTaskLikeManaged(subTaskLike) ?
+            generatePlaceholderFunction(subTaskLike.name) : undefined;
           const subTaskDef = taskDef.defineSubTask(subTaskLike.name, subTaskExecute);
           subTaskDef.unusable = true;
           defineSubTasks(subTaskLike, subTaskDef);
@@ -242,6 +240,11 @@ class TaskFactory {
 
     defineSubTasks(taskLike, taskDef);
     return taskDef;
+  }
+
+  static isTaskLikeManaged(taskLike) {
+    return taskLike.hasOwnProperty('managed') ? !!taskLike.managed :
+      taskLike.hasOwnProperty('executable') ? !taskLike.executable : false; // assume NOT managed, if NOT defined
   }
 
   /**

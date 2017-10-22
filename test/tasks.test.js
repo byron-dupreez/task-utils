@@ -125,6 +125,7 @@ function checkTask(t, task, taskDef, factory, optsPerLevel, mustBeExecutable, pr
     t.throws(() => task.parent = -1, TypeError, 'task.parent must be immutable');
     t.throws(() => task.factory = -1, TypeError, 'task.factory must be immutable');
     t.throws(() => task._opts = -1, TypeError, 'task._opts must be immutable');
+    t.throws(() => task.managed = -1, TypeError, 'task.managed must be immutable');
     t.throws(() => task.executable = -1, TypeError, 'task.executable must be immutable');
     t.throws(() => task.execute = -1, TypeError, 'task.execute must be immutable');
     t.throws(() => task.returnMode = -1, TypeError, 'task.returnMode must be immutable');
@@ -147,9 +148,8 @@ function checkTask(t, task, taskDef, factory, optsPerLevel, mustBeExecutable, pr
 
 function checkExecutable(t, task, expectedExecutable) {
   t.equal(task.executable, expectedExecutable, `${task.name}.executable must be ${expectedExecutable}`);
-  t.equal(task.isExecutable(), expectedExecutable, `${task.name}.isExecutable must be ${expectedExecutable}`);
-  t.equal(task.isNotExecutable(), !expectedExecutable, `${task.name}.isNotExecutable must be ${!expectedExecutable}`);
-  t.equal(task.isInternal(), !expectedExecutable, `${task.name}.isInternal must be ${!expectedExecutable}`);
+  const expectedManaged = expectedExecutable ? undefined : true;
+  t.equal(task.managed, expectedManaged, `${task.name}.managed must be ${expectedManaged}`);
 }
 
 function checkOpts(t, task, parent, opts) {
@@ -290,23 +290,23 @@ test('new Task', t => {
   check([], undefined, factory, opts, false, true);
   check(defineSimpleTask('A', taskDefSettings), undefined, undefined, opts, false, true); // missing factory
 
-  // Simple task with no internal subtasks
+  // Simple task with no managed sub-tasks
   const taskA = check(defineSimpleTask('A', taskDefSettings), undefined, factory, opts, true, true);
 
-  // Add a subtask B to Task A
+  // Add a sub-task B to Task A
   const subTaskDefB = new TaskDef('SubTask B', undefined, taskA.definition, taskDefSettings);
   const subTaskB = check(subTaskDefB, taskA, factory, opts, true, false);
   t.equal(subTaskB.subTasks.length, 0, `SubTask (${subTaskB.name}) subTasks length must be 0`);
   t.equal(taskA.subTasks.length, 1, `Task (${taskA.name}) subTasks length must be 1`);
 
-  // Add a subtask B1 to SubTask B
+  // Add a sub-task B1 to SubTask B
   const subTaskDefB1 = new TaskDef('SubTask B1', undefined, subTaskB.definition, taskDefSettings);
   const subTaskB1 = check(subTaskDefB1, subTaskB, factory, opts, true, false);
   t.equal(subTaskB1.subTasks.length, 0, `SubTask (${subTaskB1.name}) subTasks length must be 0`);
   t.equal(subTaskB.subTasks.length, 1, `SubTask (${subTaskB.name}) subTasks length must be 1`);
   t.equal(taskA.subTasks.length, 1, `Task (${taskA.name}) subTasks length must be 1`);
 
-  // Add another subtask C to Task A
+  // Add another sub-task C to Task A
   const subTaskDefC = new TaskDef('SubTask C', undefined, taskA.definition, taskDefSettings);
   const subTaskC = check(subTaskDefC, taskA, factory, opts, true, false);
   t.equal(subTaskC.subTasks.length, 0, `SubTask (${subTaskC.name}) subTasks length must be 0`);
@@ -331,7 +331,8 @@ test('reconstructTasksFromRootTaskLike', t => {
     const taskLike = JSON.parse(json);
     t.deepEqual(TaskState.toTaskStateFromStateLike(taskLike.state), taskBefore.state, `TaskLike state must be ${taskBefore.state.name}`);
     t.equal(taskLike.attempts, taskBefore.attempts, `TaskLike attempts must be ${taskBefore.attempts}`);
-    t.equal(taskLike.totalAttempts, taskBefore.totalAttempts, `TaskLike totalAttempts must be ${taskBefore.totalAttempts}`);
+    t.equal(taskLike.total, taskBefore.totalAttempts, `TaskLike total must be taskBefore totalAttempts: ${taskBefore.totalAttempts}`);
+    t.equal(taskLike.total, taskBefore.total, `TaskLike total must be taskBefore total: ${taskBefore.total}`);
 
     //t.ok(!(taskLike instanceof Task), `taskLike (${JSON.stringify(taskLike)}) must not be an instanceof Task`);
     t.ok(!(taskLike instanceof Task), `taskLike must not be an instanceof Task`);
@@ -2295,7 +2296,7 @@ test('task reject() with sub-tasks', t => {
       t.notOk(rejected, `${task.name}.reject must return "false"`);
       t.equal(rejected, 0, `${task.name}.reject must return ${0}`);
     }
-    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.equal(task.stateType, StateType.Unstarted, `${task.name} stateType must be ${StateType.Unstarted}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
@@ -2312,7 +2313,7 @@ test('task reject() with sub-tasks', t => {
         t.equal(rejected, expected, `${task.name}.reject must return ${expected}`);
       }
     }
-    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.equal(task.stateType, StateType.Rejected, `${task.name} stateType must be ${StateType.Rejected}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
     t.ok(task.rejected, `${task.name} must be rejected`);
@@ -2375,7 +2376,7 @@ test('task discard() with sub-tasks', t => {
       t.notOk(discarded, `${task.name}.discard must return "false"`);
       t.equal(discarded, 0, `${task.name}.discard must return ${0}`);
     }
-    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.equal(task.stateType, StateType.Unstarted, `${task.name} stateType must be ${StateType.Unstarted}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
@@ -2392,7 +2393,7 @@ test('task discard() with sub-tasks', t => {
         t.equal(discarded, expected, `${task.name}.discard must return ${expected}`);
       }
     }
-    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.equal(task.stateType, StateType.Rejected, `${task.name} stateType must be ${StateType.Rejected}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
     t.ok(task.rejected, `${task.name} must be rejected`);
@@ -2456,7 +2457,7 @@ test('task abandon() with sub-tasks', t => {
       t.notOk(abandoned, `${task.name}.abandon must return "false"`);
       t.equal(abandoned, 0, `${task.name}.abandon must return ${0}`);
     }
-    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.equal(task.stateType, StateType.Unstarted, `${task.name} stateType must be ${StateType.Unstarted}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
@@ -2473,7 +2474,7 @@ test('task abandon() with sub-tasks', t => {
         t.equal(abandoned, expected, `${task.name}.abandon must return ${expected}`);
       }
     }
-    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.equal(task.stateType, StateType.Rejected, `${task.name} stateType must be ${StateType.Rejected}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
     t.ok(task.rejected, `${task.name} must be rejected`);
@@ -2538,7 +2539,7 @@ test('task rejectAs() with sub-tasks', t => {
       t.notOk(rejected, `${task.name}.rejectAs must return "false"`);
       t.equal(rejected, 0, `${task.name}.rejectAs must return ${0}`);
     }
-    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.equal(task.stateType, StateType.Unstarted, `${task.name} stateType must be ${StateType.Unstarted}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
@@ -2555,7 +2556,7 @@ test('task rejectAs() with sub-tasks', t => {
         t.equal(rejected, expected, `${task.name}.rejectAs must return ${expected}`);
       }
     }
-    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.equal(task.stateType, StateType.Rejected, `${task.name} stateType must be ${StateType.Rejected}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
     t.ok(task.rejected, `${task.name} must be rejected`);
@@ -2619,7 +2620,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding non-recur
       t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
       t.equal(discarded, 0, `${task.name}.discardIfOverAttempted must return ${0}`);
     }
-    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.equal(task.stateType, StateType.Unstarted, `${task.name} stateType must be ${StateType.Unstarted}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
@@ -2636,7 +2637,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding non-recur
         t.equal(discarded, expected, `${task.name}.discardIfOverAttempted must return ${expected}`);
       }
     }
-    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.equal(task.stateType, StateType.Rejected, `${task.name} stateType must be ${StateType.Rejected}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
     t.ok(task.rejected, `${task.name} must be rejected`);
@@ -2703,7 +2704,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding recursive
       t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
       t.equal(discarded, 0, `${task.name}.discardIfOverAttempted must return ${0}`);
     }
-    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.equal(task.stateType, StateType.Unstarted, `${task.name} stateType must be ${StateType.Unstarted}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
@@ -2720,7 +2721,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding recursive
         t.equal(discarded, expected, `${task.name}.discardIfOverAttempted must return ${expected}`);
       }
     }
-    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.equal(task.stateType, StateType.Rejected, `${task.name} stateType must be ${StateType.Rejected}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
     t.ok(task.rejected, `${task.name} must be rejected`);
@@ -2759,7 +2760,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding recursive
       t.notOk(discarded, `${task.name}.discardIfOverAttempted must return "false"`);
       t.equal(discarded, 0, `${task.name}.discardIfOverAttempted must return ${0}`);
     }
-    t.equal(task.stateType, StateType.UNSTARTED, `${task.name} stateType must be ${StateType.UNSTARTED}`);
+    t.equal(task.stateType, StateType.Unstarted, `${task.name} stateType must be ${StateType.Unstarted}`);
     t.ok(task.unstarted, `${task.name} must be unstarted`);
     t.ok(task.incomplete, `${task.name} must be incomplete`);
     t.notOk(task.rejected, `${task.name} must NOT be rejected`);
@@ -2776,7 +2777,7 @@ test('task discardIfOverAttempted() with sub-tasks & always discarding recursive
         t.equal(discarded, expected, `${task.name}.discardIfOverAttempted must return ${expected}`);
       }
     }
-    t.equal(task.stateType, StateType.REJECTED, `${task.name} stateType must be ${StateType.REJECTED}`);
+    t.equal(task.stateType, StateType.Rejected, `${task.name} stateType must be ${StateType.Rejected}`);
     t.notOk(task.unstarted, `${task.name} must NOT be unstarted`);
     t.notOk(task.incomplete, `${task.name} must NOT be incomplete`);
     t.ok(task.rejected, `${task.name} must be rejected`);

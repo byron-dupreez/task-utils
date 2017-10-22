@@ -557,8 +557,8 @@ test('Task execute returning 1 promise that fulfills, but self-managed to Succee
           t.ok(task.completed, `${task.name} must be completed`);
           t.equal(task.state, TaskState.instances.Succeeded, `${task.name} state must be Succeeded`);
           t.equal(task.state.name, stateName, `${task.name} state name must be ${stateName}`);
-          const expectedStateType = StateType.COMPLETED;
-          t.equal(task.state.kind, expectedStateType, `${task.name} state kind must be ${expectedStateType}`);
+          const expectedStateType = StateType.Completed;
+          t.equal(task.state.type, expectedStateType, `${task.name} state type must be ${expectedStateType}`);
           t.equal(task.stateType, expectedStateType, `${task.name} stateType must be ${expectedStateType}`);
           //t.equal(task.result, executeResult, `${task.name} result must be ${stringify(executeResult)}`);
           t.equal(task.result, expected, `${task.name} result must be ${stringify(expected)}`); // internal success set result
@@ -614,8 +614,8 @@ test('Task execute returning 1 promise that rejects, but self managed to Rejecte
           t.ok(task.rejected, `${task.name} must be rejected`);
           t.equal(task.error, internalError, `${task.name} error must be ${stringify(internalError)}`);
           t.equal(task.state.name, stateName, `${task.name} state name must be ${stateName}`);
-          const expectedStateType = StateType.REJECTED;
-          t.equal(task.state.kind, expectedStateType, `${task.name} state kind must be ${expectedStateType}`);
+          const expectedStateType = StateType.Rejected;
+          t.equal(task.state.type, expectedStateType, `${task.name} state type must be ${expectedStateType}`);
           t.equal(task.stateType, expectedStateType, `${task.name} stateType must be ${expectedStateType}`);
           t.equal(task.state.error, internalError.toString(), `${task.name} state error must be ${stringify(internalError.toString())}`);
           t.end();
@@ -668,8 +668,8 @@ test('Task execute returning 1 promise that rejects, but self managed to Failed 
           t.ok(task.failed, `${task.name} must be failed`);
           t.equal(task.error, internalError, `${task.name} error must be ${stringify(internalError)}`);
           t.equal(task.state.name, stateName, `${task.name} state name must be ${stateName}`);
-          const expectedStateType = StateType.FAILED;
-          t.equal(task.state.kind, expectedStateType, `${task.name} state kind must be ${expectedStateType}`);
+          const expectedStateType = StateType.Failed;
+          t.equal(task.state.type, expectedStateType, `${task.name} state type must be ${expectedStateType}`);
           t.equal(task.stateType, expectedStateType, `${task.name} stateType must be ${expectedStateType}`);
           t.equal(task.state.error, internalError.toString(), `${task.name} state error must be ${stringify(internalError.toString())}`);
           t.end();

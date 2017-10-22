@@ -80,7 +80,7 @@ test('fromLegacyStateLikeProperties with any name, completed, not timed out, err
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -114,7 +114,7 @@ test('fromLegacyStateLikeProperties with any name, completed, not timed out, no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -151,7 +151,7 @@ test('fromLegacyStateLikeProperties with name "Unstarted"", not completed, not t
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -184,7 +184,7 @@ test('fromLegacyStateLikeProperties with any non-"Started" name, not completed, 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, names.Unstarted, `name must be ${names.Unstarted}`);
-  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -221,7 +221,7 @@ test('fromLegacyStateLikeProperties with name "Started"", not completed, not tim
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.STARTED, `kind must ${StateType.STARTED}`);
+  t.equal(state.type, StateType.Started, `type must ${StateType.Started}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, true, 'must be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -258,7 +258,7 @@ test('fromLegacyStateLikeProperties with any name, completed, no error, not time
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -295,7 +295,7 @@ test('fromLegacyStateLikeProperties with name "Completed", completed, not timed 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -332,7 +332,7 @@ test('fromLegacyStateLikeProperties with name "Succeeded", completed, not timed 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -369,7 +369,7 @@ test('fromLegacyStateLikeProperties with any name, not completed, timed out, no 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -403,7 +403,7 @@ test('fromLegacyStateLikeProperties with any name, not completed, timed out, err
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -440,7 +440,7 @@ test('fromLegacyStateLikeProperties with name "TimedOut"", not completed, timed 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -474,7 +474,7 @@ test('fromLegacyStateLikeProperties with name "TimedOut"", not completed, timed 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -512,7 +512,7 @@ test('fromLegacyStateLikeProperties with any name, not completed, not timed out,
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -550,7 +550,7 @@ test('fromLegacyStateLikeProperties with name "Failed"", not completed, not time
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -588,7 +588,7 @@ test('fromLegacyStateLikeProperties with any name, not completed, error, not tim
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -626,7 +626,7 @@ test('fromLegacyStateLikeProperties with name "Rejected"", not completed, not ti
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -660,7 +660,7 @@ test('fromLegacyStateLikeProperties with name "Rejected"", not completed, not ti
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -698,7 +698,7 @@ test('fromLegacyStateLikeProperties with name "Discarded"", not completed, not t
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -731,7 +731,7 @@ test('fromLegacyStateLikeProperties with name "Discarded"", not completed, not t
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -769,7 +769,7 @@ test('fromLegacyStateLikeProperties with name "Abandoned"", not completed, not t
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -804,7 +804,7 @@ test('fromLegacyStateLikeProperties with name "Abandoned"", not completed, not t
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -842,7 +842,7 @@ test('toTaskStateFromStateLike with any name, completed, not timed out, error, n
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
   t.equal(state.completed, false, 'must not be completed');
   t.equal(state.failed, true, 'must be failed');
   t.equal(state.timedOut, false, 'must not be timedOut');
@@ -874,7 +874,7 @@ test('toTaskStateFromStateLike with any name, completed, not timed out, no error
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -908,7 +908,7 @@ test('toTaskStateFromStateLike with any name, completed, timed out, no error, no
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -945,7 +945,7 @@ test('toTaskStateFromStateLike with name "Unstarted"", not completed, not timed 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -978,7 +978,7 @@ test('toTaskStateFromStateLike with any non-"Started" name, not completed, not t
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, names.Unstarted, `name must be ${names.Unstarted}`);
-  t.equal(state.kind, StateType.UNSTARTED, `kind must ${StateType.UNSTARTED}`);
+  t.equal(state.type, StateType.Unstarted, `type must ${StateType.Unstarted}`);
   t.equal(state.unstarted, true, 'must be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1015,7 +1015,7 @@ test('toTaskStateFromStateLike with name "Started"", not completed, not timed ou
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.STARTED, `kind must ${StateType.STARTED}`);
+  t.equal(state.type, StateType.Started, `type must ${StateType.Started}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, true, 'must be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1052,7 +1052,7 @@ test('toTaskStateFromStateLike with any name, completed, not timed out, no error
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -1089,7 +1089,7 @@ test('toTaskStateFromStateLike with name "Completed", completed, not timed out, 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -1126,7 +1126,7 @@ test('toTaskStateFromStateLike with name "Succeeded", completed, not timed out, 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.COMPLETED, `kind must ${StateType.COMPLETED}`);
+  t.equal(state.type, StateType.Completed, `type must ${StateType.Completed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, true, 'must be completed');
@@ -1163,7 +1163,7 @@ test('toTaskStateFromStateLike with any name, not completed, timed out, no error
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1197,7 +1197,7 @@ test('toTaskStateFromStateLike with any name, not completed, timed out, error, n
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1234,7 +1234,7 @@ test('toTaskStateFromStateLike with name "TimedOut"", not completed, not timed o
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1268,7 +1268,7 @@ test('toTaskStateFromStateLike with name "TimedOut"", not completed, not timed o
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.TIMED_OUT, `kind must ${StateType.TIMED_OUT}`);
+  t.equal(state.type, StateType.TimedOut, `type must ${StateType.TimedOut}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1306,7 +1306,7 @@ test('toTaskStateFromStateLike with any name, not completed, not timed out, erro
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1343,7 +1343,7 @@ test('toTaskStateFromStateLike with name "Failed"", not completed, not timed out
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.FAILED, `kind must ${StateType.FAILED}`);
+  t.equal(state.type, StateType.Failed, `type must ${StateType.Failed}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1381,7 +1381,7 @@ test('toTaskStateFromStateLike with name, not completed, error, not timed out, r
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1419,7 +1419,7 @@ test('toTaskStateFromStateLike with name "Rejected"", not completed, not timed o
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1453,7 +1453,7 @@ test('toTaskStateFromStateLike with name "Rejected"", not completed, not timed o
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1491,7 +1491,7 @@ test('toTaskStateFromStateLike with name "Discarded"", not completed, not timed 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1524,7 +1524,7 @@ test('toTaskStateFromStateLike with name "Discarded"", not completed, not timed 
   t.notOk(state instanceof Abandoned, 'must not be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1562,7 +1562,7 @@ test('toTaskStateFromStateLike with name "Abandoned"", not completed, not timed 
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');
@@ -1597,7 +1597,7 @@ test('toTaskStateFromStateLike with name "Abandoned"", not completed, not timed 
   t.ok(state instanceof Abandoned, 'must be instanceof Abandoned');
 
   t.equal(state.name, name, 'name must match');
-  t.equal(state.kind, StateType.REJECTED, `kind must ${StateType.REJECTED}`);
+  t.equal(state.type, StateType.Rejected, `type must ${StateType.Rejected}`);
   t.equal(state.unstarted, false, 'must not be unstarted');
   t.equal(state.started, false, 'must not be started');
   t.equal(state.completed, false, 'must not be completed');

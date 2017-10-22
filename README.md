@@ -1,4 +1,4 @@
-# task-utils v6.0.13
+# task-utils v7.0.0
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -6,9 +6,9 @@ creating tasks (and their sub-tasks) from these definitions and managing tasks o
 These modules provide a way to attach tasks to objects that can be executed and used to track the state and number of 
 attempts at each task.
 
-Tasks are root/top-level, executable tasks (with a configurable execute function), whereas sub-tasks can be either 
-executable tasks (with their own configurable execute functions) or internal, non-executable tasks whose states must be 
-managed completely by the execute function of their parent task.
+Tasks are root/top-level, executable, self-managed tasks (with a configurable execute function), whereas sub-tasks can 
+be either executable, self managed tasks (with their own configurable execute functions) or non-executable, externally 
+managed tasks whose states must be managed completely by the execute function of their parent task.
 
 Currently includes:
 - core.js 
@@ -122,7 +122,7 @@ const taskADef = TaskDef.defineTask('TaskA', execute);
 
 // ... with 3 sub-task definitions
 const subTaskA1Def = taskADef.defineSubTask('SubTaskA1', execute2); // executable sub-task
-const subTaskDefs = taskADef.defineSubTasks(['SubTaskA2', 'SubTaskA3']); // non-executable, internal sub-tasks
+const subTaskDefs = taskADef.defineSubTasks(['SubTaskA2', 'SubTaskA3']); // non-executable, managed sub-tasks
 
 // ... and with 1 sub-sub-task on SubTaskA1
 const subSubTaskA1aDef = subTaskA1Def.defineSubTask('SubSubTaskA1a');

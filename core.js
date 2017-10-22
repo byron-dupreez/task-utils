@@ -20,16 +20,23 @@ exports.TimeoutError = errors.TimeoutError;
  * @readonly
  */
 const StateType = {
-  UNSTARTED: 'UNSTARTED',
-  STARTED: 'STARTED',
-  COMPLETED: 'COMPLETED',
-  TIMED_OUT: 'TIMED_OUT',
-  FAILED: 'FAILED',
-  REJECTED: 'REJECTED'
+  Unstarted: 'Unstarted',
+  Started: 'Started',
+  Completed: 'Completed',
+  TimedOut: 'TimedOut',
+  Failed: 'Failed',
+  Rejected: 'Rejected',
+
+  /** @deprecated - use `Unstarted` instead */  UNSTARTED: 'Unstarted',
+  /** @deprecated - use `Started` instead */    STARTED: 'Started',
+  /** @deprecated - use `Completed` instead */  COMPLETED: 'Completed',
+  /** @deprecated - use `TimedOut` instead */   TIMED_OUT: 'TimedOut',
+  /** @deprecated - use `Failed` instead */     FAILED: 'Failed',
+  /** @deprecated - use `Rejected` instead */   REJECTED: 'Rejected'
 };
 
 /** State types ordered from "least" advanced to "most" advanced state */
-const ascendingStateTypes = [StateType.UNSTARTED, StateType.STARTED, StateType.FAILED, StateType.TIMED_OUT, StateType.COMPLETED, StateType.REJECTED];
+const ascendingStateTypes = [StateType.Unstarted, StateType.Started, StateType.Failed, StateType.TimedOut, StateType.Completed, StateType.Rejected];
 
 /**
  * Compares state type `a` with state type `b` and returns a negative number if `a` is "less advanced" than `b`; zero if
@@ -46,6 +53,54 @@ function compareStateTypes(a, b) {
 }
 
 StateType.compareStateTypes = compareStateTypes;
+
+/**
+ * Attempts to clean up the given type to its corresponding `StateType` value
+ * @param {string|StateType|*} type - the type to clean up
+ * @return {StateType|*} - the cleaned up type
+ */
+function cleanType(type) {
+  if (type) {
+    const trimmedType = type.trim();
+    switch (trimmedType) {
+      case StateType.Unstarted:
+        return StateType.Unstarted;
+      case StateType.Started:
+        return StateType.Started;
+      case StateType.Completed:
+        return StateType.Completed;
+      case StateType.Failed:
+        return StateType.Failed;
+      case StateType.TimedOut:
+        return StateType.TimedOut;
+      case StateType.Rejected:
+        return StateType.Rejected;
+      default:
+        // Failed an exact match, so try a case-insensitive match against legacy StateType values
+        switch (trimmedType.toUpperCase()) {
+          case 'UNSTARTED':
+            return StateType.Unstarted;
+          case 'STARTED':
+            return StateType.Started;
+          case 'COMPLETED':
+            return StateType.Completed;
+          case 'FAILED':
+            return StateType.Failed;
+          case 'TIMEDOUT': // fall through
+          case 'TIMED_OUT':
+            return StateType.TimedOut;
+          case 'REJECTED':
+            return StateType.Rejected;
+          default:
+            return trimmedType;
+        }
+    }
+  }
+  return type;
+}
+
+StateType.cleanType = cleanType;
+
 Object.freeze(StateType);
 exports.StateType = StateType;
 

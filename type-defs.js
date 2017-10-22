@@ -1,7 +1,7 @@
 /**
  * @typedef {Object} TaskStateLike - a task state-like object.
  * @property {string} name - the name of the state
- * @property {StateType} kind - the type/kind of this state
+ * @property {StateType} type - the type of this state
  * @property {string|undefined} [error] - an optional error with which a task was failed, timed out or rejected
  * @property {string|undefined} [reason] - an optional reason given for rejecting a task
  */
@@ -58,7 +58,9 @@
  * @property {string} name - the name that will be assigned to any task created using this definition
  * @property {Function|undefined} [execute] - the optional function to be executed when any task created using this definition is executed
  * @property {TaskDef|undefined} [parent] - an optional parent task (or sub-task) definition
- * @property {TaskDef[]} subTaskDefs - an array of zero or more executable and/or non-executable, internal sub-task definitions, which can be used to define executable and/or non-executable, internal sub-tasks
+ * @property {boolean|undefined} [managed] - whether this defines non-executable, [externally] managed tasks OR executable, self-managed tasks (defaults to false, i.e. executable)
+ * @property {boolean|undefined} [executable] - whether this defines executable, self-managed tasks or non-executable, [externally] managed tasks ("antonym" for `managed`)
+ * @property {TaskDef[]} subTaskDefs - an array of zero or more executable and/or non-executable, managed sub-task definitions, which can be used to define executable and/or non-executable, managed sub-tasks
  * @property {DescribeItem|undefined} [describeItem] - an optional function to use to extract a short description of the current item/target/subject from the arguments passed to a task's execute function for logging purposes
  */
 
@@ -111,31 +113,33 @@
 /**
  * @typedef {Object} TaskLike - a task-like object.
  * @property {string} name - the name of this task
- * @property {boolean} executable - whether or not this task is executable
+ * @property {boolean|undefined} [managed] - whether this task is a non-executable, externally managed task or an executable task (defaults to executable)
+ * @property {boolean|undefined} [executable] - legacy property ("antonym" for `managed`) - whether this task is an executable task or a non-executable, externally managed task
  * @property {TaskStateLike} state - tht state of the task
  * @property {number} attempts - the number of attempts at the task
- * @property {number} totalAttempts - the total number of attempts at the task, which is never decremented by decrementAttempts
+ * @property {number|undefined} [total] - the total number of attempts at the task, which is never decremented by decrementAttempts
+ * @property {number|undefined} [totalAttempts] - legacy property - the total number of attempts at the task (use `total` instead)
  * @property {string|undefined} [began] - the ISO date-time at which this task's last execution began (or undefined if not executed yet)
  * @property {number|undefined} [took] - the number of milliseconds that this task's last execution took (or undefined if not executed yet)
  * @property {string|undefined} [ended] - the ISO date-time at which this task's last execution ended (or undefined if not executed yet OR if redundant)
- * @property {TaskLike[]} subTasks - an array of zero or more non-executable, internal subTasks of this task
+ * @property {TaskLike[]} subTasks - an array of zero or more sub-tasks of this task
  */
 
 /**
- * A task or operation, which can be either an executable task, an executable sub-task or a non-executable, internal
- * sub-task based on the task definition from which it is constructed.
+ * A task or operation, which can be either an executable, self-managed task/sub-task or a non-executable, externally
+ * managed sub-task based on the task definition from which it is constructed.
  *
- * An executable sub-task is a task that must be explicitly executed from within its parent task's `execute` method and
- * must partially or entirely manage its own state within its own `execute` method.
+ * An executable sub-task is a task that must be explicitly executed by calling its `execute` method from within its
+ * parent task's `execute` method and that must partially or entirely manage its own state within its `execute` method.
  *
- * A non-executable, internal sub-task is a task that must be manually executed from within its parent task's `execute`
- * method and must have its state managed entirely within its parent task's `execute` method and is ONLY used to enable
- * tracking of its state.
+ * A non-executable, externally managed sub-task is a task that must be manually executed from and must have its state
+ * managed entirely by its parent task's `execute` method and that is ONLY used to enable tracking of its state.
  *
  * @typedef {Object} Task - A task or operation
  * @property {string} name - the name of the task
  * @property {TaskDef} definition - the definition of this task, from which it was created
- * @property {boolean} executable - whether or not this task is executable
+ * @property {boolean} [managed] - whether this task is a non-executable, externally managed task or an executable task (defaults to executable)
+ * @property {boolean} [executable] - whether or not this task is executable ("antonym" for `managed`)
  * @property {Task|undefined} [parent] - an optional parent super-task, which can be a top-level task or sub-task
  * @property {TaskFactory} factory - the task factory to use to generate an `execute` method for this task and to create sub-tasks for this task
  * @property {Function|undefined} [execute] - the optional function to be executed when this task is executed
