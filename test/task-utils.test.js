@@ -601,9 +601,7 @@ function checkReviveTasks(t, tasksByName, activeTaskDefs, opts, desc, origTaskLi
   const onlyRecreateExisting = opts && opts.onlyRecreateExisting;
   const expectedNamesSorted = expectedNames.sort();
 
-  //console.log(`################### origTaskLikes = ${stringify(origTaskLikes)}`);
   const orig = Task.getTasksAndSubTasks(origTaskLikes);
-  //console.log(`################### orig = ${stringify(orig)}`);
   const origNamesSorted = orig.map(t => t.name).sort();
   const before = getTasksAndSubTasks(tasksByName);
   const beforeNamesSorted = before.map(t => t.name).sort();

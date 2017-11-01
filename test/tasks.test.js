@@ -2043,7 +2043,6 @@ test('createMasterTask & setSlaveTasks - check master state changes to least adv
 
   // One slave failed => master still started
   slave5.reset();
-  console.log(`##################### b = ${b} new Date(b) = ${new Date(b).toISOString()}`);
   slave5.start(new Date(b));
   t.equal(slave5.began, new Date(b).toISOString(), `slave5.began must be ${new Date(b).toISOString()}`);
   slave5.fail(err1);

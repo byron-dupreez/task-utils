@@ -492,7 +492,7 @@ class TaskFactory {
       }
     );
 
-    // Promises.avoidUnhandledPromiseRejectionWarning(donePromise);
+    // Promises.avoidUnhandledPromiseRejectionWarning(donePromise, self.logger);
 
     // Attach the execution outcome and done promise to the task, for subsequent use if needed
     task.executed(outcome, donePromise);
@@ -547,7 +547,7 @@ class TaskFactory {
         this.logger.log('WARN', `${describeItem()}${task.name} is frozen in state (${task.state}) & cannot be updated to Failed with error:`, error);
       }
     } else {
-      if (task.rejected || task.timedOut || error !== task.error) {
+      if (error !== task.error) {
         this.logger.log('WARN', `Ignored attempt to fail ${describeItem()}${task.rejected ? 'rejected' : task.timedOut ? 'timed out' : 'previously failed'} ${task.name} in state (${task.state}) with error (${task.error}) - ignored new error`, error);
       }
     }

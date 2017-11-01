@@ -1,5 +1,8 @@
 ## Changes
 
+### 7.0.1
+- Minor tweak to reduce some unnecessary logging
+
 ### 7.0.0
 - Changes to `core` module & `StateType` enum:
   - Renamed `UNSTARTED`, `STARTED`, `COMPLETED`, `TIMED_OUT`, `FAILED` & `REJECTED` properties to corresponding new
