@@ -1,5 +1,10 @@
 ## Changes
 
+### 7.0.2
+- Renamed dummy first exports (`exports._ = '_'; //IDE workaround`) of most modules to (`exports._$_ = '_$_';`) to avoid 
+  potential future collisions with `lodash` & `underscore`
+- Updated `core-functions` dependency to version 3.0.19
+
 ### 7.0.1
 - Minor tweak to reduce some unnecessary logging
 

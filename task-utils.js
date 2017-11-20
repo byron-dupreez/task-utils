@@ -28,7 +28,7 @@ const Failure = tries.Failure;
  * @module task-utils/task-utils
  * @author Byron du Preez
  */
-exports._ = '_'; //IDE workaround
+exports._$_ = '_$_'; //IDE workaround
 
 // Functions to get tasks from and set tasks into tasks by name maps
 exports.getTask = getTask;
