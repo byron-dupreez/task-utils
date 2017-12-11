@@ -1,4 +1,4 @@
-# task-utils v7.0.2
+# task-utils v7.0.3
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -29,7 +29,7 @@ Currently includes:
   - Utilities for accessing and managing tasks and sub-tasks stored in a "tasks-by-name" map object and for constructing
     and configuring a task factory on a context.
 
-This module is exported as a [Node.js](https://nodejs.org/) module.
+This module is exported as a [Node.js](https://nodejs.org) module.
 
 ## Installation
 
@@ -188,7 +188,7 @@ const tasksAndSubTasks = taskUtils.getTasksAndSubTasks(tasksByName);
 ```
 
 ## Unit tests
-This module's unit tests were developed with and must be run with [tape](https://www.npmjs.com/package/tape). The unit tests have been tested on [Node.js v4.3.2](https://nodejs.org/en/blog/release/v4.3.2/).  
+This module's unit tests were developed with and must be run with [tape](https://www.npmjs.com/package/tape). The unit tests have been tested on [Node.js v6.10.3](https://nodejs.org/en/blog/release/v6.10.3).  
 
 Install tape globally if you want to run multiple tests at once:
 ```bash
