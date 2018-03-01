@@ -41,11 +41,6 @@ exports.names = names;
 
 /**
  * TaskState - The base class for a state of a task or operation.
- * @extends {Object}
- * @property {string} name - the name of this state
- * @property {StateType} type - the type of this state
- * @property {string|undefined} [error] - an optional error with which a task was failed, timed out or rejected
- * @property {string|undefined} [reason] - an optional reason given for rejecting a task
  */
 class TaskState {
   /**
@@ -196,7 +191,6 @@ exports.TaskState = TaskState;
 
 /**
  * A TaskState subclass for an initial unstarted state of a task or operation whose fate has not been decided yet.
- * @extends TaskState
  */
 class Unstarted extends TaskState {
   /** Constructs an Unstarted task state */
@@ -210,7 +204,6 @@ exports.Unstarted = Unstarted; // rather use instances.Unstarted singleton
 /**
  * A TaskState subclass for a "transient" started state of a task or operation whose execution has been started, but not
  * yet completed.
- * @extends TaskState
  */
 class Started extends TaskState {
   /** Constructs a Started task state */
@@ -224,7 +217,6 @@ exports.Started = Started; // rather use instances.Started singleton
 /**
  * A TaskState subclass and superclass for all completed states of a task or operation. CompletedState states are all
  * marked as completed (and NOT timed out and NOT rejected) with no errors and no rejection reasons.
- * @extends TaskState
  */
 class CompletedState extends TaskState {
   /**
@@ -242,7 +234,6 @@ exports.CompletedState = CompletedState;
  * A TaskState subclass and superclass for all timed out states of a task or operation. TimedOutState states are all
  * marked as timedOut (and NOT completed, and NOT rejected) with optional errors and no rejection reasons. They indicate
  * that a task timed out, that the timeout was not an unretryable error and that the task should be reattempted again later.
- * @extends TaskState
  */
 class TimedOutState extends TaskState {
   /**
@@ -261,7 +252,6 @@ exports.TimedOutState = TimedOutState;
  * A TaskState subclass and superclass for all failed states of a task or operation. FailedState states are all marked
  * as NOT completed, NOT timed out and NOT rejected with the error encountered. They indicate that a task failed, that
  * the failure was not an unretryable error and that the task should be reattempted again later.
- * @extends TaskState
  */
 class FailedState extends TaskState {
   /**
@@ -280,7 +270,6 @@ exports.FailedState = FailedState;
  * A TaskState subclass and superclass for all rejected states of a task or operation. RejectedState states are all
  * marked as rejected (and NOT completed and NOT timed out) with a reason and an optional error. They indicate that a
  * task was rejected during execution for some reason (or some unretryable failure) and cannot be reattempted.
- * @extends TaskState
  */
 class RejectedState extends TaskState {
   /**
@@ -299,7 +288,6 @@ exports.RejectedState = RejectedState;
 /**
  * A CompletedState subclass with a state and name of 'Completed'. Completed states are all marked as completed (and NOT
  * timed out and NOT rejected) with no errors and no rejection reasons.
- * @extends CompletedState
  */
 class Completed extends CompletedState {
   /** Constructs a Completed task state */
@@ -313,7 +301,6 @@ exports.Completed = Completed; // rather use instances.Completed singleton
 /**
  * A CompletedState subclass with a state and name of 'Succeeded'. Succeeded states are all marked as completed (and NOT
  * timed out and NOT rejected) with no errors and no rejection reasons.
- * @extends CompletedState
  */
 class Succeeded extends CompletedState {
   /** Constructs a Succeeded task state */
@@ -329,7 +316,6 @@ exports.Succeeded = Succeeded; // rather use instances.Succeeded singleton
  * completed and NOT rejected) with an optional error that occurred. As with its TimedOutState super-state, this state
  * indicates that a task timed out, that the timeout is not an unretryable error and that the task should be reattempted
  * again later.
- * @extends TimedOutState
  */
 class TimedOut extends TimedOutState {
   /**
@@ -347,7 +333,6 @@ exports.TimedOut = TimedOut;
  * A FailedState subclass with a state and name of 'Failed'. Failed states are all marked as NOT completed, NOT timed
  * out and NOT rejected with the error that occurred. As with its FailedState super-state, this state indicates that a
  * task failed, but that the failure was not an unretryable error and that the task should be reattempted again later.
- * @extends FailedState
  */
 class Failed extends FailedState {
   /**
@@ -369,8 +354,6 @@ exports.Failed = Failed;
  * For example: a task may not be able to start or run to completion due to invalid input data and thus would never be
  * able to achieve a successful completed state, so the only recourse left is to flag it as rejected with a rejection
  * reason and optional error.
- *
- * @extends RejectedState
  */
 class Rejected extends RejectedState {
   /**
@@ -392,8 +375,6 @@ exports.Rejected = Rejected;
  *
  * For example: A task that is unable to complete successfully within the maximum allowed number of attempts, is
  * discarded by flagging it as rejected with an appropriate reason and optional error.
- *
- * @extends RejectedState
  */
 class Discarded extends RejectedState {
   /**
@@ -417,8 +398,6 @@ exports.Discarded = Discarded;
  * particular process cause previous tasks to no longer appear in the new list of tasks to be completed. These orphaned
  * tasks can NEVER be completed in such a scenario and hence have to flagged as rejected with an appropriate rejection
  * reason and optional error.
- *
- * @extends RejectedState
  */
 class Abandoned extends RejectedState {
   /**
