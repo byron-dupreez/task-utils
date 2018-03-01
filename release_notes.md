@@ -1,5 +1,8 @@
 ## Changes
 
+### 7.0.4
+- Updated `core-functions` dependency to version 3.0.22
+
 ### 7.0.3
 - Updated `core-functions` dependency to version 3.0.20
 

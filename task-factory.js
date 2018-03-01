@@ -8,6 +8,8 @@
  * @author Byron du Preez
  */
 
+const isInstanceOf = require('core-functions/objects').isInstanceOf;
+
 const strings = require('core-functions/strings');
 const stringify = strings.stringify;
 
@@ -94,7 +96,7 @@ class TaskFactory {
     if (!slaveTasks || slaveTasks.length <= 0) {
       throw new Error(`Cannot create a master task (${taskDef.name}) without slave tasks`);
     }
-    if (!slaveTasks.every(slaveTask => slaveTask instanceof Task && slaveTask.name === taskDef.name && slaveTask.definition === taskDef)) {
+    if (!slaveTasks.every(slaveTask => isInstanceOf(slaveTask, Task) && slaveTask.name === taskDef.name && slaveTask.definition === taskDef)) {
       throw new Error(`Cannot create a master task (${taskDef.name}) with mismatched slave tasks (${stringify(slaveTasks.map(t => t.name))})`);
     }
     // Create the master task
@@ -123,7 +125,7 @@ class TaskFactory {
       return undefined;
     }
     // If the given taskLike is already a Task then nothing to be done and just return it
-    if (taskLike instanceof Task) {
+    if (isInstanceOf(taskLike, Task)) {
       return taskLike;
     }
 
@@ -150,7 +152,7 @@ class TaskFactory {
      * @param {Task} task - the task to which to copy
      */
     function copyStateAttemptsAndExecutionTimes(taskLike, task) {
-      task._state = taskLike.state instanceof TaskState ? taskLike.state :
+      task._state = isInstanceOf(taskLike.state, TaskState) ? taskLike.state :
         TaskState.toTaskStateFromStateLike(taskLike.state);
       task._attempts = taskLike.attempts;
       task._totalAttempts = taskLike.total || taskLike.totalAttempts || 0;
@@ -192,7 +194,7 @@ class TaskFactory {
       return undefined;
     }
     // If the given taskLike is already a Task then nothing to be done and just return its definition
-    if (taskLike instanceof Task) {
+    if (isInstanceOf(taskLike, Task)) {
       return taskLike.definition;
     }
     // Ensure at least have a name on the task-like object

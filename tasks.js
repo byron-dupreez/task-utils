@@ -12,6 +12,8 @@ const TaskState = states.TaskState;
 
 const TaskDef = require('./task-defs');
 
+const isInstanceOf = require('core-functions/objects').isInstanceOf;
+
 const Strings = require('core-functions/strings');
 const stringify = Strings.stringify;
 const isNotBlank = Strings.isNotBlank;
@@ -58,7 +60,7 @@ class Task {
     // Validate the given task definition
     // -----------------------------------------------------------------------------------------------------------------
     // Ensure the given task definition is valid
-    if (!(taskDef instanceof TaskDef)) {
+    if (!isInstanceOf(taskDef, TaskDef)) {
       throw new Error(`Cannot create a task without a valid task definition (${stringify(taskDef)})`);
     }
 
@@ -69,7 +71,7 @@ class Task {
     if (parent) {
       // Creating a sub-task, so:
       // Ensure that the parent task is a valid task
-      if (!(parent instanceof Task)) {
+      if (!isInstanceOf(parent, Task)) {
         throw new Error(`Cannot create a sub-task with an invalid super-task (${stringify(parent)})`);
       }
       // Ensure that execute (if defined) is actually executable (i.e. a valid function)
@@ -1138,7 +1140,7 @@ class Task {
     if (!oldTask) {
       return this;
     }
-    if (!(oldTask instanceof Task)) {
+    if (!isInstanceOf(oldTask, Task)) {
       throw new Error(`Cannot update task (${stringify(this)}) from a non-task, prior version (${stringify(oldTask)})`);
     }
     if (oldTask.name !== this.name) {
@@ -1316,7 +1318,7 @@ class Task {
    * @returns {*|boolean}
    */
   static isTaskLike(task, taskName) {
-    return task instanceof Task || (task && typeof task === 'object' &&
+    return isInstanceOf(task, Task) || (task && typeof task === 'object' &&
       (isNotBlank(task.name) || isNotBlank(task.type)) &&
       (task.managed === true || task.executable === true || task.executable === false || !task.managed) &&
       (!task.subTasks || Array.isArray(task.subTasks)) &&
@@ -1359,7 +1361,7 @@ class Task {
    * @returns {Task} the root task
    */
   static getRootTask(task) {
-    if (!task || !(task instanceof Object)) {
+    if (!task || typeof task !== 'object') {
       return undefined;
     }
 

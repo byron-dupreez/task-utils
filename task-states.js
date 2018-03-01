@@ -1,5 +1,7 @@
 'use strict';
 
+const isInstanceOf = require('core-functions/objects').isInstanceOf;
+
 const strings = require('core-functions/strings');
 const isBlank = strings.isBlank;
 
@@ -163,7 +165,7 @@ class TaskState {
    * @returns {boolean} true if instance of Rejected; false otherwise
    */
   isRejected() {
-    return this instanceof Rejected;
+    return isInstanceOf(this, Rejected);
   }
 
   /**
@@ -171,7 +173,7 @@ class TaskState {
    * @returns {boolean} true if instance of Abandoned; false otherwise
    */
   isAbandoned() {
-    return this instanceof Abandoned;
+    return isInstanceOf(this, Abandoned);
   }
 
   /**
@@ -179,7 +181,7 @@ class TaskState {
    * @returns {boolean} true if instance of Discarded; false otherwise
    */
   isDiscarded() {
-    return this instanceof Discarded;
+    return isInstanceOf(this, Discarded);
   }
 
   toString() {

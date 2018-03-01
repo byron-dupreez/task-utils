@@ -7,6 +7,8 @@
  * @author Byron du Preez
  */
 
+const isInstanceOf = require('core-functions/objects').isInstanceOf;
+
 const Strings = require('core-functions/strings');
 const isString = Strings.isString;
 const isBlank = Strings.isBlank;
@@ -77,7 +79,7 @@ class TaskDef {
     if (parent) {
       // Creating a sub-task definition, so:
       // Ensure that the parent is a TaskDef itself
-      if (!(parent instanceof TaskDef)) {
+      if (!isInstanceOf(parent, TaskDef)) {
         throw new Error(`Cannot create a sub-task definition (${taskName}) with a parent that is not a task (or sub-task) definition`);
       }
       // Ensure that execute (if defined) is actually executable (i.e. a valid function)
@@ -255,7 +257,7 @@ class TaskDef {
    * @returns {TaskDef} the root task definition
    */
   static getRootTaskDef(taskDef) {
-    if (!taskDef || !(taskDef instanceof Object)) {
+    if (!taskDef || typeof taskDef !== 'object') {
       return undefined;
     }
 

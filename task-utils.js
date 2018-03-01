@@ -8,6 +8,8 @@ const core = require('./core');
 const ReturnMode = core.ReturnMode;
 const states = require('./task-states');
 
+const isInstanceOf = require('core-functions/objects').isInstanceOf;
+
 const errors = require('core-functions/errors');
 
 const copying = require('core-functions/copying');
@@ -129,7 +131,7 @@ function getSubTask(tasksByName, taskName, subTaskName) {
   const subTaskNames = Array.isArray(subTaskName) ? subTaskName : [subTaskName];
   for (let i = 0; i < subTaskNames.length; ++i) {
     const name = subTaskNames[i];
-    if (task instanceof Task) {
+    if (isInstanceOf(task, Task)) {
       subTask = task.getSubTask(name);
     } else if (task && task.subTasks) {
       subTask = task.subTasks.find(st => st.name === name);
@@ -250,7 +252,7 @@ function reviveTasks(tasksByName, activeTaskDefs, taskFactory, opts) {
  * @returns {boolean} true if the context is configured with a valid TaskFactory; false otherwise
  */
 function isTaskFactoryConfigured(context) {
-  return context.taskFactory instanceof TaskFactory;
+  return isInstanceOf(context.taskFactory, TaskFactory);
 }
 
 /**
@@ -319,7 +321,7 @@ function constructTaskFactory(createTaskFactory, settings, options) {
     const outcome = Try.try(() => createTaskFactory(settingsToUse, optionsToUse)).map(
       taskFactory => {
         // Ensure that the `createTaskFactory` function actually returned a valid TaskFactory instance
-        if (!(taskFactory instanceof TaskFactory)) {
+        if (!isInstanceOf(taskFactory, TaskFactory)) {
           const errMsg = `Failed to construct a task factory, since ${stringify(createTaskFactory)} did NOT create an instance of TaskFactory - unexpected result: ${stringify(taskFactory)}`;
           logger.error(errMsg);
           return new Failure(new Error(errMsg)); // throw new Error(errMsg);
