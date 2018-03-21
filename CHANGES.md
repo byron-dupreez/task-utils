@@ -1,5 +1,10 @@
 ## Changes
 
+### 7.0.5
+- Added `.npmignore`
+- Renamed `release_notes.md` to `CHANGES.md`
+- Updated dependencies
+
 ### 7.0.4
 - Updated `core-functions` dependency to version 3.0.22
 

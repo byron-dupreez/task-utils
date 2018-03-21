@@ -1,4 +1,4 @@
-# task-utils v7.0.4
+# task-utils v7.0.5
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.
@@ -51,6 +51,8 @@ const ReturnMode = core.ReturnMode;
 const TimeoutError = core.TimeoutError;
 const FrozenError = core.FrozenError;
 const FinalisedError = core.FinalisedError;
+
+assert(StateType && ReturnMode && TimeoutError && FrozenError && FinalisedError);
 ```
 * To use the task state classes and subclasses
 ```js
@@ -111,6 +113,10 @@ const discarded = new Discarded('My reason for discarding');
 const abandoned = new Abandoned('My reason for abandoning');
 
 const customRejectedState = new RejectedState('MyRejectionState', 'My reason for rejecting', new Error('My optional error'));
+
+assert(Unstarted && Started && Completed && Succeeded && unstarted && started && completed && succeeded && 
+  customCompletedState && timedOut && timedOut2 && customTimedOutState && customTimedOutState2 && failed && 
+  customFailedState && rejected && discarded && abandoned && customRejectedState);
 ```
 
 * To use the task definition class (TaskDef)
@@ -126,6 +132,8 @@ const subTaskDefs = taskADef.defineSubTasks(['SubTaskA2', 'SubTaskA3']); // non-
 
 // ... and with 1 sub-sub-task on SubTaskA1
 const subSubTaskA1aDef = subTaskA1Def.defineSubTask('SubSubTaskA1a');
+
+assert(subTaskDefs, subSubTaskA1aDef);
 ```
 
 * To use the task class (Task) & task factory (TaskFactory)
@@ -146,6 +154,8 @@ const taskFactory = new TaskFactory(settings, options); // or better yet, use `t
 // and 1 new sub-sub-task (named SubSubTaskA1a) under sub-task SubTaskA1
 const taskOpts = {}; // use this to set the task's optional `returnMode` property, which if set will override the factory's `returnMode` property for this task
 const taskA = taskFactory.createTask(taskADef, taskOpts);
+
+assert(Task && taskA);
 ```
 
 * To use the task utilities to configure a task factory on any context object
@@ -185,6 +195,8 @@ const tasks = taskUtils.getTasks(tasksByName);
 
 // To get all tasks and all of their sub-tasks recursively from a tasks-by-name map object
 const tasksAndSubTasks = taskUtils.getTasksAndSubTasks(tasksByName);
+
+assert(tA && subTaskA3 && subSubTaskA1a && tasks && tasksAndSubTasks);
 ```
 
 ## Unit tests
@@ -216,6 +228,8 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   // or: const options = {returnMode: ReturnMode.SUCCESS_OR_FAILURE}; // to change default `execute` behaviour to only return a Success or Failure outcome
   // or: const options = {returnMode: ReturnMode.PROMISE}; // to change default `execute` behaviour to only return a resolved or rejected Promise
   const taskFactory = new TaskFactory(settings, options);
+
+  assert(taskFactory);
   ```
   ... OR, better yet, configure a task factory on a context object:
   ```js
@@ -235,10 +249,13 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
 - Replace all requires of `task-defs` module with:
   ```js
   const TaskDef = require('task-utils/task-defs');
+  assert(TaskDef);
   ```
 - Replace all requires of `tasks` module with:
   ```js
   const Task = require('task-utils/tasks');
+
+  assert(Task);
   ```
 - Depending on your usage, you probably need to EITHER `require` & use the new `task-factory` module:
   ```js
@@ -249,6 +266,8 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   // or: const factoryOpts = {returnMode: ReturnMode.SUCCESS_OR_FAILURE}; // to change default `execute` behaviour to only return a Success or Failure outcome
   // or: const factoryOpts = {returnMode: ReturnMode.PROMISE}; // to change default `execute` behaviour to only return a resolved or rejected Promise
   const taskFactory = new TaskFactory(logger, factoryOpts);
+
+  assert(taskFactory);
   ```
   ... OR, better yet, configure a task factory on a context object:
   ```js
@@ -269,4 +288,4 @@ See the [package source](https://github.com/byron-dupreez/task-utils) for more d
   change them to `taskFactory.createTask` calls 
 
 ## Changes
-See [release_notes.md](./release_notes.md)
+See [CHANGES.md](CHANGES.md)
