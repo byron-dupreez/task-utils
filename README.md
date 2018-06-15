@@ -1,4 +1,4 @@
-# task-utils v7.0.5
+# task-utils v7.0.6
 
 Utilities for defining task states, creating task and sub-task definitions, creating & configuring a task factory, 
 creating tasks (and their sub-tasks) from these definitions and managing tasks on a tasks-by-name map object.

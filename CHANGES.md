@@ -1,5 +1,8 @@
 ## Changes
 
+### 7.0.6
+- Updated dependencies
+
 ### 7.0.5
 - Added `.npmignore`
 - Renamed `release_notes.md` to `CHANGES.md`
