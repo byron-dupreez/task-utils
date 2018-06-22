@@ -1,5 +1,10 @@
 ## Changes
 
+### 7.0.7
+- Changes to `task-factory` module:
+  - Used `ignoreUnhandledRejection` to attach a `catch` clause to `donePromise` in case it's never used by caller
+  - Changed logging level of `FinalisedError` from `WARN` to `ERROR`
+
 ### 7.0.6
 - Updated dependencies
 

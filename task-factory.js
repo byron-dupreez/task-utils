@@ -366,18 +366,12 @@ class TaskFactory {
       const executeArguments = arguments;
 
       /**
-       * Resolves a short, current description of the item/target/subject  for logging purposes from the arguments
+       * Resolves a short, current description of the item/target/subject for logging purposes from the arguments
        * originally passed to the `execute` function.
        * @returns {string} a short, current description of the item or an empty string
        */
       function describeItem() {
-        const taskDef = task.definition;
-        const describe = taskDef && taskDef.describeItem ? taskDef.describeItem : self.describeItem;
-        const itemDesc = describe ? Try.try(() => describe.apply(self, executeArguments)).recover(err => {
-          self.logger.error(`Failed to derive an item description using ${describe.name} from ${executeArguments.length} arguments during execution of task (${task.name})`, err);
-          return '';
-        }).get() : '';
-        return itemDesc ? itemDesc + ' ' : '';
+        return describeTaskItem(task, self, executeArguments);
       }
 
       if (!task.isFullyFinalised()) {
@@ -418,8 +412,8 @@ class TaskFactory {
           throw frozenError;
         }
       } else {
-        const errMsg = `${describeItem()}${task.name} that is fully finalised in state (${task.state}) & cannot be executed`;
-        self.logger.log('WARN', errMsg);
+        const errMsg = `${describeItem()}${task.name} is fully finalised in state (${task.state}) & cannot be executed`;
+        self.logger.error(errMsg);
         const finalisedError = new FinalisedError(errMsg);
         if (returnPromise) return Promise.reject(finalisedError);
         if (returnSuccessOrFailure) return new Failure(finalisedError);
@@ -494,7 +488,7 @@ class TaskFactory {
       }
     );
 
-    // Promises.avoidUnhandledPromiseRejectionWarning(donePromise, self.logger);
+    Promises.ignoreUnhandledRejection(donePromise, self.logger);
 
     // Attach the execution outcome and done promise to the task, for subsequent use if needed
     task.executed(outcome, donePromise);
@@ -559,3 +553,13 @@ class TaskFactory {
 
 // Export this TaskFactory "class"
 module.exports = TaskFactory;
+
+function describeTaskItem(task, taskFactory, executeArguments) {
+  const taskDef = task.definition;
+  const describe = taskDef && taskDef.describeItem ? taskDef.describeItem : taskFactory.describeItem;
+  const itemDesc = describe ? Try.try(() => describe.apply(taskFactory, executeArguments)).recover(err => {
+    taskFactory.logger.error(`Failed to derive an item description using ${describe.name} from ${executeArguments.length} arguments during execution of task (${task.name})`, err);
+    return '';
+  }).get() : '';
+  return itemDesc ? itemDesc + ' ' : '';
+}
